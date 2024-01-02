@@ -1,0 +1,17 @@
+[package]
+name = "cobalt"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bit-vec = { version = "0.6.3", features = ["serde"] }
+hashbrown = {version = "0.14.3", features = ["serde"]}
+kanal = "0.1.0-pre8"
+serde = {version = "1.0.193", features = ["derive"]}
+slab = {version = "0.4.9", features = ["serde"]}
+typetag = "0.2.14"
+
+[dev-dependencies]
+serde_yaml = "0.9.29"
