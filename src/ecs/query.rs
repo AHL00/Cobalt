@@ -178,6 +178,12 @@ pub struct QueryIter<'a, Q: Query<'a>> {
     _phantom: std::marker::PhantomData<Q>,
 }
 
+impl<'a> World {
+    pub fn query<Q: Query<'a>>(&'a self) -> Result<QueryIter<'a, Q>, Box<dyn std::error::Error>> {
+        QueryIter::new(self)
+    }
+}
+
 impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
     pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
         let mut components_mask = BitArray::new();
@@ -205,7 +211,7 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
 }
 
 impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
-    type Item = Q::Item;
+    type Item = (Entity, Q::Item);
 
     fn next(&mut self) -> Option<Self::Item> {
         // Here's the plan:
@@ -242,18 +248,86 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
                 let components = Q::get_unchecked(*entity, &self.world);
 
                 // Return the components.
-                return Some(components);
+                return Some((*entity, components));
             }
         }
     }
 }
 
 #[test]
+fn query_10000() {
+    #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    struct Position {
+        x: f32,
+        y: f32,
+    }
+
+    impl Component for Position {}
+
+    #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    struct Velocity {
+        x: f32,
+        y: f32,
+    }
+
+    impl Component for Velocity {}
+
+    let mut world = World::with_capacity(10000);
+
+    let start = std::time::Instant::now();
+
+    for i in 0..10000 {
+        let entity = world.create_entity();
+
+        world.add_component(entity, i.to_string()).unwrap();
+
+        world
+            .add_component(
+                entity,
+                Position {
+                    x: i as f32,
+                    y: i as f32,
+                },
+            )
+            .unwrap();
+
+        if i % 2 == 0 {
+            world
+                .add_component(
+                    entity,
+                    Velocity {
+                        x: i as f32,
+                        y: i as f32,
+                    },
+                )
+                .unwrap();
+        }
+    }
+
+    let add_time_taken = start.elapsed();
+    let start = std::time::Instant::now();
+
+    let query_iter = world.query::<(Position, String)>().unwrap();
+
+    let query_creation_time = start.elapsed();
+    let start = std::time::Instant::now();
+
+    let mut count = 0;
+    for (pos, string) in query_iter {
+        count += 1;
+    }
+
+    let query_time = start.elapsed();
+
+    println!(
+        "Add time taken: {:?}\nQuery creation time: {:?}\nQuery time: {:?}\nCount: {}",
+        add_time_taken, query_creation_time, query_time, count
+    );
+}
+
+#[test]
 fn query_iter_test() {
     use crate::ecs::component::Component;
-
-    impl Component for u32 {}
-    impl Component for f32 {}
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     struct Position {
@@ -268,6 +342,7 @@ fn query_iter_test() {
     let e1 = world.create_entity();
     let e2 = world.create_entity();
     let e3 = world.create_entity();
+    let e4 = world.create_entity();
 
     world.add_component(e1, 1u32).unwrap();
     world.add_component(e1, 2.0f32).unwrap();
@@ -286,9 +361,24 @@ fn query_iter_test() {
         .add_component(e3, Position { x: 2.0, y: 2.0 })
         .unwrap();
 
-    let mut query_iter = QueryIter::<(u32, f32)>::new(&world).unwrap();
+    let query_iter = QueryIter::<(u32, f32)>::new(&world).unwrap();
 
-    for (i, (u, pos)) in query_iter.enumerate() {
-        println!("{}: {}, {:?}", i, u, pos);
-    }
+    assert_eq!(query_iter.count(), 2);
+
+    let query_iter = QueryIter::<(u32, f32, Position)>::new(&world).unwrap();
+    assert_eq!(query_iter.count(), 2);
+
+    let query_iter = QueryIter::<(u32, Position)>::new(&world).unwrap();
+    assert_eq!(query_iter.count(), 3);
+
+    world.add_component(e4, 6u32).unwrap();
+    world.add_component(e4, 7u16).unwrap();
+    world.add_component(e4, 8u8).unwrap();
+    world.add_component(e4, 8.0f32).unwrap();
+    world
+        .add_component(e4, Position { x: 3.0, y: 3.0 })
+        .unwrap();
+
+    let query_iter = QueryIter::<(u32, u16, u8, f32, Position)>::new(&world).unwrap();
+    assert_eq!(query_iter.count(), 1);
 }

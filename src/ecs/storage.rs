@@ -16,7 +16,9 @@ use std::ptr::NonNull;
 pub(crate) struct Storage {
     /// Pointer to the data.
     pub data: NonNull<u8>,
-    pub slots: BitVec,
+
+    /// Slots that have become free due to removal of components.
+    pub free_slots: Vec<usize>,
 
     /// Maps the entity_id of an item to its index in the data array.
     /// <entity_id, data_index>
@@ -49,7 +51,7 @@ impl Storage {
 
         Self {
             data,
-            slots: BitVec::with_capacity(capacity),
+            free_slots: Vec::with_capacity(capacity),
             map,
             type_id: TypeId::of::<T>(),
             allocated: data_capacity,
@@ -75,46 +77,49 @@ impl Storage {
             Err("Entity already has a component of this type.")?;
         }
 
-        let mut adding_to_existing_slot = true;
+        // Find a free slot.
+        let free_slot = self.free_slots.pop();
 
-        // Find the first free slot.
-        let data_index = self.slots.iter().position(|x| !x).unwrap_or_else(|| {
-            adding_to_existing_slot = false;
-            self.slots.push(true);
-            self.slots.len() - 1
-        });
-
-        // Make sure we have enough space if we're adding to a new slot.
-        if self.allocated - self.used < size && !adding_to_existing_slot {
-            let mut new_capacity = self.allocated * 2;
-
-            while new_capacity - self.used < size {
-                new_capacity *= 2;
-            }
-
-            let new_data = unsafe {
-                let ptr = std::alloc::realloc(
-                    self.data.as_ptr() as *mut u8,
-                    std::alloc::Layout::array::<u8>(new_capacity).unwrap(),
-                    new_capacity,
-                );
-
-                if ptr.is_null() {
-                    panic!("Failed to allocate memory for component storage.");
-                }
-
-                NonNull::new_unchecked(ptr)
-            };
-
-            self.data = new_data;
-            self.allocated = new_capacity;
-
+        // Check if we're adding to the end of the array.
+        if free_slot.is_none() {
             // Update the used size.
             self.used += size;
+
+            // Make sure we have enough space if we're adding to a new slot.
+            if self.allocated - self.used < size {
+                let mut new_capacity = self.allocated * 2;
+
+                while new_capacity - self.used < size {
+                    new_capacity *= 2;
+                }
+
+                let new_data = unsafe {
+                    let ptr = std::alloc::realloc(
+                        self.data.as_ptr() as *mut u8,
+                        std::alloc::Layout::array::<u8>(new_capacity).unwrap(),
+                        new_capacity,
+                    );
+
+                    if ptr.is_null() {
+                        panic!("Failed to allocate memory for component storage.");
+                    }
+
+                    NonNull::new_unchecked(ptr)
+                };
+
+                self.data = new_data;
+                self.allocated = new_capacity;
+            }
         }
 
+        let index = if let Some(free_slot) = free_slot {
+            free_slot
+        } else {
+            self.used / size
+        };
+
         // Get the pointer to the data.
-        let ptr = unsafe { self.data.as_ptr().add(data_index * size) as *mut T };
+        let ptr = unsafe { self.data.as_ptr().add(index * size) as *mut T };
 
         // Write the data.
         unsafe {
@@ -122,7 +127,7 @@ impl Storage {
         }
 
         // Update the map.
-        self.map.insert(entity, data_index);
+        self.map.insert(entity, index);
 
         Ok(())
     }
@@ -187,8 +192,8 @@ impl Storage {
             ptr.drop_in_place();
         }
 
-        // Set the slot to false.
-        self.slots.set(data_index, false);
+        // Add the slot to the free slots list.
+        self.free_slots.push(data_index);
 
         Ok(())
     }
@@ -294,8 +299,6 @@ where
 
 #[test]
 fn comp_storage_iter() {
-    impl Component for i32 {}
-
     let mut storage = Storage::new::<i32>(10);
 
     storage.add(1, Entity { id: 0 }).unwrap();
@@ -311,7 +314,7 @@ fn comp_storage_iter() {
         *i += 1;
     }
 
-    storage.remove::<i32>(Entity{ id: 1 }).unwrap();
+    storage.remove::<i32>(Entity { id: 1 }).unwrap();
 
     for (_e, i) in storage.iter::<i32>() {
         sum += i;

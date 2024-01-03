@@ -13,6 +13,23 @@ impl<T> internal::ComponentInternal for T
 where T: Component
 {}
 
+impl Component for String {}
+impl Component for usize {}
+impl Component for u8 {}
+impl Component for u16 {}
+impl Component for u32 {}
+impl Component for u64 {}
+impl Component for u128 {}
+impl Component for isize {}
+impl Component for i8 {}
+impl Component for i16 {}
+impl Component for i32 {}
+impl Component for i64 {}
+impl Component for i128 {}
+impl Component for f32 {}
+impl Component for f64 {}
+impl Component for bool {}
+
 pub(crate) mod internal {
     use std::any::{Any, TypeId};
 
