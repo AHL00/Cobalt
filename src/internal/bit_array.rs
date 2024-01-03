@@ -176,6 +176,7 @@ where
 /// Bit array that is stored in a fixed-size array.
 /// Array size granularity is 256 bits.
 /// Uses SIMD instructions for bitwise operations and comparisons.
+#[derive(Clone, Debug)]
 pub struct SimdBitArray<const N: usize>
 where
     [(); N / 256]:,

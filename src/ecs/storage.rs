@@ -6,32 +6,31 @@ use std::any::TypeId;
 
 use super::Entity;
 
-use hashbrown::HashMap;
-
 use std::ptr::NonNull;
 
 /// Stores any number of components of the same type.
+/// This is going to be a sparse set array.
+/// The capacity of this storage has to be synced with the World's capacity through the expand method.
 pub(crate) struct Storage {
-    /// Pointer to the data.
-    pub data: NonNull<u8>,
+    /// The index to this vector is the entity id.
+    /// The value at that index is the index to the dense set.
+    sparse_set: Vec<Option<usize>>,
 
-    /// Slots that have become free due to removal of components.
-    pub free_slots: Vec<usize>,
+    /// This is the dense set.
+    data: NonNull<u8>,
+    allocated: usize,
+    used: usize,
 
-    /// Maps the entity_id of an item to its index in the data array.
-    /// <entity_id, data_index>
-    /// It's done this way so that we can remove items from the middle of the array.
-    pub map: HashMap<Entity, usize>,
+    /// This vector stores the indices of free slots in the dense set.
+    free_slots: Vec<usize>,
 
-    // metadata: ComponentMetadata,
-    pub type_id: TypeId,
-
-    pub allocated: usize,
-    pub used: usize,
+    type_id: TypeId,
+    type_size: usize,
 }
 
 impl Storage {
     /// Creates a new storage with the given initial capacity.
+    /// The capacity is the number of entities components can be stored for.
     pub fn new<T: Component>(capacity: usize) -> Self {
         let data_capacity = std::mem::size_of::<T>() * capacity;
 
@@ -45,35 +44,38 @@ impl Storage {
             NonNull::new_unchecked(ptr)
         };
 
-        let map = HashMap::with_capacity(capacity);
-
         Self {
+            sparse_set: vec![None; capacity],
             data,
-            free_slots: Vec::with_capacity(capacity),
-            map,
+            free_slots: Vec::new(),
             type_id: TypeId::of::<T>(),
+            type_size: std::mem::size_of::<T>(),
             allocated: data_capacity,
             used: 0,
         }
     }
 
+    /// Expands the storage to the given capacity.
+    /// This is used when new entities are created.
+    pub fn expand(&mut self, new_entity_capacity: usize) {
+        // Expand the sparse set.
+        self.sparse_set.resize(new_entity_capacity, None);
+
+        // The dense set only expands if there are enough entities with this component.
+        // Not every entity will have this storage's component, so it's not necessary to
+        // expand the dense set to the same size as the sparse set.
+    }
+
+    /// Adds a component to the storage.
+    /// If the entity already has a component of this type, the value is overwritten.
+    /// ### Safety
+    /// This does not check whether the type matches the type of the storage.
     pub fn add<T: Component>(
         &mut self,
         item: T,
         entity: Entity,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let size = std::mem::size_of::<T>();
-
-        // Check if type is correct.
-        if self.type_id != TypeId::of::<T>() {
-            panic!("Type mismatch.");
-        }
-
-        // Chcek if this entity already has a component of this type.
-        if self.map.contains_key(&entity) {
-            // TODO: Error handling.
-            Err("Entity already has a component of this type.")?;
-        }
 
         // Find a free slot.
         let free_slot = self.free_slots.pop();
@@ -124,104 +126,60 @@ impl Storage {
             ptr.write(item);
         }
 
-        // Update the map.
-        self.map.insert(entity, index);
+        // Update the sparse set.
+        self.sparse_set[entity.id as usize] = Some(index);
 
         Ok(())
     }
 
+    /// Gets a reference to the component for the given entity.
+    /// ### Safety
+    /// This does not check whether the type matches the type of the storage.
     pub fn get<T: Component>(&self, entity: Entity) -> Option<&T> {
         let size = std::mem::size_of::<T>();
 
-        // Check if type is correct.
-        if self.type_id != TypeId::of::<T>() {
-            panic!("Type mismatch.");
-        }
-
-        // Get the index of the data.
-        let data_index = self.map.get(&entity)?;
+        // Use the entity id to get the index to the dense set.
+        let data_index = self.sparse_set[entity.id as usize]?;
 
         // Get the pointer to the data.
-        let ptr = unsafe { self.data.as_ptr().add(*data_index * size) as *const T };
+        let ptr = unsafe { self.data.as_ptr().add(data_index * size) as *const T };
 
-        // Get the data.
+        // Get the reference to the data.
         let data = unsafe { &*ptr };
 
         Some(data)
-    }
-
-    pub fn get_unchecked<T: Component>(&self, entity: Entity) -> &T {
-        let size = std::mem::size_of::<T>();
-
-        // Get the index of the data.
-        let data_index = self.map.get(&entity).unwrap();
-
-        // Get the pointer to the data.
-        let ptr = unsafe { self.data.as_ptr().add(*data_index * size) as *const T };
-
-        // Get the data.
-        let data = unsafe { &*ptr };
-
-        data
     }
 
     pub fn remove<T: Component>(
         &mut self,
         entity: Entity,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let size = std::mem::size_of::<T>();
+        todo!()
+        // let size = std::mem::size_of::<T>();
 
-        // Check if type is correct.
-        if self.type_id != TypeId::of::<T>() {
-            panic!("Type mismatch.");
-        }
+        // // Check if type is correct.
+        // if self.type_id != TypeId::of::<T>() {
+        //     panic!("Type mismatch.");
+        // }
 
-        // Get the index of the data while also removing it from the map.
-        let data_index = self
-            .map
-            .remove(&entity)
-            .ok_or("Entity does not have a component of this type.")?;
+        // // Get the index of the data while also removing it from the map.
+        // let data_index = self
+        //     .map
+        //     .remove(&entity)
+        //     .ok_or("Entity does not have a component of this type.")?;
 
-        // Get the pointer to the data.
-        let ptr = unsafe { self.data.as_ptr().add(data_index * size) as *mut T };
+        // // Get the pointer to the data.
+        // let ptr = unsafe { self.data.as_ptr().add(data_index * size) as *mut T };
 
-        // Drop the data.
-        unsafe {
-            ptr.drop_in_place();
-        }
+        // // Drop the data.
+        // unsafe {
+        //     ptr.drop_in_place();
+        // }
 
-        // Add the slot to the free slots list.
-        self.free_slots.push(data_index);
+        // // Add the slot to the free slots list.
+        // self.free_slots.push(data_index);
 
-        Ok(())
-    }
-
-    pub fn iter<'a, T: Component>(&'a self) -> StorageIter<'a, T> {
-        // Verify that the type is correct.
-        if self.type_id != TypeId::of::<T>() {
-            panic!("Type mismatch.");
-        }
-
-        let map_iter = self.map.iter();
-
-        StorageIter {
-            storage: &self,
-            map_iter,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub fn iter_mut<'a, T: Component>(&'a mut self) -> StorageIterMut<'a, T> {
-        // Verify that the type is correct.
-        if self.type_id != TypeId::of::<T>() {
-            panic!("Type mismatch.");
-        }
-
-        StorageIterMut {
-            data: &self.data,
-            map_iter: self.map.iter(),
-            _phantom: std::marker::PhantomData,
-        }
+        // Ok(())
     }
 }
 
@@ -236,87 +194,4 @@ impl Drop for Storage {
             );
         }
     }
-}
-
-pub(crate) struct StorageIterMut<'a, T> {
-    data: &'a NonNull<u8>,
-    map_iter: hashbrown::hash_map::Iter<'a, Entity, usize>,
-    _phantom: std::marker::PhantomData<T>,
-}
-
-impl<T> Iterator for StorageIterMut<'_, T>
-where
-    T: Component,
-{
-    type Item = &'static mut T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Get the data location of the next item and increment the map iterator.
-        let (_, data_index) = self.map_iter.next()?;
-
-        // Read the data.
-        let data = unsafe {
-            &mut *(self
-                .data
-                .as_ptr()
-                .add(*data_index * std::mem::size_of::<T>()) as *mut T)
-        };
-
-        Some(data)
-    }
-}
-
-pub(crate) struct StorageIter<'a, T> {
-    storage: &'a Storage,
-    map_iter: hashbrown::hash_map::Iter<'a, Entity, usize>,
-    _phantom: std::marker::PhantomData<T>,
-}
-
-impl<T> Iterator for StorageIter<'_, T>
-where
-    T: Component,
-{
-    type Item = (Entity, &'static T);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Get the data location of the next item and increment the map iterator.
-        let (entity, data_index) = self.map_iter.next()?;
-
-        // Read the data.
-        let data = unsafe {
-            &*(self
-                .storage
-                .data
-                .as_ptr()
-                .add(*data_index * std::mem::size_of::<T>()) as *const T)
-        };
-
-        Some((*entity, data))
-    }
-}
-
-#[test]
-fn comp_storage_iter() {
-    let mut storage = Storage::new::<i32>(10);
-
-    storage.add(1, Entity { id: 0 }).unwrap();
-    storage.add(2, Entity { id: 1 }).unwrap();
-    storage.add(3, Entity { id: 2 }).unwrap();
-
-    let mut sum = 0;
-
-    let iter = storage.iter_mut::<i32>();
-
-    for i in iter {
-        sum += *i;
-        *i += 1;
-    }
-
-    storage.remove::<i32>(Entity { id: 1 }).unwrap();
-
-    for (_e, i) in storage.iter::<i32>() {
-        sum += i;
-    }
-
-    assert_eq!(sum, 12);
 }

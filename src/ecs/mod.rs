@@ -1,82 +1,54 @@
-use std::{
-    any::{Any, TypeId},
-    ops::Add,
-    ptr::NonNull,
-    sync::atomic::AtomicUsize,
-};
-
-use hashbrown::HashMap;
-use serde::{Deserialize, Serialize};
-
-use crate::{ecs::component::Component, internal::{bit_array::{BitArray, SimdBitArray}, slot_map}};
-
-use self::storage::Storage;
+use crate::internal::bit_array::SimdBitArray;
+use self::{storage::Storage, typeid_map::TypeIdMap};
 
 pub mod component;
 pub mod query;
 mod storage;
+mod typeid_map;
 
-static mut ID: usize = 0;
+// ## Problems
+// - Performance issues due to use of hash maps
+
+// ## Plan
+// - Rewrite with more experience
+// - This time, use the following instead of HashMaps
+//     - Two arrays:
+//       - Dense array of X
+//       - Sparse array of dense array indices where the index is the entity id
+//   - This will allow for cache friendly iteration
+//   - This data structure is called a "sparse set"
+//   - Introduce versioning to entities
+
+// ## Notes
+// - Entity IDs will be 32 bit unsigned integers
+// - Entities will now be versioned to allow for easy recycling of IDs
+// - Component IDs will be 8 bit unsigned integers.
+//   This means that there can only be 256 component types.
+//   This should be more than enough for most use cases.
+
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[repr(transparent)]
 pub struct Entity {
-    id: usize,
+    id: u32,
+    /// The version is used to check if an entity is still valid.
+    /// When a entity is deleted, the id stays the same but the version is incremented.
+    /// This id is then reused for new entities.
+    /// This allows for easy recycling of entities without having to worry about dangling references.
+    /// This can become a u16 if we need more data in this struct
+    version: u32
 }
 
 impl Entity {
-    pub fn id(&self) -> usize {
-        self.id
-    }
-}
-
-/// This struct holds the data pertaining to all entities in the world such as ComponentMasks.
-struct EntityStorage {
-    /// TODO: Replace HashMap with something else
-    data: HashMap<Entity, EntityData>,
-}
-
-impl EntityStorage {
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            data: HashMap::with_capacity(capacity),
-        }
-    }
-
-    pub fn add_entity(&mut self, entity: Entity) -> Result<(), Box<dyn std::error::Error>> {
-        self.data.insert(entity, EntityData { components: SimdBitArray::new() });
-
-        Ok(())
-    }
-
-    pub fn remove_entity(&mut self, entity: Entity) -> Result<(), Box<dyn std::error::Error>> {
-        self.data.remove(&entity);
-
-        Ok(())
-    }
-
-    pub fn get_entity_data_mut(
-        &mut self,
-        entity: Entity,
-    ) -> Result<&mut EntityData, Box<dyn std::error::Error>> {
-        Ok(self.data.get_mut(&entity).ok_or("Entity does not exist.")?)
-    }
-
-    pub fn get_entity_data(
-        &self,
-        entity: Entity,
-    ) -> Result<&EntityData, Box<dyn std::error::Error>> {
-        Ok(self.data.get(&entity).ok_or("Entity does not exist.")?)
-    }
-
-    pub fn iter(&self) -> hashbrown::hash_map::Iter<Entity, EntityData> {
-        self.data.iter()
+    // The ID given out to users is actually a combination of the id and version.
+    pub fn id(&self) -> u64 {
+        (self.id as u64) << 32 | self.version as u64
     }
 }
 
 /// This struct holds data pertaining to a single entity. Basically an internal representation of an entity.
 struct EntityData {
     components: SimdBitArray<256>,
+    version: u32
 }
 
 /// This ID is used to identify a component type.
@@ -89,167 +61,181 @@ struct ComponentId(u8);
 /// It also provides methods for querying entities and components.
 /// Each entity can only have one instance of each component type.
 /// 256 types of components are supported.
-pub struct World {
+pub struct World {    
     /// A list of all entities in the world.
-    /// (Entity, ComponentMask)
-    entity_storage: EntityStorage,
+    /// The index of the entity in this list is the entity id.
+    entities: Vec<EntityData>,
+
+    /// Stores a list of entities that have been invalidated and their version increased.
+    /// These are available for reuse.
+    recyclable: Vec<usize>,
 
     /// A list of all components in the world.
     /// (TypeId, (Storage, ComponentId))
-    components: HashMap<TypeId, (Storage, ComponentId)>,
+    components: TypeIdMap<(Storage, ComponentId)>,
 
-    /// The number of component types in the world.
-    comp_type_count: u8,
-
-    /// The initial maximum number of entities that can be stored in the world.
-    capacity: usize,
+    current_entity_id: u32,
+    current_component_id: u8,
 }
 
-// TODO: Check whether the entity exists in the world before doing anything with it.
 impl World {
     /// Creates a new world with the given initial capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
+    /// The capacity is the number of entities components can be stored for.
+    pub fn with_capacity(entity_capacity: usize) -> Self {
         Self {
-            entity_storage: EntityStorage::with_capacity(capacity),
-            components: HashMap::new(),
-            comp_type_count: 0,
-            capacity,
+            entities: Vec::with_capacity(entity_capacity),
+            recyclable: Vec::new(),
+            components: TypeIdMap::with_capacity_and_hasher(256, Default::default()),
+            current_entity_id: 0,
+            current_component_id: 0,
         }
     }
 
+    /// Creates a new entity.
     pub fn create_entity(&mut self) -> Entity {
-        let id = unsafe { ID };
+        // If current capacity is reached, expand all sparse sets in storages and entities list
+        if self.entities.len() == self.entities.capacity() {
+            // Expand by about double
+            self.entities.reserve(self.entities.capacity());
 
-        unsafe {
-            ID += 1;
+            let new_capacity = self.entities.capacity();
+            
+            // Use the double capacity to expand all storages
+            for (_, (storage, _)) in self.components.iter_mut() {
+                storage.expand(new_capacity);
+            }
+
         }
 
-        let entity = Entity { id };
+        let entity = if let Some(index) = self.recyclable.pop() {
+            // Reuse a recycled entity
+            // Data should already be reset
+            Entity {
+                id: index as u32,
+                version: self.entities[index].version
+            }
+        } else {
+            // Create a new entity
+            let entity = Entity {
+                id: self.current_entity_id,
+                version: 0
+            };
 
-        // If capacity is reached, just increase it by 1.
-        // This is because the capacity is only used for initializing new storages
-        // The storages will handle their own capacity later on.
-        if self.entity_storage.data.len() == self.capacity {
-            self.capacity += 1;
-        }
+            self.current_entity_id += 1;
+            
+            // Add the entity to the entities list
+            self.entities.push(EntityData {
+                components: SimdBitArray::new(),
+                version: 0
+            });
 
-        self.entity_storage
-            .add_entity(entity)
-            .expect("Failed to add entity.");
+            entity
+        };
 
         entity
     }
 
-    pub fn add_component<T: Component>(
-        &mut self,
-        entity: Entity,
-        component: T,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let type_id = TypeId::of::<T>();
+    /// Removes the given entity from the world.
+    pub fn remove_entity(&mut self, entity: Entity) {
+        // Reset the stored EntityData.
+        // Increase the version of the entity.
+        let last_version = self.entities[entity.id as usize].version;
+        self.entities[entity.id as usize] = EntityData {
+            components: SimdBitArray::new(),
+            version: last_version + 1
+        }; 
 
-        let (storage, comp_id) = self.components.entry(type_id).or_insert_with(|| {
-            // New component type.
-            let res = (Storage::new::<T>(self.capacity), self.comp_type_count);
+        // Add the entity to the recyclable list.
+        self.recyclable.push(entity.id as usize);
 
-            if self.comp_type_count == u8::MAX {
-                panic!("Too many component types.");
-            }
-
-            self.comp_type_count += 1;
-
-            (res.0, ComponentId(res.1))
-        });
-        
-        // Add component to storage.
-        storage.add(component, entity)?;
-
-        // Update entity's component mask.
-        let entity_data = self.entity_storage.get_entity_data_mut(entity)?;
-        entity_data.components.set(comp_id.0 as usize, true);
-
-        Ok(())
-    }
-
-    pub fn get_component<T: Component>(&self, entity: Entity) -> Option<&T> {
-        let type_id = TypeId::of::<T>();
-
-        let storage = &self.components.get(&type_id)?.0;
-
-        storage.get(entity)
-    }
-
-    pub fn remove_component<T: Component>(
-        &mut self,
-        entity: Entity,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let type_id = TypeId::of::<T>();
-
-        let (storage, comp_id) = &mut self
-            .components
-            .get_mut(&type_id)
-            .ok_or("Entity does not have a component of this type.")?;
-
-        // Remove component from storage.
-        storage.remove::<T>(entity)?;
-
-        // Update entity's component mask.
-        let entity_data = self.entity_storage.get_entity_data_mut(entity)?;
-        entity_data.components.set(comp_id.0 as usize, false);
-
-        Ok(())
-    }
-
-    pub(crate) fn get_storage<T: Component>(&self) -> Option<&storage::Storage> {
-        let type_id = TypeId::of::<T>();
-
-        Some(&self.components.get(&type_id)?.0)
+        // TODO: Clear all components from the entity
+        // Is this really required if the components field is already cleared?
     }
 }
 
-#[test]
-fn ecs_component() {
-    #[derive(Serialize, Deserialize, Debug)]
-    struct Position {
-        x: f32,
-        y: f32,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_entity_test() {
+        let mut world = World::with_capacity(10);
+
+        let entity = world.create_entity();
+
+        assert_eq!(entity.id, 0);
+        assert_eq!(entity.version, 0);
+
+        let entity = world.create_entity();
+
+        assert_eq!(entity.id, 1);
+        assert_eq!(entity.version, 0);
     }
 
-    impl Component for Position {}
+    #[test]
+    fn create_entity_with_capacity_test() {
+        let mut world = World::with_capacity(10);
 
-    let mut world = World::with_capacity(1);
+        for _ in 0..10 {
+            world.create_entity();
+        }
 
-    let entity = world.create_entity();
-    let entity2 = world.create_entity();
-    let entity3 = world.create_entity();
+        let entity = world.create_entity();
 
-    let pos1 = Position { x: 0.0, y: 0.0 };
+        assert_eq!(entity.id, 10);
+        assert_eq!(entity.version, 0);
+    }
 
-    let pos2 = Position { x: 1.0, y: 1.0 };
+    #[test]
+    fn create_entity_with_capacity_and_expand_test() {
+        let mut world = World::with_capacity(5);
 
-    let pos3 = Position { x: 2.0, y: 2.0 };
+        let mut count = 2;
 
-    world.add_component(entity, pos1).unwrap();
-    world.add_component(entity2, pos2).unwrap();
+        for _ in 0..10 {
+            count += 1;
+            world.create_entity();
+        }
 
-    let retrieved_position = world.get_component::<Position>(entity).unwrap();
+        let entity = world.create_entity();
 
-    // assert_eq!(retrieved_position.x, 0.0);
-    // assert_eq!(retrieved_position.y, 0.0);
+        assert_eq!(entity.id, 10);
+        assert_eq!(entity.version, 0);
 
-    world.remove_component::<Position>(entity).unwrap();
+        for _ in 0..9 {
+            count += 1;
+            world.create_entity();
+        }
 
-    assert!(world.get_component::<Position>(entity).is_none());
+        assert_eq!(entity.id, 20);
+        assert_eq!(entity.version, 0);
+    }
 
-    // Removal should have freed up a slot in the storage.    
-    let position_storage = world.components.get(&TypeId::of::<Position>()).unwrap();
-    assert_eq!(position_storage.0.free_slots.len(), 1);
+    #[test]
+    fn recycle_entity_id_test() {
+        let mut world = World::with_capacity(10);
 
-    world.add_component(entity3, pos3).unwrap();
+        world.create_entity();
 
-    // assert_eq!(world.get_component::<Position>(entity2).unwrap().x, 1.0);
+        let entity = world.create_entity();
 
-    // Free slots should have been filled.
-    let position_storage = world.components.get(&TypeId::of::<Position>()).unwrap();
-    assert_eq!(position_storage.0.free_slots.len(), 0);
+        for _ in 0..8 {
+            world.create_entity();
+        }
 
-}
+        assert_eq!(entity.id, 1);
+        assert_eq!(entity.version, 0);
+
+        world.remove_entity(entity);
+
+        let entity = world.create_entity();
+
+        assert_eq!(entity.id, 1);
+        assert_eq!(entity.version, 1);
+
+        let last_entity = world.create_entity();
+
+        assert_eq!(last_entity.id, 10);
+        assert_eq!(last_entity.version, 0);
+    }
+} 
