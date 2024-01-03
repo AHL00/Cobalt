@@ -1,10 +1,10 @@
 use std::any::TypeId;
 
-use crate::internal::bit_array::BitArray;
+use crate::internal::bit_array::{BitArray, SimdBitArray};
 
 use self::internal::QueryInternal;
 
-use super::{component::Component, storage::Storage, Entity, EntityStorageIter, World};
+use super::{component::Component, storage::Storage, Entity, World, EntityData};
 
 pub trait Query<'a>: QueryInternal<'a> {}
 
@@ -19,6 +19,7 @@ mod internal {
         fn type_ids() -> Vec<TypeId>;
 
         // TODO: Move to internal::QueryInternal
+        #[inline]
         fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item;
     }
 }
@@ -31,6 +32,7 @@ impl<'a> QueryInternal<'a> for () {
         vec![]
     }
 
+    #[inline]
     fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
         ()
     }
@@ -44,6 +46,7 @@ impl<'a, T: Component> QueryInternal<'a> for T {
         vec![std::any::TypeId::of::<T>()]
     }
 
+    #[inline]
     fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
         // Get the storage for the component.
         let (storage, _) = world.components.get(&std::any::TypeId::of::<T>()).unwrap();
@@ -60,6 +63,7 @@ impl<'a, Q: QueryInternal<'a>> QueryInternal<'a> for (Q,) {
         Q::type_ids()
     }
 
+    #[inline]
     fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
         (Q::get_unchecked(entity, world),)
     }
@@ -73,6 +77,7 @@ impl<'a, Q1: QueryInternal<'a>, Q2: QueryInternal<'a>> QueryInternal<'a> for (Q1
         vec![Q1::type_ids(), Q2::type_ids()].concat()
     }
 
+    #[inline]
     fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
         (
             Q1::get_unchecked(entity, world),
@@ -91,6 +96,7 @@ impl<'a, Q1: QueryInternal<'a>, Q2: QueryInternal<'a>, Q3: QueryInternal<'a>> Qu
         vec![Q1::type_ids(), Q2::type_ids(), Q3::type_ids()].concat()
     }
 
+    #[inline]
     fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
         (
             Q1::get_unchecked(entity, world),
@@ -124,6 +130,7 @@ impl<
         .concat()
     }
 
+    #[inline]
     fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
         (
             Q1::get_unchecked(entity, world),
@@ -160,6 +167,7 @@ impl<
         .concat()
     }
 
+    #[inline]
     fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
         (
             Q1::get_unchecked(entity, world),
@@ -173,8 +181,8 @@ impl<
 
 pub struct QueryIter<'a, Q: Query<'a>> {
     world: &'a World,
-    entity_iter: EntityStorageIter<'a>,
-    components_mask: BitArray<256>,
+    entity_iter: hashbrown::hash_map::Iter<'a, Entity, EntityData>,
+    components_mask: SimdBitArray<256>,
     _phantom: std::marker::PhantomData<Q>,
 }
 
@@ -186,7 +194,7 @@ impl<'a> World {
 
 impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
     pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut components_mask = BitArray::new();
+        let mut components_mask = SimdBitArray::new();
 
         // Set the bits for each component in the query.
         for type_id in Q::type_ids() {
@@ -226,16 +234,6 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
         //  This is not cache-friendly. But for a MVP, it's fine.
         //  We can optimize later.
 
-        // Possibilies:
-        // 1. Store refs to storages needed for query, and perform lookups on them.
-        //    Problem is that hashmap lookups are slow.
-
-        // 2. Store what components are attached to each entity in world.entities;
-        //    Could be a bitvec but that allocated in separate memory.
-        //    What if I impose a hard limit on the number of components?
-        //    Then I can use a fixed-size array.
-        //    256 components should be enough and only consumes 32 bytes.
-
         // Loop until we find an entity that meets the query requirements.
         // Break if end or returned.
         loop {
@@ -252,77 +250,6 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
             }
         }
     }
-}
-
-#[test]
-fn query_10000() {
-    #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    struct Position {
-        x: f32,
-        y: f32,
-    }
-
-    impl Component for Position {}
-
-    #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    struct Velocity {
-        x: f32,
-        y: f32,
-    }
-
-    impl Component for Velocity {}
-
-    let mut world = World::with_capacity(10000);
-
-    let start = std::time::Instant::now();
-
-    for i in 0..10000 {
-        let entity = world.create_entity();
-
-        world.add_component(entity, i.to_string()).unwrap();
-
-        world
-            .add_component(
-                entity,
-                Position {
-                    x: i as f32,
-                    y: i as f32,
-                },
-            )
-            .unwrap();
-
-        if i % 2 == 0 {
-            world
-                .add_component(
-                    entity,
-                    Velocity {
-                        x: i as f32,
-                        y: i as f32,
-                    },
-                )
-                .unwrap();
-        }
-    }
-
-    let add_time_taken = start.elapsed();
-    let start = std::time::Instant::now();
-
-    let query_iter = world.query::<(Position, String)>().unwrap();
-
-    let query_creation_time = start.elapsed();
-    let start = std::time::Instant::now();
-
-    let mut count = 0;
-    for (pos, string) in query_iter {
-        count += 1;
-    }
-
-    let query_time = start.elapsed();
-
-    println!(
-        "Add time taken: {:?}\nQuery creation time: {:?}\nQuery time: {:?}\nCount: {}",
-        add_time_taken, query_creation_time, query_time, count
-    );
 }
 
 #[test]

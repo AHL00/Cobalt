@@ -8,8 +8,6 @@ use super::Entity;
 
 use hashbrown::HashMap;
 
-use bit_vec::BitVec;
-
 use std::ptr::NonNull;
 
 /// Stores any number of components of the same type.

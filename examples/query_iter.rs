@@ -17,12 +17,6 @@ impl Component for Velocity {}
 impl Component for Position {}
 
 fn main() {
-    for _ in 0..100 {
-        run();
-    }
-}
-
-fn run() {
     let mut world = World::with_capacity(10000);
 
     let start = std::time::Instant::now();
@@ -56,6 +50,19 @@ fn run() {
     }
 
     let add_time_taken = start.elapsed();
+
+    println!("Add time taken: {:?}", add_time_taken);
+
+    for _ in 0..1000 {
+        run(&world);
+    }
+
+    // Wait for user input to exit.
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+}
+
+fn run(world: &World) {
     let start = std::time::Instant::now();
 
     let query_iter = world.query::<(Position, i32)>().unwrap();
@@ -70,8 +77,8 @@ fn run() {
 
     let query_time = start.elapsed();
 
-    println!(
-        "Add time taken: {:?}\nQuery creation time: {:?}\nQuery time: {:?}\nSum: {}",
-        add_time_taken, query_creation_time, query_time, sum
-    );
+    // println!(
+    //     "Query creation time: {:?}\nQuery time: {:?}\nSum: {}",
+    //     query_creation_time, query_time, sum
+    // );
 }

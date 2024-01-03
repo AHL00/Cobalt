@@ -18,6 +18,16 @@ where
         Self { data: [0; N / 8] }
     }
 
+    pub fn fill(&mut self, value: bool) {
+        for i in 0..N / 8 {
+            if value {
+                self.data[i] = u8::MAX;
+            } else {
+                self.data[i] = 0;
+            }
+        }
+    }
+
     pub fn set(&mut self, index: usize, value: bool) {
         let byte_index = index / 8;
         let bit_index = index % 8;
@@ -155,6 +165,69 @@ where
     fn eq(&self, other: &Self) -> bool {
         for i in 0..N / 8 {
             if self.data[i] != other.data[i] {
+                return false;
+            }
+        }
+
+        true
+    }
+}
+
+/// Bit array that is stored in a fixed-size array.
+/// Array size granularity is 256 bits.
+/// Uses SIMD instructions for bitwise operations and comparisons.
+pub struct SimdBitArray<const N: usize>
+where
+    [(); N / 256]:,
+{
+    data: [packed_simd::u8x32; N / 256],
+}
+
+impl<const N: usize> SimdBitArray<N>
+where
+    [(); N / 256]:,
+{
+    pub fn new() -> Self {
+        Self {
+            data: [packed_simd::u8x32::splat(0); N / 256],
+        }
+    }
+
+    pub fn fill(&mut self, value: bool) {
+        for i in 0..N / 256 {
+            if value {
+                self.data[i] = packed_simd::u8x32::splat(u8::MAX);
+            } else {
+                self.data[i] = packed_simd::u8x32::splat(0);
+            }
+        }
+    }
+
+    pub fn set(&mut self, index: usize, value: bool) {
+        let vector_index = index / 256;
+        let bit_index = index % 256;
+        let byte = 1u8 << (bit_index % 8);
+
+        if value {
+            self.data[vector_index] |= packed_simd::u8x32::splat(byte);
+        } else {
+            self.data[vector_index] &= !packed_simd::u8x32::splat(byte);
+        }
+    }
+
+    pub fn get(&self, index: usize) -> bool {
+        let vector_index = index / 256;
+        let bit_index = index % 256;
+        let lane_index = bit_index / 8;
+        let byte = 1u8 << (bit_index % 8);
+
+        (self.data[vector_index].extract(lane_index) & byte) != 0
+    }
+
+    /// Returns true if the bit array contains all of the bits in the other bit array.
+    pub fn contains(&self, other: &Self) -> bool {
+        for i in 0..N / 256 {
+            if (self.data[i] & other.data[i]) != other.data[i] {
                 return false;
             }
         }

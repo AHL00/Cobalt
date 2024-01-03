@@ -8,7 +8,7 @@ use std::{
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{ecs::component::Component, internal::bit_array::BitArray};
+use crate::{ecs::component::Component, internal::{bit_array::{BitArray, SimdBitArray}, slot_map}};
 
 use self::storage::Storage;
 
@@ -32,33 +32,25 @@ impl Entity {
 
 /// This struct holds the data pertaining to all entities in the world such as ComponentMasks.
 struct EntityStorage {
-    entities: slab::Slab<EntityData>,
     /// TODO: Replace HashMap with something else
-    map: HashMap<Entity, usize>,
+    data: HashMap<Entity, EntityData>,
 }
 
 impl EntityStorage {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            entities: slab::Slab::with_capacity(capacity),
-            map: HashMap::with_capacity(capacity),
+            data: HashMap::with_capacity(capacity),
         }
     }
 
     pub fn add_entity(&mut self, entity: Entity) -> Result<(), Box<dyn std::error::Error>> {
-        let index = self.entities.insert(EntityData {
-            components: BitArray::new(),
-        });
-
-        self.map.insert(entity, index);
+        self.data.insert(entity, EntityData { components: SimdBitArray::new() });
 
         Ok(())
     }
 
     pub fn remove_entity(&mut self, entity: Entity) -> Result<(), Box<dyn std::error::Error>> {
-        let index = self.map.remove(&entity).ok_or("Entity does not exist.")?;
-
-        self.entities.remove(index);
+        self.data.remove(&entity);
 
         Ok(())
     }
@@ -67,50 +59,24 @@ impl EntityStorage {
         &mut self,
         entity: Entity,
     ) -> Result<&mut EntityData, Box<dyn std::error::Error>> {
-        let index = self.map.get(&entity).ok_or("Entity does not exist.")?;
-
-        Ok(self.entities.get_mut(*index).unwrap())
+        Ok(self.data.get_mut(&entity).ok_or("Entity does not exist.")?)
     }
 
     pub fn get_entity_data(
         &self,
         entity: Entity,
     ) -> Result<&EntityData, Box<dyn std::error::Error>> {
-        let index = self.map.get(&entity).ok_or("Entity does not exist.")?;
-
-        Ok(self.entities.get(*index).unwrap())
+        Ok(self.data.get(&entity).ok_or("Entity does not exist.")?)
     }
-}
 
-struct EntityStorageIter<'a> {
-    entity_data: &'a slab::Slab<EntityData>,
-    iter: hashbrown::hash_map::Iter<'a, Entity, usize>,
-}
-
-impl EntityStorage {
-    pub fn iter(&self) -> EntityStorageIter {
-        EntityStorageIter {
-            entity_data: &self.entities,
-            iter: self.map.iter(),
-        }
-    }
-}
-
-impl<'a> Iterator for EntityStorageIter<'a> {
-    type Item = (&'a Entity, &'a EntityData);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let (entity, index) = self.iter.next()?;
-
-        let data = self.entity_data.get(*index)?;
-
-        Some((entity, data))
+    pub fn iter(&self) -> hashbrown::hash_map::Iter<Entity, EntityData> {
+        self.data.iter()
     }
 }
 
 /// This struct holds data pertaining to a single entity. Basically an internal representation of an entity.
 struct EntityData {
-    components: BitArray<256>,
+    components: SimdBitArray<256>,
 }
 
 /// This ID is used to identify a component type.
@@ -163,7 +129,7 @@ impl World {
         // If capacity is reached, just increase it by 1.
         // This is because the capacity is only used for initializing new storages
         // The storages will handle their own capacity later on.
-        if self.entity_storage.entities.len() == self.capacity {
+        if self.entity_storage.data.len() == self.capacity {
             self.capacity += 1;
         }
 
