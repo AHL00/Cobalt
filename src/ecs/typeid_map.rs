@@ -1,8 +1,10 @@
 use std::{any::TypeId, hash::{BuildHasherDefault, Hasher}};
+
 use hashbrown::HashMap;
 
 /// Inspired by HECS.
 /// Since TypeId is already a hash, use a hasher that does nothing. 
+/// Tested against a 256 item array with linear search and a 256 item hashmap.
 pub(crate) type TypeIdMap<V> = HashMap<TypeId, V, BuildHasherDefault<TypeIdHasher>>;
 
 #[test]

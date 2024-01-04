@@ -18,7 +18,7 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    for i in 0..10000 {
+    for i in 0..100000 {
         let entity = world.spawn((i, Position { x: i as f32, y: i as f32 }));
 
         if i % 2 == 0 {

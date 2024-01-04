@@ -11,7 +11,7 @@ use std::ptr::NonNull;
 /// Stores any number of components of the same type.
 /// This is going to be a sparse set array.
 /// The capacity of this storage has to be synced with the World's capacity through the expand method.
-pub(crate) struct ComponentStorage {
+pub struct ComponentStorage {
     /// The index to this vector is the entity id.
     /// The value at that index is the index to the dense set.
     sparse_set: Vec<Option<usize>>,
@@ -198,11 +198,4 @@ impl Drop for ComponentStorage {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn add_component() {
-        
-
-    }
-}
+// TODO: Tests

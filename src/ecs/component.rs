@@ -13,6 +13,7 @@ impl<T> internal::ComponentInternal for T
 where T: Component
 {}
 
+// TODO: Figure out blanket implementation for Component.
 impl Component for String {}
 impl Component for usize {}
 impl Component for u8 {}

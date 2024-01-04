@@ -1,10 +1,10 @@
 use std::any::TypeId;
 
-use crate::internal::bit_array::{BitArray, SimdBitArray};
+use crate::internal::bit_array::SimdBitArray;
 
 use self::internal::QueryInternal;
 
-use super::{component::Component, storage::ComponentStorage, Entity, World, EntityData};
+use super::{component::Component, storage::ComponentStorage, Entity, EntityData, World};
 
 pub trait Query<'a>: QueryInternal<'a> {}
 
@@ -15,72 +15,91 @@ mod internal {
 
     pub trait QueryInternal<'a> {
         type Item;
+        type StorageRef;
 
         fn type_ids() -> Vec<TypeId>;
 
-        fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item;
+        fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item;
+
+        fn get_storage_ref(world: &'a World) -> Self::StorageRef;
     }
 }
 
 impl<'a> Query<'a> for () {}
 impl<'a> QueryInternal<'a> for () {
     type Item = ();
+    type StorageRef = ();
 
     fn type_ids() -> Vec<TypeId> {
         vec![]
     }
 
     #[inline]
-    fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
-        ()
-    }
+    fn get_unchecked(_entity: Entity, _storage: &Self::StorageRef) -> Self::Item {}
+
+    #[inline]
+    fn get_storage_ref(_world: &'a World) -> Self::StorageRef {}
 }
 
 impl<'a, T: Component> Query<'a> for T {}
 impl<'a, T: Component> QueryInternal<'a> for T {
     type Item = &'a T;
+    type StorageRef = &'a ComponentStorage;
 
     fn type_ids() -> Vec<TypeId> {
-        vec![std::any::TypeId::of::<T>()]
+        vec![TypeId::of::<T>()]
     }
 
     #[inline]
-    fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
-        // Get the storage for the component.
-        let (storage, _) = world.components.get(&std::any::TypeId::of::<T>()).unwrap();
-
+    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         storage.get_unchecked(entity)
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        &world.components.get(&TypeId::of::<T>()).unwrap().0
     }
 }
 
 impl<'a, Q: Query<'a>> Query<'a> for (Q,) {}
 impl<'a, Q: QueryInternal<'a>> QueryInternal<'a> for (Q,) {
     type Item = (Q::Item,);
+    type StorageRef = (Q::StorageRef,);
 
     fn type_ids() -> Vec<TypeId> {
         Q::type_ids()
     }
 
     #[inline]
-    fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
-        (Q::get_unchecked(entity, world),)
+    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+        (Q::get_unchecked(entity, &storage.0),)
+    }
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        (Q::get_storage_ref(world),)
     }
 }
 
 impl<'a, Q1: Query<'a>, Q2: Query<'a>> Query<'a> for (Q1, Q2) {}
 impl<'a, Q1: QueryInternal<'a>, Q2: QueryInternal<'a>> QueryInternal<'a> for (Q1, Q2) {
     type Item = (Q1::Item, Q2::Item);
+    type StorageRef = (Q1::StorageRef, Q2::StorageRef);
 
     fn type_ids() -> Vec<TypeId> {
         vec![Q1::type_ids(), Q2::type_ids()].concat()
     }
 
     #[inline]
-    fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
+    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked(entity, world),
-            Q2::get_unchecked(entity, world),
+            Q1::get_unchecked(entity, &storage.0),
+            Q2::get_unchecked(entity, &storage.1),
         )
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        (Q1::get_storage_ref(world), Q2::get_storage_ref(world))
     }
 }
 
@@ -89,17 +108,27 @@ impl<'a, Q1: QueryInternal<'a>, Q2: QueryInternal<'a>, Q3: QueryInternal<'a>> Qu
     for (Q1, Q2, Q3)
 {
     type Item = (Q1::Item, Q2::Item, Q3::Item);
+    type StorageRef = (Q1::StorageRef, Q2::StorageRef, Q3::StorageRef);
 
     fn type_ids() -> Vec<TypeId> {
         vec![Q1::type_ids(), Q2::type_ids(), Q3::type_ids()].concat()
     }
 
     #[inline]
-    fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
+    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked(entity, world),
-            Q2::get_unchecked(entity, world),
-            Q3::get_unchecked(entity, world),
+            Q1::get_unchecked(entity, &storage.0),
+            Q2::get_unchecked(entity, &storage.1),
+            Q3::get_unchecked(entity, &storage.2),
+        )
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        (
+            Q1::get_storage_ref(world),
+            Q2::get_storage_ref(world),
+            Q3::get_storage_ref(world),
         )
     }
 }
@@ -117,6 +146,12 @@ impl<
     > QueryInternal<'a> for (Q1, Q2, Q3, Q4)
 {
     type Item = (Q1::Item, Q2::Item, Q3::Item, Q4::Item);
+    type StorageRef = (
+        Q1::StorageRef,
+        Q2::StorageRef,
+        Q3::StorageRef,
+        Q4::StorageRef,
+    );
 
     fn type_ids() -> Vec<TypeId> {
         vec![
@@ -129,12 +164,22 @@ impl<
     }
 
     #[inline]
-    fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
+    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked(entity, world),
-            Q2::get_unchecked(entity, world),
-            Q3::get_unchecked(entity, world),
-            Q4::get_unchecked(entity, world),
+            Q1::get_unchecked(entity, &storage.0),
+            Q2::get_unchecked(entity, &storage.1),
+            Q3::get_unchecked(entity, &storage.2),
+            Q4::get_unchecked(entity, &storage.3),
+        )
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        (
+            Q1::get_storage_ref(world),
+            Q2::get_storage_ref(world),
+            Q3::get_storage_ref(world),
+            Q4::get_storage_ref(world),
         )
     }
 }
@@ -153,6 +198,13 @@ impl<
     > QueryInternal<'a> for (Q1, Q2, Q3, Q4, Q5)
 {
     type Item = (Q1::Item, Q2::Item, Q3::Item, Q4::Item, Q5::Item);
+    type StorageRef = (
+        Q1::StorageRef,
+        Q2::StorageRef,
+        Q3::StorageRef,
+        Q4::StorageRef,
+        Q5::StorageRef,
+    );
 
     fn type_ids() -> Vec<TypeId> {
         vec![
@@ -166,13 +218,24 @@ impl<
     }
 
     #[inline]
-    fn get_unchecked(entity: Entity, world: &'a World) -> Self::Item {
+    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked(entity, world),
-            Q2::get_unchecked(entity, world),
-            Q3::get_unchecked(entity, world),
-            Q4::get_unchecked(entity, world),
-            Q5::get_unchecked(entity, world),
+            Q1::get_unchecked(entity, &storage.0),
+            Q2::get_unchecked(entity, &storage.1),
+            Q3::get_unchecked(entity, &storage.2),
+            Q4::get_unchecked(entity, &storage.3),
+            Q5::get_unchecked(entity, &storage.4),
+        )
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        (
+            Q1::get_storage_ref(world),
+            Q2::get_storage_ref(world),
+            Q3::get_storage_ref(world),
+            Q4::get_storage_ref(world),
+            Q5::get_storage_ref(world),
         )
     }
 }
@@ -181,6 +244,7 @@ pub struct QueryIter<'a, Q: Query<'a>> {
     world: &'a World,
     entity_iter: std::slice::Iter<'a, EntityData>,
     query_mask: SimdBitArray<256>,
+    storage_ref: Q::StorageRef,
     _phantom: std::marker::PhantomData<Q>,
 }
 
@@ -211,6 +275,7 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
             world,
             entity_iter: world.entities.iter(),
             query_mask,
+            storage_ref: Q::get_storage_ref(world),
             _phantom: std::marker::PhantomData,
         })
     }
@@ -220,20 +285,6 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
     type Item = (Entity, Q::Item);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Here's the plan:
-        //  We have a list of entities.
-        //  We have storages for each type included in the query.
-        //  We check each entity and return if it meets the query requirements.
-        //  To check if an entity meets the query requirements, we check its component mask.
-        //  If it doesn't, we keep searching until we find one that does.
-        //
-        // Performance considerations:
-        //  With the current plan, we're jumping around in memory a lot.
-        //  This is not cache-friendly. But for a MVP, it's fine.
-        //  We can optimize later.
-
-        // Loop until we find an entity that meets the query requirements.
-        // Break if end or returned.
         loop {
             // Get the next entity and its data
             let entity_data = self.entity_iter.next()?;
@@ -248,7 +299,7 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
             // Check if the entity meets the query requirements.
             if entity_data.components.contains(&self.query_mask) {
                 // Get the components.
-                let components = Q::get_unchecked(entity, &self.world);
+                let components = Q::get_unchecked(entity, &self.storage_ref);
 
                 // Return the components.
                 return Some((entity, components));
@@ -264,7 +315,7 @@ mod tests {
     #[test]
     fn query_one() {
         let mut world = World::with_capacity(10000);
-        
+
         for _ in 0..1000 {
             let entity = world.create_entity();
 
@@ -288,11 +339,11 @@ mod tests {
 
         assert_eq!(count, 500);
     }
-    
+
     #[test]
     fn query_two() {
         let mut world = World::with_capacity(10000);
-        
+
         for _ in 0..1000 {
             let entity = world.create_entity();
 
@@ -321,8 +372,8 @@ mod tests {
     #[test]
     fn query_multiple() {
         let mut world = World::with_capacity(10000);
-        
-        for _ in 0..1000 {
+
+        for i in 0..1000 {
             let entity = world.create_entity();
 
             world.add_component(entity, 0);
@@ -330,9 +381,11 @@ mod tests {
             if entity.id % 2 == 0 {
                 world.add_component(entity, 1.0f32);
             }
+
+            world.add_component(entity, i as f64);
         }
 
-        let query = world.query::<(f32, i32, f32)>().unwrap();
+        let query = world.query::<(f32, i32, f64)>().unwrap();
 
         let mut count = 0;
 
@@ -340,12 +393,11 @@ mod tests {
             assert!(entity.id % 2 == 0);
             assert_eq!(component1, &1.0f32);
             assert_eq!(component2, &0);
-            assert_eq!(component3, &0.0f32);
+            assert_eq!(component3 % 2.0, 0.0);
 
             count += 1;
         }
 
         assert_eq!(count, 500);
     }
-
 }

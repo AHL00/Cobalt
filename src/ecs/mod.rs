@@ -152,7 +152,7 @@ impl World {
         // Add the entity to the recyclable list.
         self.recyclable.push(entity.id as usize);
 
-        for (_, (storage, comp_id)) in self.components.iter_mut() {
+        for (_, (storage, _)) in self.components.iter_mut() {
             // Tell storage to try and remove this entity's component
             // This also works to call the destructors
             storage.remove_unchecked(entity);
@@ -267,10 +267,7 @@ mod tests {
     fn create_entity_with_capacity_and_expand_test() {
         let mut world = World::with_capacity(5);
 
-        let mut count = 2;
-
         for _ in 0..10 {
-            count += 1;
             world.create_entity();
         }
 
@@ -280,7 +277,6 @@ mod tests {
         assert_eq!(entity.version, 0);
 
         for _ in 0..9 {
-            count += 1;
             world.create_entity();
         }
 

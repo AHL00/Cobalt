@@ -3,7 +3,6 @@
 
 pub(crate) mod internal;
 pub mod scene;
-pub mod components;
 pub mod engine;
 pub mod ecs;
 

@@ -1,11 +1,3 @@
-use std::{sync::atomic::{AtomicUsize, Ordering}, any::{TypeId, Any}};
-use serde::{Serialize, Deserialize, ser::SerializeMap};
-
-
-/// ID counter
-static ID: AtomicUsize = AtomicUsize::new(0);
-
-
 /// A scene is a collection of entities.
 pub struct Scene {
     pub name: String,

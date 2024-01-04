@@ -20,7 +20,7 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    for i in 0..10000 {
+    for i in 0..100000 {
         let entity = world.create_entity();
 
         world.add_component(entity, i);
@@ -47,7 +47,7 @@ fn main() {
 
     println!("Add time taken: {:?}", add_time_taken);
 
-    for _ in 0..100000 {
+    for _ in 0..100 {
         run(&world);
     }
 }
@@ -60,15 +60,15 @@ fn run(world: &World) {
     let query_creation_time = start.elapsed();
     let start = std::time::Instant::now();
 
-    let mut sum = 0;
+    let mut sum: usize = 0;
     for (e, (pos, int)) in query_iter {
-        sum += *int;
+        sum += *int as usize;
     }
 
     let query_time = start.elapsed();
 
-    // println!(
-    //     "Query creation time: {:?}\nQuery time: {:?}\nSum: {}",
-    //     query_creation_time, query_time, sum
-    // );
+    println!(
+        "Query creation time: {:?}\nQuery time: {:?}\nSum: {}",
+        query_creation_time, query_time, sum
+    );
 }
