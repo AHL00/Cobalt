@@ -4,7 +4,7 @@ use crate::ecs::component::Component;
 
 use std::any::TypeId;
 
-use super::Entity;
+use super::{Entity, SerdeTypeId};
 
 use std::ptr::NonNull;
 
@@ -14,19 +14,20 @@ use std::ptr::NonNull;
 pub struct ComponentStorage {
     /// The index to this vector is the entity id.
     /// The value at that index is the index to the dense set.
-    sparse_set: Vec<Option<usize>>,
+    pub(crate) sparse_set: Vec<Option<usize>>,
 
     /// This is the dense set.
-    data: NonNull<u8>,
-    pub allocated: usize,
-    pub used: usize,
+    pub(crate) data: NonNull<u8>,
+    pub(crate) allocated: usize,
+    pub(crate) used: usize,
 
     /// This vector stores the indices of free slots in the dense set.
-    pub free_slots: Vec<usize>,
+    pub(crate) free_slots: Vec<usize>,
 
-    pub type_id: TypeId,
-    type_size: usize,
-    drop_fn: fn(*mut u8),
+    pub(crate) type_id: SerdeTypeId,
+    pub(crate) type_name: &'static str,
+    pub(crate) type_size: usize,
+    pub(crate) drop_fn: Box<dyn serde_traitobject::FnMut(*mut u8) -> ()>,
 }
 
 impl Debug for ComponentStorage {
@@ -35,6 +36,7 @@ impl Debug for ComponentStorage {
             .field("allocated", &self.allocated)
             .field("used", &self.used)
             .field("type_id", &self.type_id)
+            .field("type_name", &self.type_name)
             .field("type_size", &self.type_size)
             .finish()
     }
@@ -64,9 +66,10 @@ impl ComponentStorage {
 
             free_slots: Vec::new(),
             
-            type_id: TypeId::of::<T>(),
+            type_id: TypeId::of::<T>().into(),
             type_size: std::mem::size_of::<T>(),
-            drop_fn: |ptr| unsafe { std::ptr::drop_in_place(ptr as *mut T) },
+            type_name: std::any::type_name::<T>(),
+            drop_fn: Box::new(serde_closure::FnMut!(|ptr| unsafe { std::ptr::drop_in_place(ptr as *mut T) })),
         }
     }
 
@@ -174,7 +177,7 @@ impl ComponentStorage {
             let ptr = unsafe { self.data.as_ptr().add(index * self.type_size) };
 
             // Drop the data.
-            (self.drop_fn)(ptr);
+            self.drop_fn.call_mut((ptr, ));
 
             // Remove the entity from the sparse set.
             self.sparse_set[entity.id as usize] = None;

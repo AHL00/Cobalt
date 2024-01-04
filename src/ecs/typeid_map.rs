@@ -1,19 +1,23 @@
-use std::{any::TypeId, hash::{BuildHasherDefault, Hasher}};
+use std::hash::{BuildHasherDefault, Hasher};
 
 use hashbrown::HashMap;
+
+use super::SerdeTypeId;
 
 /// Inspired by HECS.
 /// Since TypeId is already a hash, use a hasher that does nothing. 
 /// Tested against a 256 item array with linear search and a 256 item hashmap.
-pub(crate) type TypeIdMap<V> = HashMap<TypeId, V, BuildHasherDefault<TypeIdHasher>>;
+pub(crate) type TypeIdMap<V> = HashMap<SerdeTypeId, V, BuildHasherDefault<TypeIdHasher>>;
 
 #[test]
 fn type_id_map_test() {
+    use std::any::TypeId;
+
     let mut map: TypeIdMap<u32> = TypeIdMap::default();
 
-    map.insert(TypeId::of::<u32>(), 2);
+    map.insert(TypeId::of::<u32>().into(), 2);
 
-    assert_eq!(map.get(&TypeId::of::<u32>()), Some(&2));
+    assert_eq!(map.get(&SerdeTypeId::from(TypeId::of::<u32>())), Some(&2));
 }
 
 /// This hasher does nothing.
