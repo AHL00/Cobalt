@@ -6,7 +6,6 @@ struct Position {
     y: f32,
 }
 
-
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct Velocity {
     x: f32,
@@ -24,28 +23,23 @@ fn main() {
     for i in 0..10000 {
         let entity = world.create_entity();
 
-        world.add_component(entity, i).unwrap();
+        world.add_component(entity, i);
 
-        world
-            .add_component(
+        world.add_component(
+            entity,
+            Position {
+                x: i as f32,
+                y: i as f32,
+            },
+        );
+        if i % 2 == 0 {
+            world.add_component(
                 entity,
-                Position {
+                Velocity {
                     x: i as f32,
                     y: i as f32,
                 },
-            )
-            .unwrap();
-
-        if i % 2 == 0 {
-            world
-                .add_component(
-                    entity,
-                    Velocity {
-                        x: i as f32,
-                        y: i as f32,
-                    },
-                )
-                .unwrap();
+            );
         }
     }
 
@@ -53,13 +47,9 @@ fn main() {
 
     println!("Add time taken: {:?}", add_time_taken);
 
-    for _ in 0..1000 {
+    for _ in 0..100000 {
         run(&world);
     }
-
-    // Wait for user input to exit.
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
 }
 
 fn run(world: &World) {

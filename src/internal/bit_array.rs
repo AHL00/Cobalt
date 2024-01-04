@@ -236,3 +236,25 @@ where
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simd_bit_array_set_get()  {
+        let mut bit_array = SimdBitArray::<256>::new();
+
+        bit_array.set(0, true);
+        bit_array.set(1, false);
+
+        assert_eq!(bit_array.get(0), true);
+        assert_eq!(bit_array.get(1), false);
+
+        bit_array.set(0, false);
+        bit_array.set(1, true);
+
+        assert_eq!(bit_array.get(0), false);
+        assert_eq!(bit_array.get(1), true);
+    }
+}

@@ -4,7 +4,7 @@ use crate::internal::bit_array::{BitArray, SimdBitArray};
 
 use self::internal::QueryInternal;
 
-use super::{component::Component, storage::Storage, Entity, World, EntityData};
+use super::{component::Component, storage::ComponentStorage, Entity, World, EntityData};
 
 pub trait Query<'a>: QueryInternal<'a> {}
 
@@ -49,7 +49,7 @@ impl<'a, T: Component> QueryInternal<'a> for T {
         // Get the storage for the component.
         let (storage, _) = world.components.get(&std::any::TypeId::of::<T>()).unwrap();
 
-        storage.get(entity).unwrap()
+        storage.get_unchecked(entity)
     }
 }
 
@@ -177,133 +177,175 @@ impl<
     }
 }
 
-// pub struct QueryIter<'a, Q: Query<'a>> {
-//     world: &'a World,
-//     entity_iter: hashbrown::hash_map::Iter<'a, Entity, EntityData>,
-//     components_mask: SimdBitArray<256>,
-//     _phantom: std::marker::PhantomData<Q>,
-// }
+pub struct QueryIter<'a, Q: Query<'a>> {
+    world: &'a World,
+    entity_iter: std::slice::Iter<'a, EntityData>,
+    query_mask: SimdBitArray<256>,
+    _phantom: std::marker::PhantomData<Q>,
+}
 
-// impl<'a> World {
-//     pub fn query<Q: Query<'a>>(&'a self) -> Result<QueryIter<'a, Q>, Box<dyn std::error::Error>> {
-//         QueryIter::new(self)
-//     }
-// }
+impl<'a> World {
+    pub fn query<Q: Query<'a>>(&'a self) -> Result<QueryIter<'a, Q>, Box<dyn std::error::Error>> {
+        QueryIter::new(self)
+    }
+}
 
-// impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
-//     pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
-//         let mut components_mask = SimdBitArray::new();
+impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
+    pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut query_mask = SimdBitArray::new();
 
-//         // Set the bits for each component in the query.
-//         for type_id in Q::type_ids() {
-//             // Get the component ID.
-//             let comp_id = world
-//                 .components
-//                 .get(&type_id)
-//                 .ok_or("Component not found.")?
-//                 .1;
+        // Set the bits for each component in the query.
+        for type_id in Q::type_ids() {
+            // Get the component ID.
+            let comp_id = world
+                .components
+                .get(&type_id)
+                .ok_or("Component not found.")?
+                .1;
 
-//             // Set the bit.
-//             components_mask.set(comp_id.0 as usize, true);
-//         }
+            // Set the bit.
+            query_mask.set(comp_id.0 as usize, true);
+        }
 
-//         Ok(Self {
-//             world,
-//             entity_iter: world.entity_storage.iter(),
-//             components_mask,
-//             _phantom: std::marker::PhantomData,
-//         })
-//     }
-// }
+        Ok(Self {
+            world,
+            entity_iter: world.entities.iter(),
+            query_mask,
+            _phantom: std::marker::PhantomData,
+        })
+    }
+}
 
-// impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
-//     type Item = (Entity, Q::Item);
+impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
+    type Item = (Entity, Q::Item);
 
-//     fn next(&mut self) -> Option<Self::Item> {
-//         // Here's the plan:
-//         //  We have a list of entities.
-//         //  We have storages for each type included in the query.
-//         //  We check each entity and return if it meets the query requirements.
-//         //  To check if an entity meets the query requirements, we check its component mask.
-//         //  If it doesn't, we keep searching until we find one that does.
-//         //
-//         // Performance considerations:
-//         //  With the current plan, we're jumping around in memory a lot.
-//         //  This is not cache-friendly. But for a MVP, it's fine.
-//         //  We can optimize later.
+    fn next(&mut self) -> Option<Self::Item> {
+        // Here's the plan:
+        //  We have a list of entities.
+        //  We have storages for each type included in the query.
+        //  We check each entity and return if it meets the query requirements.
+        //  To check if an entity meets the query requirements, we check its component mask.
+        //  If it doesn't, we keep searching until we find one that does.
+        //
+        // Performance considerations:
+        //  With the current plan, we're jumping around in memory a lot.
+        //  This is not cache-friendly. But for a MVP, it's fine.
+        //  We can optimize later.
 
-//         // Loop until we find an entity that meets the query requirements.
-//         // Break if end or returned.
-//         loop {
-//             // Get the next entity and its data
-//             let (entity, entity_data) = self.entity_iter.next()?;
+        // Loop until we find an entity that meets the query requirements.
+        // Break if end or returned.
+        loop {
+            // Get the next entity and its data
+            let entity_data = self.entity_iter.next()?;
 
-//             // Check if the entity meets the query requirements.
-//             if entity_data.components.contains(&self.components_mask) {
-//                 // Get the components.
-//                 let components = Q::get_unchecked(*entity, &self.world);
+            // Entity id is the index of the entity data.
+            // The version is the version stored in the entity data.
+            let entity = Entity {
+                id: entity_data.id,
+                version: entity_data.version,
+            };
 
-//                 // Return the components.
-//                 return Some((*entity, components));
-//             }
-//         }
-//     }
-// }
+            // Check if the entity meets the query requirements.
+            if entity_data.components.contains(&self.query_mask) {
+                // Get the components.
+                let components = Q::get_unchecked(entity, &self.world);
 
-// #[test]
-// fn query_iter_test() {
-//     use crate::ecs::component::Component;
+                // Return the components.
+                return Some((entity, components));
+            }
+        }
+    }
+}
 
-//     #[derive(Debug, serde::Serialize, serde::Deserialize)]
-//     struct Position {
-//         x: f32,
-//         y: f32,
-//     }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     impl Component for Position {}
+    #[test]
+    fn query_one() {
+        let mut world = World::with_capacity(10000);
+        
+        for _ in 0..1000 {
+            let entity = world.create_entity();
 
-//     let mut world = World::with_capacity(100);
+            world.add_component(entity, 0);
 
-//     let e1 = world.create_entity();
-//     let e2 = world.create_entity();
-//     let e3 = world.create_entity();
-//     let e4 = world.create_entity();
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+            }
+        }
 
-//     world.add_component(e1, 1u32).unwrap();
-//     world.add_component(e1, 2.0f32).unwrap();
-//     world
-//         .add_component(e1, Position { x: 0.0, y: 0.0 })
-//         .unwrap();
+        let query = world.query::<f32>().unwrap();
 
-//     world.add_component(e2, 3u32).unwrap();
-//     world.add_component(e2, 4.0f32).unwrap();
-//     world
-//         .add_component(e2, Position { x: 1.0, y: 1.0 })
-//         .unwrap();
+        let mut count = 0;
 
-//     world.add_component(e3, 5u32).unwrap();
-//     world
-//         .add_component(e3, Position { x: 2.0, y: 2.0 })
-//         .unwrap();
+        for (entity, component) in query {
+            assert!(entity.id % 2 == 0);
+            assert_eq!(component, &1.0f32);
 
-//     let query_iter = QueryIter::<(u32, f32)>::new(&world).unwrap();
+            count += 1;
+        }
 
-//     assert_eq!(query_iter.count(), 2);
+        assert_eq!(count, 500);
+    }
+    
+    #[test]
+    fn query_two() {
+        let mut world = World::with_capacity(10000);
+        
+        for _ in 0..1000 {
+            let entity = world.create_entity();
 
-//     let query_iter = QueryIter::<(u32, f32, Position)>::new(&world).unwrap();
-//     assert_eq!(query_iter.count(), 2);
+            world.add_component(entity, 0);
 
-//     let query_iter = QueryIter::<(u32, Position)>::new(&world).unwrap();
-//     assert_eq!(query_iter.count(), 3);
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+            }
+        }
 
-//     world.add_component(e4, 6u32).unwrap();
-//     world.add_component(e4, 7u16).unwrap();
-//     world.add_component(e4, 8u8).unwrap();
-//     world.add_component(e4, 8.0f32).unwrap();
-//     world
-//         .add_component(e4, Position { x: 3.0, y: 3.0 })
-//         .unwrap();
+        let query = world.query::<(f32, i32)>().unwrap();
 
-//     let query_iter = QueryIter::<(u32, u16, u8, f32, Position)>::new(&world).unwrap();
-//     assert_eq!(query_iter.count(), 1);
-// }
+        let mut count = 0;
+
+        for (entity, (component1, component2)) in query {
+            assert!(entity.id % 2 == 0);
+            assert_eq!(component1, &1.0f32);
+            assert_eq!(component2, &0);
+
+            count += 1;
+        }
+
+        assert_eq!(count, 500);
+    }
+
+    #[test]
+    fn query_multiple() {
+        let mut world = World::with_capacity(10000);
+        
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+            }
+        }
+
+        let query = world.query::<(f32, i32, f32)>().unwrap();
+
+        let mut count = 0;
+
+        for (entity, (component1, component2, component3)) in query {
+            assert!(entity.id % 2 == 0);
+            assert_eq!(component1, &1.0f32);
+            assert_eq!(component2, &0);
+            assert_eq!(component3, &0.0f32);
+
+            count += 1;
+        }
+
+        assert_eq!(count, 500);
+    }
+
+}

@@ -30,7 +30,7 @@ fn main() {
 
     println!("Add time taken: {:?}", add_time_taken);
 
-    for _ in 0..100000 {
+    for _ in 0..100 {
         run(&world);
     }
 }
@@ -53,8 +53,8 @@ fn run(world: &World) {
 
     let iter_time_taken = start.elapsed();
 
-    // println!(
-    //     "hecs, query: {:?}, iter: {:?}, sum: {}",
-    //     query_time_taken, iter_time_taken, sum
-    // );
+    println!(
+        "hecs, query: {:?}, iter: {:?}, sum: {}",
+        query_time_taken, iter_time_taken, sum
+    );
 }
