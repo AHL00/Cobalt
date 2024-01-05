@@ -15,6 +15,7 @@ pub struct ComponentStorage {
     /// The index to this vector is the entity id.
     /// The value at that index is the index to the dense set.
     sparse_set: Vec<Option<usize>>,
+    pub count: usize,
 
     /// This is the dense set.
     data: NonNull<u8>,
@@ -58,6 +59,8 @@ impl ComponentStorage {
 
         Self {
             sparse_set: vec![None; capacity],
+            count: 0,
+
             data,
             allocated: data_capacity,
             used: 0,
@@ -143,6 +146,9 @@ impl ComponentStorage {
 
         // Update the sparse set.
         self.sparse_set[entity.id as usize] = Some(index);
+
+        // Update the count.
+        self.count += 1;
     }
 
     /// Gets a reference to the component for the given entity.
@@ -181,6 +187,9 @@ impl ComponentStorage {
 
             // Add the slot to the free slots list.
             self.free_slots.push(index);
+
+            // Update the count.
+            self.count -= 1;
         }
     }
 }

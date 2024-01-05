@@ -245,6 +245,8 @@ pub struct QueryIter<'a, Q: Query<'a>> {
     entity_iter: std::slice::Iter<'a, EntityData>,
     query_mask: SimdBitArray<256>,
     storage_ref: Q::StorageRef,
+    count: usize,
+    smallest_storage_count: usize,
     _phantom: std::marker::PhantomData<Q>,
 }
 
@@ -257,6 +259,7 @@ impl<'a> World {
 impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
     pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
         let mut query_mask = SimdBitArray::new();
+        let mut smallest_storage_count = 0;
 
         // Set the bits for each component in the query.
         for type_id in Q::type_ids() {
@@ -269,13 +272,22 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
 
             // Set the bit.
             query_mask.set(comp_id.0 as usize, true);
-        }
+
+            // Find the number of times to iterate.
+            let storage = &world.components.get(&type_id).unwrap().0;
+
+            if smallest_storage_count == 0 || storage.count < smallest_storage_count {
+                smallest_storage_count = storage.count;
+            }
+        };
 
         Ok(Self {
             world,
             entity_iter: world.entities.iter(),
             query_mask,
             storage_ref: Q::get_storage_ref(world),
+            count: 0,
+            smallest_storage_count,
             _phantom: std::marker::PhantomData,
         })
     }
@@ -285,6 +297,12 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
     type Item = (Entity, Q::Item);
 
     fn next(&mut self) -> Option<Self::Item> {
+        // If the count is equal to the smallest storage count, then we have iterated 
+        // through all the entities that could possibly have the components in the query.
+        if self.count == self.smallest_storage_count {
+            return None;
+        }        
+
         loop {
             // Get the next entity and its data
             let entity_data = self.entity_iter.next()?;
@@ -300,6 +318,9 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
             if entity_data.components.contains(&self.query_mask) {
                 // Get the components.
                 let components = Q::get_unchecked(entity, &self.storage_ref);
+
+                // Increment the count.
+                self.count += 1;
 
                 // Return the components.
                 return Some((entity, components));

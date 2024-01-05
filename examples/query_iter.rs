@@ -20,18 +20,21 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    for i in 0..100000 {
+    for i in 0..10000 {
         let entity = world.create_entity();
 
-        world.add_component(entity, i);
+        if i > 3000 && i < 7000 {
+            world.add_component(entity, i);
 
-        world.add_component(
-            entity,
-            Position {
-                x: i as f32,
-                y: i as f32,
-            },
-        );
+            world.add_component(
+                entity,
+                Position {
+                    x: i as f32,
+                    y: i as f32,
+                },
+            );
+        }
+
         if i % 2 == 0 {
             world.add_component(
                 entity,
@@ -47,7 +50,7 @@ fn main() {
 
     println!("Add time taken: {:?}", add_time_taken);
 
-    for _ in 0..100 {
+    for _ in 0..10000000 {
         run(&world);
     }
 }
