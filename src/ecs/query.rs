@@ -4,7 +4,9 @@ use crate::internal::bit_array::SimdBitArray;
 
 use self::internal::QueryInternal;
 
-use super::{component::Component, storage::ComponentStorage, Entity, EntityData, World};
+use super::{
+    component::Component, storage::ComponentStorage, Entity, EntityData, SerdeTypeId, World,
+};
 
 pub trait Query<'a>: QueryInternal<'a> {}
 
@@ -57,7 +59,11 @@ impl<'a, T: Component> QueryInternal<'a> for T {
 
     #[inline]
     fn get_storage_ref(world: &'a World) -> Self::StorageRef {
-        &world.components.get(&TypeId::of::<T>()).unwrap().0
+        &world
+            .components
+            .get(&SerdeTypeId::from(TypeId::of::<T>()))
+            .unwrap()
+            .0
     }
 }
 
@@ -266,7 +272,7 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
             // Get the component ID.
             let comp_id = world
                 .components
-                .get(&type_id)
+                .get(&SerdeTypeId::from(type_id))
                 .ok_or("Component not found.")?
                 .1;
 
@@ -274,7 +280,7 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
             query_mask.set(comp_id.0 as usize, true);
 
             // Find the number of times to iterate.
-            let storage = &world.components.get(&type_id).unwrap().0;
+            let storage = &world.components.get(&SerdeTypeId::from(type_id)).unwrap().0;
 
             if smallest_storage_count == 0 || storage.count < smallest_storage_count {
                 smallest_storage_count = storage.count;

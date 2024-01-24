@@ -1,10 +1,13 @@
 use std::any::TypeId;
 
+use serde::{Serialize, Deserialize};
+
 use self::{component::Component, storage::ComponentStorage, typeid_map::TypeIdMap};
 use crate::internal::bit_array::SimdBitArray;
 
 pub mod component;
 pub mod query;
+pub mod serialize;
 mod storage;
 mod typeid_map;
 
@@ -47,6 +50,7 @@ impl Entity {
 }
 
 /// This struct holds data pertaining to a single entity. Basically an internal representation of an entity.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct EntityData {
     components: SimdBitArray<256>,
     version: u32,
@@ -55,8 +59,24 @@ struct EntityData {
 
 /// This ID is used to identify a component type.
 /// It is used for things like component masks.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 struct ComponentId(u8);
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub(crate) struct SerdeTypeId {
+    pub id: u128
+}
+
+impl From<TypeId> for SerdeTypeId {
+    fn from(type_id: TypeId) -> Self {
+        // Transmute the TypeId into a u128.
+        Self {
+            id: unsafe { std::mem::transmute::<TypeId, u128>(type_id) }
+        }
+    }
+}
+
 
 /// The world is the container for all entities and components.
 /// It is responsible for creating and destroying entities and components.
@@ -79,7 +99,6 @@ pub struct World {
     current_entity_id: u32,
     current_component_id: u8,
 }
-
 
 impl World {
     /// Creates a new world with the given initial capacity.
@@ -163,7 +182,7 @@ impl World {
     /// If the entity already has a component of this type, the value is overwritten.
     pub fn add_component<T: Component>(&mut self, entity: Entity, component: T) {
         // Get the storage for this component type.
-        let (storage, comp_id) = self.components.entry(TypeId::of::<T>()).or_insert_with(|| {
+        let (storage, comp_id) = self.components.entry(SerdeTypeId::from(TypeId::of::<T>())).or_insert_with(|| {
             let storage = ComponentStorage::new::<T>(self.entities.capacity());
             let comp_id = ComponentId(self.current_component_id);
             self.current_component_id += 1;
@@ -184,7 +203,7 @@ impl World {
     /// Returns true if the component was removed.
     /// Returns false if the entity did not have the component.
     pub fn remove_component<T: Component>(&mut self, entity: Entity) -> bool {
-        let (storage, comp_id) = match self.components.get_mut(&TypeId::of::<T>()) {
+        let (storage, comp_id) = match self.components.get_mut(&SerdeTypeId::from(TypeId::of::<T>())) {
             Some((storage, comp_id)) => (storage, comp_id),
             None => return false,
         };
@@ -212,7 +231,7 @@ impl World {
     /// Retrieves a reference to the component of the given type for the given entity.
     pub fn get_component<T: Component>(&self, entity: Entity) -> Option<&T> {
         // Get the storage for this component type.
-        let (storage, comp_id) = self.components.get(&TypeId::of::<T>())?;
+        let (storage, comp_id) = self.components.get(&SerdeTypeId::from(TypeId::of::<T>()))?;
 
         // Check if the entity has this component.
         if !self.entities[entity.id as usize]
@@ -323,16 +342,16 @@ mod tests {
         world.add_component(entity, 5u32);
         world.add_component(entity, 10.0f32);
 
-        let storage = &mut world.components.get_mut(&TypeId::of::<u32>()).unwrap().0;
+        let storage = &mut world.components.get_mut(&SerdeTypeId::from(TypeId::of::<u32>())).unwrap().0;
         assert_eq!(storage.free_slots.len(), 0);
-        let storage_f32 = &mut world.components.get_mut(&TypeId::of::<f32>()).unwrap().0;
+        let storage_f32 = &mut world.components.get_mut(&SerdeTypeId::from(TypeId::of::<f32>())).unwrap().0;
         assert_eq!(storage_f32.free_slots.len(), 0);
 
         world.remove_entity(entity);
 
-        let storage = &mut world.components.get_mut(&TypeId::of::<u32>()).unwrap().0;
+        let storage = &mut world.components.get_mut(&SerdeTypeId::from(TypeId::of::<u32>())).unwrap().0;
         assert_eq!(storage.free_slots.len(), 1);
-        let storage_f32 = &mut world.components.get_mut(&TypeId::of::<f32>()).unwrap().0;
+        let storage_f32 = &mut world.components.get_mut(&SerdeTypeId::from(TypeId::of::<f32>())).unwrap().0;
         assert_eq!(storage_f32.free_slots.len(), 1);
     }
 
@@ -408,5 +427,75 @@ mod tests {
         world.remove_entity(ent2);
 
         assert_eq!(unsafe { DROP_COUNT }, 2);
+    }
+
+    #[test]
+    fn drop_world_drops_components() {
+        #[derive(Serialize, Deserialize)]
+        struct DroppableTest {
+            name: String,
+        }
+    
+        static mut DROP_COUNT: u32 = 0;
+    
+        impl Drop for DroppableTest {
+            fn drop(&mut self) {
+                unsafe { DROP_COUNT += 1 }
+            }
+        }
+    
+        impl Component for DroppableTest {}
+
+        let mut world = World::with_capacity(10);
+
+        let entity = world.create_entity();
+
+        world.add_component(
+            entity,
+            DroppableTest {
+                name: "Test".to_string(),
+            },
+        );
+
+        assert_eq!(unsafe { DROP_COUNT }, 0);
+
+        drop(world);
+
+        assert_eq!(unsafe { DROP_COUNT }, 1);
+    }
+
+    #[test]
+    fn drop_ent_drops_components() {
+        #[derive(Serialize, Deserialize)]
+        struct DroppableTest {
+            name: String,
+        }
+    
+        static mut DROP_COUNT: u32 = 0;
+    
+        impl Drop for DroppableTest {
+            fn drop(&mut self) {
+                unsafe { DROP_COUNT += 1 }
+            }
+        }
+    
+        impl Component for DroppableTest {}
+
+        let mut world = World::with_capacity(10);
+
+        let entity = world.create_entity();
+
+        world.add_component(
+            entity,
+            DroppableTest {
+                name: "Test".to_string(),
+            },
+        );
+
+        assert_eq!(unsafe { DROP_COUNT }, 0);
+
+        world.remove_entity(entity);
+
+        assert_eq!(unsafe { DROP_COUNT }, 1);
     }
 }
