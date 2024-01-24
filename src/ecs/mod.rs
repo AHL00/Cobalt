@@ -247,7 +247,6 @@ impl World {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
@@ -428,5 +427,75 @@ mod tests {
         world.remove_entity(ent2);
 
         assert_eq!(unsafe { DROP_COUNT }, 2);
+    }
+
+    #[test]
+    fn drop_world_drops_components() {
+        #[derive(Serialize, Deserialize)]
+        struct DroppableTest {
+            name: String,
+        }
+    
+        static mut DROP_COUNT: u32 = 0;
+    
+        impl Drop for DroppableTest {
+            fn drop(&mut self) {
+                unsafe { DROP_COUNT += 1 }
+            }
+        }
+    
+        impl Component for DroppableTest {}
+
+        let mut world = World::with_capacity(10);
+
+        let entity = world.create_entity();
+
+        world.add_component(
+            entity,
+            DroppableTest {
+                name: "Test".to_string(),
+            },
+        );
+
+        assert_eq!(unsafe { DROP_COUNT }, 0);
+
+        drop(world);
+
+        assert_eq!(unsafe { DROP_COUNT }, 1);
+    }
+
+    #[test]
+    fn drop_ent_drops_components() {
+        #[derive(Serialize, Deserialize)]
+        struct DroppableTest {
+            name: String,
+        }
+    
+        static mut DROP_COUNT: u32 = 0;
+    
+        impl Drop for DroppableTest {
+            fn drop(&mut self) {
+                unsafe { DROP_COUNT += 1 }
+            }
+        }
+    
+        impl Component for DroppableTest {}
+
+        let mut world = World::with_capacity(10);
+
+        let entity = world.create_entity();
+
+        world.add_component(
+            entity,
+            DroppableTest {
+                name: "Test".to_string(),
+            },
+        );
+
+        assert_eq!(unsafe { DROP_COUNT }, 0);
+
+        world.remove_entity(entity);
+
+        assert_eq!(unsafe { DROP_COUNT }, 1);
     }
 }
