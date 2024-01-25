@@ -1,6 +1,12 @@
+use serde::{Deserialize, Serialize};
+
+use crate::ecs::World;
+
 /// A scene is a collection of entities.
+#[derive(Serialize, Deserialize)]
 pub struct Scene {
     pub name: String,
+    pub world: World,
 }
 
 impl Scene {
@@ -11,6 +17,7 @@ impl Scene {
     {
         Self {
             name: name.into(),
+            world: World::with_capacity(128),
         }
     }
 }

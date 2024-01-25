@@ -7,6 +7,7 @@ pub(crate) mod internal;
 pub mod scene;
 pub mod engine;
 pub mod ecs;
+pub mod assets;
 
 // Tell NVIDIA Optimus to use high performance GPU.
 #[cfg(target_os = "windows")]

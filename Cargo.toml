@@ -1,3 +1,4 @@
+workspace = { members = ["examples/game"] }
 [package]
 name = "cobalt"
 version = "0.1.0"
@@ -6,9 +7,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-base64 = "0.21.5"
 compile-time = "0.2.0"
-hashbrown = {version = "0.14.3", features = ["serde"], default_features = false}
+hashbrown = {version = "0.14.3", features = ["serde", "ahash"], default_features = false}
 packed_simd = "0.3.9"
 serde = {version = "1.0.193", features = ["derive"]}
 serde_closure = "0.3.3"

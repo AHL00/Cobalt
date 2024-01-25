@@ -70,6 +70,7 @@ impl Serialize for SerializableDataPtr {
             std::slice::from_raw_parts(self.ptr.as_ptr() as *const u8, self.size)
         };
 
+
         data.serialize(serializer)
     }
 }
