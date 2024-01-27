@@ -189,7 +189,6 @@ impl RendererPipeline for TestTrianglePipeline {
                 });
 
         let swapchain_format = graphics
-            .window
             .surface
             .get_capabilities(&graphics.adapter)
             .formats[0];

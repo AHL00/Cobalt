@@ -5,7 +5,7 @@ use winit::{
     event_loop::EventLoop,
 };
 
-use crate::{graphics::Graphics, internal::queue::SizedQueue, renderer::Renderer, scene::Scene};
+use crate::{graphics::{self, Graphics}, internal::queue::SizedQueue, renderer::Renderer, scene::Scene};
 
 /// Entry point for the engine.
 /// This trait is implemented by the user.
@@ -33,10 +33,8 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
     event_loop.run(move |event, elwt| {
         elwt.set_control_flow(winit::event_loop::ControlFlow::Wait);
 
-        let winit_win = &engine.graphics.window.winit;
-
         match event {
-            Event::WindowEvent { event, window_id } if window_id == winit_win.id() => match event {
+            Event::WindowEvent { event, window_id } if window_id == engine.graphics.window.winit.id() => match event {
                 WindowEvent::CloseRequested => elwt.exit(),
                 WindowEvent::RedrawRequested => {
                     let mut frame = engine.graphics.begin_frame().unwrap();
@@ -55,14 +53,16 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
                     }
                 }
                 WindowEvent::Resized(size) => {
-                    // engine.graphics.window.resize(size);
+                    let (new_width, new_height): (u32, u32) = size.into();
 
-                    winit_win.request_redraw();
+                    engine.graphics.configure_surface((new_width, new_height));
+
+                    engine.graphics.window.winit.request_redraw();
                 }
                 _ => (),
             },
             Event::AboutToWait => {
-                winit_win.request_redraw();
+                engine.graphics.window.winit.request_redraw();
             }
             _ => (),
         };

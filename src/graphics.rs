@@ -43,6 +43,7 @@ pub struct Graphics {
     pub(crate) adapter: wgpu::Adapter,
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
+    pub(crate) surface: wgpu::Surface<'static>,
 }
 
 impl Graphics {
@@ -51,12 +52,16 @@ impl Graphics {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let instance = wgpu::Instance::default();
 
-        let mut window = Window::new(&event_loop, &instance)?;
+        let window = Window::new(&event_loop)?;
+
+        let surface =
+            unsafe { instance.create_surface_unsafe(SurfaceTargetUnsafe::from_window(&window.winit)?) }
+                .map_err(|_| GraphicsError::CreateSurfaceError)?;
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&window.surface),
+                compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
             .block_on()
@@ -75,21 +80,44 @@ impl Graphics {
             )
             .block_on()
             .map_err(|_| GraphicsError::DeviceError)?;
-
-        window.configure_surface(&device, &adapter);
-
-        Ok(Self {
+        
+        let mut res = Self {
             window,
             instance,
             adapter,
             device,
+            surface,
             queue,
-        })
+        };
+
+        res.configure_surface(res.window.winit.inner_size().into());
+
+        Ok(res)
+    }
+
+    pub(crate) fn configure_surface(&mut self, size: (u32, u32)) {
+        let surface_capabilities = self.surface.get_capabilities(&self.adapter);
+
+        // Get preferred format
+        let format = surface_capabilities.formats[0];
+
+        self.surface.configure(
+            &self.device,
+            &wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                format,
+                width: size.0,
+                height: size.1,
+                present_mode: wgpu::PresentMode::AutoNoVsync,
+                desired_maximum_frame_latency: 2,
+                alpha_mode: wgpu::CompositeAlphaMode::Auto,
+                view_formats: vec![wgpu::TextureFormat::Bgra8UnormSrgb],
+            },
+        );
     }
 
     pub fn begin_frame<'a>(&mut self) -> Result<Frame<'a>, Box<dyn std::error::Error>> {
         let swap_texture = self
-            .window
             .surface
             .get_current_texture()
             .map_err(|_| GraphicsError::SwapChainTextureError)?;
@@ -121,52 +149,20 @@ impl Drop for Graphics {
 pub struct Window {
     // TODO: Maybe make this private and expose own methods?
     pub winit: winit::window::Window,
-    pub(crate) surface: wgpu::Surface<'static>,
 }
 
 impl Window {
     fn new(
         event_loop: &winit::event_loop::EventLoop<()>,
-        instance: &wgpu::Instance,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window = winit::window::WindowBuilder::new()
             .with_title("Engine")
             .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
             .build(event_loop)?;
 
-        let surface =
-            unsafe { instance.create_surface_unsafe(SurfaceTargetUnsafe::from_window(&window)?) }
-                .map_err(|_| GraphicsError::CreateSurfaceError)?;
-
         Ok(Self {
             winit: window,
-            surface,
         })
-    }
-
-    fn configure_surface(&mut self, device: &wgpu::Device, adapter: &wgpu::Adapter) {
-        let surface_capabilities = self.surface.get_capabilities(adapter);
-
-        // Get preferred format
-        let format = surface_capabilities.formats[0];
-
-        self.surface.configure(
-            device,
-            &wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format,
-                width: self.winit.inner_size().width,
-                height: self.winit.inner_size().height,
-                present_mode: wgpu::PresentMode::AutoNoVsync,
-                desired_maximum_frame_latency: 2,
-                alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                view_formats: vec![wgpu::TextureFormat::Bgra8UnormSrgb],
-            },
-        );
-    }
-
-    fn resize_callback(&mut self, size: winit::dpi::PhysicalSize<u32>) {
-        todo!();
     }
 }
 
