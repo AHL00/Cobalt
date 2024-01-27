@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 
 /// A component is a piece of data that can be attached to an entity.
 /// Any struct that implements this trait can be attached to an entity.
-pub trait Component: Serialize + Deserialize<'static> + Any + internal::ComponentInternal {
+pub trait Component: Any + internal::ComponentInternal {
 
 }
 

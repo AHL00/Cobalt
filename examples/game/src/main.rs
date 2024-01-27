@@ -1,4 +1,6 @@
-use cobalt::{engine::{Application, Engine}, renderer::TestTriangle};
+use std::vec;
+
+use cobalt::{engine::{Application, Engine}, renderer::TestTriangle, script::ScriptComponent};
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
@@ -20,8 +22,25 @@ impl Application for App {
 
         // Add test triangle
         engine.scene.world.add_component(ent, TestTriangle {x: 12});
+        engine.scene.world.add_component(ent, ScriptComponent::with_scripts(vec![Box::new(TestScript {x: 12})]));
     }
 
     fn update(&mut self, _engine: &mut Engine) {
+        
+    }
+}
+
+struct TestScript {
+    // ECS zero sized component bug workaround
+    x: i32
+}
+
+impl cobalt::script::Script for TestScript {
+    fn update(&self, engine: &mut Engine, entity: cobalt::ecs::Entity) {
+        log::info!("Update script for entity {:?}", entity);
+    }
+
+    fn on_load(&self, engine: &mut Engine, entity: cobalt::ecs::Entity) {
+        log::info!("Load script");
     }
 }
