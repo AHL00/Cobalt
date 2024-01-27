@@ -92,7 +92,7 @@ impl<'a, Q1: QueryInternal<'a>, Q2: QueryInternal<'a>> QueryInternal<'a> for (Q1
     type StorageRef = (Q1::StorageRef, Q2::StorageRef);
 
     fn type_ids() -> Vec<TypeId> {
-        vec![Q1::type_ids(), Q2::type_ids()].concat()
+        [Q1::type_ids(), Q2::type_ids()].concat()
     }
 
     #[inline]
@@ -117,7 +117,7 @@ impl<'a, Q1: QueryInternal<'a>, Q2: QueryInternal<'a>, Q3: QueryInternal<'a>> Qu
     type StorageRef = (Q1::StorageRef, Q2::StorageRef, Q3::StorageRef);
 
     fn type_ids() -> Vec<TypeId> {
-        vec![Q1::type_ids(), Q2::type_ids(), Q3::type_ids()].concat()
+        [Q1::type_ids(), Q2::type_ids(), Q3::type_ids()].concat()
     }
 
     #[inline]
@@ -160,7 +160,7 @@ impl<
     );
 
     fn type_ids() -> Vec<TypeId> {
-        vec![
+        [
             Q1::type_ids(),
             Q2::type_ids(),
             Q3::type_ids(),
@@ -213,7 +213,7 @@ impl<
     );
 
     fn type_ids() -> Vec<TypeId> {
-        vec![
+        [
             Q1::type_ids(),
             Q2::type_ids(),
             Q3::type_ids(),
