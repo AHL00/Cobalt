@@ -38,7 +38,6 @@ impl Frame<'_> {
 }
 
 pub struct Graphics {
-    pub window: Window,
     pub(crate) instance: wgpu::Instance,
     pub(crate) adapter: wgpu::Adapter,
     pub(crate) device: wgpu::Device,
@@ -48,11 +47,9 @@ pub struct Graphics {
 
 impl Graphics {
     pub(crate) fn new(
-        event_loop: &winit::event_loop::EventLoop<()>,
+        window: &Window,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let instance = wgpu::Instance::default();
-
-        let window = Window::new(&event_loop)?;
 
         let surface =
             unsafe { instance.create_surface_unsafe(SurfaceTargetUnsafe::from_window(&window.winit)?) }
@@ -82,20 +79,19 @@ impl Graphics {
             .map_err(|_| GraphicsError::DeviceError)?;
         
         let mut res = Self {
-            window,
             instance,
             adapter,
             device,
             surface,
             queue,
         };
-
-        res.configure_surface(res.window.winit.inner_size().into());
+        
+        res.configure_surface(window.winit.inner_size().into());
 
         Ok(res)
     }
 
-    pub(crate) fn configure_surface(&mut self, size: (u32, u32)) {
+    pub(crate) fn configure_surface(&self, size: (u32, u32)) {
         let surface_capabilities = self.surface.get_capabilities(&self.adapter);
 
         // Get preferred format
@@ -116,7 +112,7 @@ impl Graphics {
         );
     }
 
-    pub fn begin_frame<'a>(&mut self) -> Result<Frame<'a>, Box<dyn std::error::Error>> {
+    pub fn begin_frame<'a>(&self) -> Result<Frame<'a>, Box<dyn std::error::Error>> {
         let swap_texture = self
             .surface
             .get_current_texture()
@@ -133,8 +129,7 @@ impl Graphics {
         })
     }
 
-    pub fn end_frame(&mut self, frame: Frame) {
-        self.window.winit.pre_present_notify();
+    pub fn end_frame(&self, frame: Frame) {
         self.queue.submit(std::iter::once(frame.encoder.finish()));
         frame.swap_texture.present();
     }
@@ -152,7 +147,7 @@ pub struct Window {
 }
 
 impl Window {
-    fn new(
+    pub(crate) fn new(
         event_loop: &winit::event_loop::EventLoop<()>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window = winit::window::WindowBuilder::new()

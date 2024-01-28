@@ -47,6 +47,7 @@ pub fn asset_server() -> &'static AssetServer {
 /// When the handle is serialized, it will serialize the path.
 /// When the handle is deserialized, it will load the asset into the global
 /// asset server.
+/// TODO: Make this thread safe
 pub struct AssetHandle<T: Asset + 'static> {
     /// The relative path to the asset
     pub(crate) path: ImString,
@@ -156,7 +157,12 @@ impl AssetServer {
 
         let absolute_path = self.assets_dir.join(path);
 
-        let data = std::fs::read(absolute_path).unwrap();
+        let data = std::fs::read(absolute_path).unwrap_or_else(|_| {
+            panic!(
+                "Failed to load asset: {}",
+                self.assets_dir.join(path).to_str().unwrap()
+            )
+        });
 
         let asset = Rc::new(RefCell::new(T::load(data)));
         let asset_any: Rc<RefCell<dyn Any>> =

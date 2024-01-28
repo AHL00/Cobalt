@@ -5,7 +5,21 @@ use winit::{
     event_loop::EventLoop,
 };
 
+use crate::graphics::Window;
+
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 use crate::{graphics::Graphics, input::Input, internal::queue::SizedQueue, renderer::Renderer, scene::Scene};
+
+pub(crate) static mut GRAPHICS: Option<RwLock<Graphics>> = None;
+
+pub(crate) fn graphics() -> RwLockReadGuard<'static, Graphics> {
+    unsafe { GRAPHICS.as_ref().unwrap().read() }
+}
+
+pub(crate) fn graphics_mut() -> RwLockWriteGuard<'static, Graphics> {
+    unsafe { GRAPHICS.as_ref().unwrap().write() }
+}
 
 /// Entry point for the engine.
 /// This trait is implemented by the user.
@@ -18,15 +32,20 @@ pub trait Application {
 pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new()?;
 
+    
     let mut engine = Engine {
         stats: Stats::new(),
         scene: Scene::new("Main Scene"),
-        graphics: Graphics::new(&event_loop)?,
+        window: Window::new(&event_loop)?,
         renderer: Renderer::new(),
         input: Input::new(),
     };
+    
+    unsafe {
+        GRAPHICS = Some(RwLock::new(Graphics::new(&engine.window)?));
+    }
 
-    engine.renderer.add_default_pipelines(&engine.graphics);
+    engine.renderer.add_default_pipelines();
 
     app.init(&mut engine);
 
@@ -51,35 +70,39 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
 
         match event {
             Event::WindowEvent { event, window_id }
-                if window_id == engine.graphics.window.winit.id() =>
+                if window_id == engine.window.winit.id() =>
             {
                 engine.input.update(&event);
 
                 match event {
                     WindowEvent::CloseRequested => elwt.exit(),
                     WindowEvent::RedrawRequested => {
-                        let mut frame = engine.graphics.begin_frame().unwrap();
+                        let graphics = graphics();
+
+                        let mut frame = graphics.begin_frame().unwrap();
 
                         frame.clear(wgpu::Color::GREEN);
 
                         engine.renderer.render(&mut frame, &mut engine.scene.world);
 
-                        engine.graphics.end_frame(frame);
+                        engine.window.winit.pre_present_notify();
+
+                        graphics.end_frame(frame);
 
                         engine.stats.update();
 
                         next_frame_prep_needed = true;
                     }
                     WindowEvent::Resized(size) => {
-                        engine.graphics.configure_surface(size.into());
+                        graphics().configure_surface(size.into());
 
-                        engine.graphics.window.winit.request_redraw();
+                        engine.window.winit.request_redraw();
                     }
                     _ => (),
                 }
             }
             Event::AboutToWait => {
-                engine.graphics.window.winit.request_redraw();
+                engine.window.winit.request_redraw();
             }
             _ => (),
         };
@@ -142,7 +165,7 @@ pub struct Engine {
     // Make sure it doesn't swap out the scene DURING an update or render.
     // Schedule scene swaps for the next frame.
     pub scene: Scene,
-    pub graphics: Graphics,
+    pub window: Window,
     pub renderer: Renderer,
     pub stats: Stats,
     pub input: Input,

@@ -9,6 +9,7 @@ use crate::{
 };
 
 mod sprite_pipeline;
+pub mod texture;
 
 /// This trait is used to define a pipeline for the renderer.
 /// It renders all components of a specific type in an ECS world.
@@ -37,8 +38,10 @@ impl Renderer {
         }
     }
 
-    pub(crate) fn add_default_pipelines(&mut self, graphics: &Graphics) {
-        self.add_pipeline(TestTrianglePipeline::new(graphics));
+    pub(crate) fn add_default_pipelines(&mut self) {
+        let graphics = crate::engine::graphics();
+
+        self.add_pipeline(TestTrianglePipeline::new(&graphics));
     }
 
     pub fn add_pipeline<T: RendererPipeline + 'static>(&mut self, pipeline: T) {
@@ -57,6 +60,11 @@ impl Renderer {
             pipeline.render(frame, world);
         }
     }
+}
+
+
+pub trait HasBindGroupLayout {
+    fn bind_group_layout(&self) -> &wgpu::BindGroupLayout;
 }
 
 #[repr(C)]

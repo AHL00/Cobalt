@@ -1,9 +1,7 @@
 use std::vec;
 
 use cobalt::{
-    engine::{Application, Engine},
-    renderer::TestTriangle,
-    script::ScriptComponent,
+    assets::asset_server_mut, engine::{Application, Engine}, renderer::{texture::TextureAsset, TestTriangle}, script::ScriptComponent
 };
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -23,6 +21,10 @@ impl Application for App {
         log::info!("Initializing app");
 
         let ent = engine.scene.world.create_entity();
+
+        asset_server_mut().set_assets_dir("assets");
+
+        let texture = asset_server_mut().load::<TextureAsset>("texture.png");
 
         // Add test triangle
         engine.scene.world.add_component(ent, TestTriangle {});

@@ -12,6 +12,7 @@ pub mod graphics;
 pub mod renderer;
 pub mod script;
 pub mod input;
+pub mod stats;
 
 // Tell NVIDIA Optimus to use high performance GPU.
 #[cfg(target_os = "windows")]
