@@ -28,10 +28,13 @@ compile-time = "0.2.0"
 serde = { version = "1.0.196", features = ["derive"] }
 serde_closure = "0.3.3"
 serde_traitobject = { version = "0.2.8", features = ["serde_closure"] }
+imstr = "0.2.0"
 
 [dev-dependencies]
 simple_logger = "4.3.3"
 serde_yaml = "0.9.30"
+rand = "0.8.5"
+walkdir = "2.4.0"
 
 [profile.release]
 # For profiling

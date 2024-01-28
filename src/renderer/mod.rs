@@ -8,6 +8,8 @@ use crate::{
     graphics::{Frame, Graphics},
 };
 
+mod sprite_pipeline;
+
 /// This trait is used to define a pipeline for the renderer.
 /// It renders all components of a specific type in an ECS world.
 pub trait RendererPipeline {
