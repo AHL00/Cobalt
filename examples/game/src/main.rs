@@ -26,7 +26,7 @@ impl Application for App {
     }
 
     fn update(&mut self, _engine: &mut Engine) {
-        
+
     }
 }
 
@@ -37,7 +37,6 @@ struct TestScript {
 
 impl cobalt::script::Script for TestScript {
     fn update(&self, engine: &mut Engine, entity: cobalt::ecs::Entity) {
-        log::info!("Update script for entity {:?}", entity);
     }
 
     fn on_load(&self, engine: &mut Engine, entity: cobalt::ecs::Entity) {

@@ -5,7 +5,7 @@ use winit::{
     event_loop::EventLoop,
 };
 
-use crate::{graphics::Graphics, internal::queue::SizedQueue, renderer::Renderer, scene::Scene};
+use crate::{graphics::Graphics, input::Input, internal::queue::SizedQueue, renderer::Renderer, scene::Scene};
 
 /// Entry point for the engine.
 /// This trait is implemented by the user.
@@ -23,6 +23,7 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
         scene: Scene::new("Main Scene"),
         graphics: Graphics::new(&event_loop)?,
         renderer: Renderer::new(),
+        input: Input::new(),
     };
 
     engine.renderer.add_default_pipelines(&engine.graphics);
@@ -36,15 +37,16 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
     event_loop.run(move |event, elwt| {
         elwt.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
-        if next_frame_prep_needed {
-            
+        if next_frame_prep_needed {  
             // Call main update function.
             app.update(&mut engine);
-
+            
             // Run update scripts.
             // This workaround is pretty ugly, but it works for now.
             let engine_ptr = &mut engine as *mut Engine;
             engine.scene.run_update_scripts(unsafe { &mut *engine_ptr });
+            
+            engine.input.prepare();
 
             next_frame_prep_needed = false;
         }
@@ -53,6 +55,8 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
             Event::WindowEvent { event, window_id }
                 if window_id == engine.graphics.window.winit.id() =>
             {
+                engine.input.update(&event);
+
                 match event {
                     WindowEvent::CloseRequested => elwt.exit(),
                     WindowEvent::RedrawRequested => {
@@ -148,6 +152,7 @@ pub struct Engine {
     pub graphics: Graphics,
     pub renderer: Renderer,
     pub stats: Stats,
+    pub input: Input,
 }
 
 impl Engine {}

@@ -25,7 +25,7 @@ bytemuck = { version = "1.14.1", features = ["derive"] }
 
 # Serialization
 compile-time = "0.2.0"
-serde = { version = "1.0.193", features = ["derive"] }
+serde = { version = "1.0.196", features = ["derive"] }
 serde_closure = "0.3.3"
 serde_traitobject = { version = "0.2.8", features = ["serde_closure"] }
 

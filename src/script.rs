@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{ecs::{component::Component, Entity}, engine::Engine};
 
 pub trait Script {

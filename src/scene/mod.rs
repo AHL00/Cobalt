@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::ecs::World;
 
 /// A scene is a collection of entities.
