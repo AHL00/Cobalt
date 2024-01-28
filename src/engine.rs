@@ -30,8 +30,6 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
 
     app.init(&mut engine);
 
-    let mut last_log = std::time::Instant::now();
-
     let mut next_frame_prep_needed = true;
 
     event_loop.run(move |event, elwt| {
@@ -69,11 +67,6 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
                         engine.graphics.end_frame(frame);
 
                         engine.stats.update();
-
-                        if last_log.elapsed().as_secs_f32() > 1.0 {
-                            log::info!("Avg FPS: {}", engine.stats.average_fps(100));
-                            last_log = std::time::Instant::now();
-                        }
 
                         next_frame_prep_needed = true;
                     }

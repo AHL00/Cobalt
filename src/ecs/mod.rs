@@ -269,6 +269,25 @@ mod tests {
     }
 
     #[test]
+    fn zero_sized_component_test() {
+        #[derive(Serialize, Deserialize)]
+        struct ZeroSizedTest {}
+
+        impl Component for ZeroSizedTest {}
+
+        let mut world = World::with_capacity(10);
+
+        let entity = world.create_entity();
+
+        world.add_component(entity, ZeroSizedTest {});
+
+        let retrieved = world.get_component::<ZeroSizedTest>(entity).unwrap();
+
+        assert_eq!(std::mem::size_of::<ZeroSizedTest>(), 0);
+        assert_eq!(std::mem::size_of_val(retrieved), 0);
+    }
+
+    #[test]
     fn create_entity_with_capacity_test() {
         let mut world = World::with_capacity(10);
 

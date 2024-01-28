@@ -65,10 +65,7 @@ pub struct TestTriangleVertex {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct TestTriangle {
-    // ECS bug with zero-sized types workaround
-    pub x: i32
-}
+pub struct TestTriangle {}
 
 impl Component for TestTriangle {}
 
@@ -188,10 +185,7 @@ impl RendererPipeline for TestTrianglePipeline {
                     push_constant_ranges: &[],
                 });
 
-        let swapchain_format = graphics
-            .surface
-            .get_capabilities(&graphics.adapter)
-            .formats[0];
+        let swapchain_format = graphics.surface.get_capabilities(&graphics.adapter).formats[0];
 
         let render_pipeline =
             graphics

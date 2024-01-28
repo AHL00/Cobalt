@@ -7,12 +7,9 @@ struct Position {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct Velocity {
-    x: f32,
-    y: f32,
-}
+struct ZeroSized {}
 
-impl Component for Velocity {}
+impl Component for ZeroSized {}
 impl Component for Position {}
 
 fn main() {
@@ -20,7 +17,7 @@ fn main() {
 
     let start = std::time::Instant::now();
 
-    for i in 0..10000 {
+    for i in 0..100000 {
         let entity = world.create_entity();
 
         if i > 3000 && i < 7000 {
@@ -36,13 +33,7 @@ fn main() {
         }
 
         if i % 2 == 0 {
-            world.add_component(
-                entity,
-                Velocity {
-                    x: i as f32,
-                    y: i as f32,
-                },
-            );
+            world.add_component(entity, ZeroSized {});
         }
     }
 
@@ -50,7 +41,7 @@ fn main() {
 
     println!("Add time taken: {:?}", add_time_taken);
 
-    for _ in 0..10000000 {
+    for _ in 0..100 {
         run(&world);
     }
 }

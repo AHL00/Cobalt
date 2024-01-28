@@ -65,11 +65,9 @@ impl Drop for SerializableDataPtr {
 impl Serialize for SerializableDataPtr {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer {
-        let data = unsafe {
-            std::slice::from_raw_parts(self.ptr.as_ptr() as *const u8, self.size)
-        };
-
+        S: serde::Serializer,
+    {
+        let data = unsafe { std::slice::from_raw_parts(self.ptr.as_ptr() as *const u8, self.size) };
 
         data.serialize(serializer)
     }
@@ -78,7 +76,8 @@ impl Serialize for SerializableDataPtr {
 impl<'de> Deserialize<'de> for SerializableDataPtr {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de> {
+        D: serde::Deserializer<'de>,
+    {
         let data = Vec::<u8>::deserialize(deserializer)?;
 
         let ptr = unsafe {
@@ -125,8 +124,6 @@ fn test_serializable_data_ptr() {
 
     assert_eq!(data, vec![1, 2, 3, 4, 5]);
 }
-
-
 
 /// Stores any number of components of the same type.
 /// This is going to be a sparse set array.
@@ -214,40 +211,50 @@ impl ComponentStorage {
     pub fn add<T: Component>(&mut self, entity: Entity, component: T) {
         let size = std::mem::size_of::<T>();
 
-        // Find a free slot.
-        let free_slot = self.free_slots.pop();
+        let index = if size > 0 {
+            // Find a free slot.
+            let free_slot = self.free_slots.pop();
 
-        // Check if we're adding to the end of the array.
-        if free_slot.is_none() {
-            // Update the used size.
-            self.used += size;
+            // Check if we're adding to the end of the array.
+            if free_slot.is_none() {
+                // Update the used size.
+                self.used += size;
 
-            // Make sure we have enough space if we're adding to a new slot.
-            if self.data.size - self.used < size {
-                let mut new_capacity = self.data.size * 2;
+                // Make sure we have enough space if we're adding to a new slot.
+                if self.data.size - self.used < size {
+                    let mut new_capacity = self.data.size * 2;
 
-                while new_capacity - self.used < size {
-                    new_capacity *= 2;
+                    while new_capacity - self.used < size {
+                        new_capacity *= 2;
+                    }
+
+                    self.data.reallocate(new_capacity);
                 }
-
-                self.data.reallocate(new_capacity);
             }
-        }
 
-        let index = if let Some(free_slot) = free_slot {
-            free_slot
+            let index = if let Some(free_slot) = free_slot {
+                free_slot
+            } else {
+                self.used / size
+            };
+
+            // Get the pointer to the data.
+            let ptr = unsafe { self.data.as_ptr().add(index * size) as *mut T };
+
+            // Write the data.
+            unsafe {
+                ptr.write(component);
+            }
+
+            index
         } else {
-            // TODO: Fix divide by zero bug when adding structs with no fields.
-            self.used / size
+            // This is a zero sized struct.
+            // We don't need to write anything.
+            // When getting the data, just construct a new instance of the struct.
+
+            // Set the index to 0
+            0
         };
-
-        // Get the pointer to the data.
-        let ptr = unsafe { self.data.as_ptr().add(index * size) as *mut T };
-
-        // Write the data.
-        unsafe {
-            ptr.write(component);
-        }
 
         // Update the sparse set.
         self.sparse_set[entity.id as usize] = Some(index);
@@ -262,6 +269,14 @@ impl ComponentStorage {
     /// The entity must have a component of this type or this will panic.
     pub fn get_unchecked<T: Component>(&self, entity: Entity) -> &T {
         let size = std::mem::size_of::<T>();
+
+        // Zero sized type
+        if size == 0 {
+            // Transmute a 0 byte chunk of mem
+            let res = unsafe { std::mem::transmute::<&u8, &T>(&0) };
+
+            return res;
+        }
 
         // Use the entity id to get the index to the dense set.
         let data_index = self.sparse_set[entity.id as usize].unwrap();
