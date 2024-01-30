@@ -10,3 +10,4 @@ ahash = "0.8.7"
 cobalt = { path = "../../" }
 simple_logger = "4.3.3"
 log = "0.4.20"
+serde_yaml = "0.9.30"

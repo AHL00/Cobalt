@@ -1,7 +1,7 @@
 use std::vec;
 
 use cobalt::{
-    assets::asset_server_mut, engine::{Application, Engine}, renderer::{texture::TextureAsset, TestTriangle}, script::ScriptComponent
+    assets::asset_server_mut, engine::{Application, Engine}, graphics::texture::Texture, renderer::sprite::Sprite, script::ScriptComponent
 };
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -24,10 +24,12 @@ impl Application for App {
 
         asset_server_mut().set_assets_dir("assets");
 
-        let texture = asset_server_mut().load::<TextureAsset>("texture.png");
+        let texture = asset_server_mut().load::<Texture>("texture.png");
+
+        log::info!("Texture size: {:?}", texture.borrow().size());
 
         // Add test triangle
-        engine.scene.world.add_component(ent, TestTriangle {});
+        engine.scene.world.add_component(ent, Sprite::new(texture.clone()));
         engine.scene.world.add_component(
             ent,
             ScriptComponent::with_scripts(vec![Box::new(TestScript {})]),

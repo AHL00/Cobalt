@@ -1,6 +1,9 @@
 use pollster::FutureExt;
 use wgpu::SurfaceTargetUnsafe;
 
+pub mod texture;
+pub mod vertex;
+
 pub struct Frame<'a> {
     encoder: wgpu::CommandEncoder,
     swap_texture: wgpu::SurfaceTexture,
@@ -8,6 +11,8 @@ pub struct Frame<'a> {
 }
 
 impl Frame<'_> {
+    /// TODO: For multithreading, we could make new encoders every time this is called.
+    /// Store the encoders in a vec and then submit them all at the end of the frame. 
     pub fn encoder(&mut self) -> &mut wgpu::CommandEncoder {
         &mut self.encoder
     }
@@ -35,6 +40,15 @@ impl Frame<'_> {
                 depth_stencil_attachment: None,
             });
     }
+}
+
+/// Capable of creating a wgpu::BindGroupLayout.
+pub(crate) trait HasBindGroupLayout {
+    fn bind_group_layout(device: &wgpu::Device) -> &wgpu::BindGroupLayout;
+}
+
+pub(crate) trait HasVertexBufferLayout {
+    fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static>;
 }
 
 pub struct Graphics {

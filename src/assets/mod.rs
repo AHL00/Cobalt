@@ -10,12 +10,7 @@ use hashbrown::HashMap;
 use imstr::ImString;
 use serde::Serialize;
 use std::{
-    any::Any,
-    cell::{Ref, RefCell, RefMut},
-    path::PathBuf,
-    rc::{Rc, Weak},
-    str::FromStr,
-    sync::OnceLock,
+    any::Any, cell::{Ref, RefCell, RefMut}, fmt::Formatter, path::PathBuf, rc::{Rc, Weak}, str::FromStr, sync::OnceLock, fmt::Debug
 };
 
 // Global asset server
@@ -54,6 +49,14 @@ pub struct AssetHandle<T: Asset + 'static> {
     pub(crate) rc: std::rc::Rc<std::cell::RefCell<T>>,
 }
 
+impl<T: Asset + 'static> Debug for AssetHandle<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssetHandle")
+            .field("path", &self.path)
+            .finish()
+    }
+}
+
 impl<T: Asset + 'static> AssetHandle<T> {
     // Any must be of type T
     fn new(path: ImString, rc: Rc<RefCell<dyn Any>>) -> Self {
@@ -77,18 +80,26 @@ impl<T: Asset + 'static> Clone for AssetHandle<T> {
 }
 
 impl<T: Asset + 'static> AssetHandle<T> {
-    /// Borrow the asset
     /// This will return a reference to the asset.
-    /// If the asset is not loaded, it will load the asset.
     pub fn borrow<'a>(&'a self) -> Ref<'a, T> {
         self.rc.borrow()
     }
 
-    /// Borrow the asset mutably
     /// This will return a mutable reference to the asset.
-    /// If the asset is not loaded, it will load the asset.
     pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
         self.rc.borrow_mut()
+    }
+
+    /// This will return a raw pointer to the asset.
+    /// It still borrows the asset so should be safish.
+    pub unsafe fn as_ptr(&self) -> *const T {
+        (&*self.rc.borrow()) as *const T
+    }
+
+    /// This will return a raw pointer to the asset.
+    /// It still borrows the asset so should be safish.
+    pub unsafe fn as_mut_ptr(&self) -> *mut T {
+        (&mut *self.rc.borrow_mut()) as *mut T
     }
 }
 

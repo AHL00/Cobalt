@@ -8,8 +8,7 @@ use crate::{
     graphics::{Frame, Graphics},
 };
 
-mod sprite_pipeline;
-pub mod texture;
+pub mod sprite;
 
 /// This trait is used to define a pipeline for the renderer.
 /// It renders all components of a specific type in an ECS world.
@@ -42,6 +41,7 @@ impl Renderer {
         let graphics = crate::engine::graphics();
 
         self.add_pipeline(TestTrianglePipeline::new(&graphics));
+        self.add_pipeline(sprite::SpritePipeline::new(&graphics));
     }
 
     pub fn add_pipeline<T: RendererPipeline + 'static>(&mut self, pipeline: T) {
@@ -60,11 +60,6 @@ impl Renderer {
             pipeline.render(frame, world);
         }
     }
-}
-
-
-pub trait HasBindGroupLayout {
-    fn bind_group_layout(&self) -> &wgpu::BindGroupLayout;
 }
 
 #[repr(C)]
@@ -227,7 +222,7 @@ impl RendererPipeline for TestTrianglePipeline {
         encoder: &'a mut wgpu::CommandEncoder,
         texture_view: &'a wgpu::TextureView,
     ) -> wgpu::RenderPass<'a> {
-        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &texture_view,
@@ -242,7 +237,7 @@ impl RendererPipeline for TestTrianglePipeline {
             timestamp_writes: None,
         });
 
-        _render_pass
+        render_pass
     }
 
     fn name(&self) -> &str {

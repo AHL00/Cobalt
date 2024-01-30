@@ -1,6 +1,7 @@
 #![feature(generic_const_exprs)]
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
+#![feature(lazy_cell)]
 #![allow(dead_code)]
 
 pub(crate) mod internal;
