@@ -43,7 +43,7 @@ static TEXTURE_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::ne
 
 impl Asset for Texture {
     fn load(data: Vec<u8>) -> Self {
-        let rgba = image::load_from_memory(&data).unwrap().to_rgba8();
+        let rgba = image::load_from_memory(&data).unwrap().flipv().to_rgba8();
 
         let (width, height) = rgba.dimensions();
 

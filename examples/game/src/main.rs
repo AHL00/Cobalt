@@ -1,7 +1,5 @@
-use std::vec;
-
 use cobalt::{
-    assets::asset_server_mut, engine::{Application, Engine}, graphics::texture::Texture, renderer::sprite::Sprite, script::ScriptComponent
+    assets::asset_server_mut, engine::{Application, Engine}, graphics::texture::Texture, renderer::{camera::Camera, sprite::Sprite}, script::ScriptComponent, transform::Transform
 };
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -29,14 +27,27 @@ impl Application for App {
         log::info!("Texture size: {:?}", texture.borrow().size());
 
         // Add test triangle
-        engine.scene.world.add_component(ent, Sprite::new(texture.clone()));
+        engine
+            .scene
+            .world
+            .add_component(ent, Sprite::new(texture.clone()));
+
         engine.scene.world.add_component(
             ent,
             ScriptComponent::with_scripts(vec![Box::new(TestScript {})]),
         );
+
+        let cam_ent = engine.scene.world.create_entity();
+
+        engine.scene.world.add_component(cam_ent, Camera {enabled: true});
+
+        engine.scene.world.add_component(cam_ent, Transform::with_position([0.0, 0.0, 5.0].into()));
+
     }
 
-    fn update(&mut self, _engine: &mut Engine) {}
+    fn update(&mut self, _engine: &mut Engine) {
+        
+    }
 }
 
 struct TestScript {}

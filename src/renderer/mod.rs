@@ -6,8 +6,12 @@ use wgpu::util::DeviceExt;
 use crate::{
     ecs::{component::Component, World},
     graphics::{Frame, Graphics},
+    transform::Transform,
 };
 
+use self::camera::Camera;
+
+pub mod camera;
 pub mod sprite;
 
 /// This trait is used to define a pipeline for the renderer.
@@ -56,8 +60,51 @@ impl Renderer {
     }
 
     pub fn render(&mut self, frame: &mut Frame, world: &mut World) {
-        for pipeline in &mut self.pipelines {
-            pipeline.render(frame, world);
+        // Get camera
+        let cam_query = world.query::<Camera>().unwrap();
+
+        let mut camera = None;
+        let mut enabled_camera_count = 0;
+
+        for (ent, cam) in cam_query {
+            if cam.enabled {
+                enabled_camera_count += 1;
+            }
+
+            // Make sure there is only one camera.
+            if enabled_camera_count > 1 {
+                log_once::warn_once!("More than one enabled camera entity found.");
+                break;
+            }
+
+            // Make sure it has a transform.
+            if let Some(transform) = world.get_component::<Transform>(ent) {
+                if cam.enabled {
+                    camera = Some((cam, transform));
+                }
+                break;
+            }
+
+            log_once::warn_once!(
+                "Camera [{:?}] does not have a transform component.",
+                ent
+            );
+        }
+
+        if let Some((camera, cam_transform)) = camera {
+            // // Update camera data
+            // let view_matrix = cam_transform.model_matrix.inversed();
+            // let proj_matrix = camera.projection_matrix();
+
+            // let camera_data = crate::engine::graphics().camera_data();
+            // camera_data.update(&view_matrix, &proj_matrix);
+
+            // Render
+            for pipeline in &mut self.pipelines {
+                pipeline.render(frame, world);
+            }
+        } else {
+            log_once::warn_once!("No enabled camera found in scene.");
         }
     }
 }
