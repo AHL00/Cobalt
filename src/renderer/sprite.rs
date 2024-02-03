@@ -1,14 +1,20 @@
 use std::sync::LazyLock;
 
-
 use ultraviolet::{Mat4, Mat4x4};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::AssetHandle, ecs::{component::Component, query::QueryIter}, engine::graphics, graphics::{texture::Texture, vertex::UvVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, transform::Transform
+    assets::AssetHandle,
+    ecs::{component::Component, query::QueryIter},
+    engine::graphics,
+    graphics::{
+        texture::Texture, vertex::UvVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout,
+        HasVertexBufferLayout,
+    },
+    transform::Transform,
 };
 
-use super::{RendererPipeline, ViewProj};
+use super::{RenderData, Renderer, RendererPipeline, ViewProj};
 
 /// Must have a transform component to be rendered
 pub struct Sprite {
@@ -30,36 +36,40 @@ impl Sprite {
 impl Component for Sprite {}
 
 static SPRITE_VERTEX_BUFFER: LazyLock<wgpu::Buffer> = LazyLock::new(|| {
-    graphics().device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: None,
-        contents: bytemuck::cast_slice(&[
-            UvVertex {
-                position: [-1.0, -1.0, 0.0],
-                uv: [0.0, 0.0],
-            },
-            UvVertex {
-                position: [1.0, -1.0, 0.0],
-                uv: [1.0, 0.0],
-            },
-            UvVertex {
-                position: [1.0, 1.0, 0.0],
-                uv: [1.0, 1.0],
-            },
-            UvVertex {
-                position: [-1.0, 1.0, 0.0],
-                uv: [0.0, 1.0],
-            },
-        ]),
-        usage: wgpu::BufferUsages::VERTEX,
-    })
+    graphics()
+        .device
+        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&[
+                UvVertex {
+                    position: [-1.0, -1.0, 0.0],
+                    uv: [0.0, 0.0],
+                },
+                UvVertex {
+                    position: [1.0, -1.0, 0.0],
+                    uv: [1.0, 0.0],
+                },
+                UvVertex {
+                    position: [1.0, 1.0, 0.0],
+                    uv: [1.0, 1.0],
+                },
+                UvVertex {
+                    position: [-1.0, 1.0, 0.0],
+                    uv: [0.0, 1.0],
+                },
+            ]),
+            usage: wgpu::BufferUsages::VERTEX,
+        })
 });
 
 static SPRITE_INDEX_BUFFER: LazyLock<wgpu::Buffer> = LazyLock::new(|| {
-    graphics().device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: None,
-        contents: bytemuck::cast_slice(&[0u16, 1, 2, 2, 3, 0]),
-        usage: wgpu::BufferUsages::INDEX,
-    })
+    graphics()
+        .device
+        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&[0u16, 1, 2, 2, 3, 0]),
+            usage: wgpu::BufferUsages::INDEX,
+        })
 });
 
 /// Bind group layout:
@@ -82,7 +92,13 @@ impl SpritePipeline {
 }
 
 impl RendererPipeline for SpritePipeline {
-    fn render<'a>(&mut self, frame: &mut crate::graphics::Frame, world: &'a mut crate::ecs::World, view_proj: ViewProj) {
+    fn render<'a>(
+        &mut self,
+        frame: &mut crate::graphics::Frame,
+        world: &'a mut crate::ecs::World,
+        view_proj: ViewProj,
+        render_data: &RenderData,
+    ) {
         let texture_view = &frame
             .swap_texture()
             .texture
@@ -92,7 +108,8 @@ impl RendererPipeline for SpritePipeline {
 
         let view_proj_bind_group = view_proj.create_bind_group(&graphics().device);
 
-        let mut render_pass = self.create_wgpu_render_pass(&mut encoder, texture_view);
+        let mut render_pass =
+            self.create_wgpu_render_pass(&mut encoder, texture_view, &render_data);
 
         render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
 
@@ -104,7 +121,7 @@ impl RendererPipeline for SpritePipeline {
             // Issues with borrow checker
             // It should be 100% safe to do this, but the borrow checker doesn't like it
             let texture = unsafe { &mut *sprite.texture.as_mut_ptr() };
-            
+
             render_pass.set_bind_group(0, &transform.bind_group(), &[]);
 
             render_pass.set_bind_group(2, &texture.bind_group(), &[]);
@@ -112,7 +129,7 @@ impl RendererPipeline for SpritePipeline {
             render_pass.set_vertex_buffer(0, sprite.vertex_buffer.slice(..));
 
             render_pass.set_index_buffer(sprite.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                
+
             render_pass.draw_indexed(0..6, 0, 0..1);
         }
     }
@@ -130,7 +147,11 @@ impl RendererPipeline for SpritePipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("SpritePipeline pipeline layout"),
-                    bind_group_layouts: &[&Transform::bind_group_layout(), &ViewProj::bind_group_layout(), &Texture::bind_group_layout()],
+                    bind_group_layouts: &[
+                        &Transform::bind_group_layout(),
+                        &ViewProj::bind_group_layout(),
+                        &Texture::bind_group_layout(),
+                    ],
                     push_constant_ranges: &[],
                 });
 
@@ -150,7 +171,22 @@ impl RendererPipeline for SpritePipeline {
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
                         entry_point: "fs_main",
-                        targets: &[Some(swapchain_format.into())],
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: swapchain_format,
+                            blend: Some(wgpu::BlendState {
+                                color: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::SrcAlpha,
+                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                                alpha: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::One,
+                                    dst_factor: wgpu::BlendFactor::One,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                            }),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
                     }),
                     primitive: wgpu::PrimitiveState {
                         topology: wgpu::PrimitiveTopology::TriangleList,
@@ -161,7 +197,14 @@ impl RendererPipeline for SpritePipeline {
                         polygon_mode: wgpu::PolygonMode::Fill,
                         conservative: false,
                     },
-                    depth_stencil: None,
+                    depth_stencil:
+                    Some(wgpu::DepthStencilState {
+                        format: Renderer::DEPTH_FORMAT,
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
                     multisample: wgpu::MultisampleState {
                         count: 1,
                         mask: !0,
@@ -177,6 +220,7 @@ impl RendererPipeline for SpritePipeline {
         &self,
         encoder: &'a mut wgpu::CommandEncoder,
         swap_texture: &'a wgpu::TextureView,
+        render_data: &'a RenderData,
     ) -> wgpu::RenderPass<'a> {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("SpritePipeline render pass"),
@@ -188,7 +232,20 @@ impl RendererPipeline for SpritePipeline {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: 
+            if let Some(depth_view) = &render_data.depth_view {
+                Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                })
+            } else {
+                None
+            }
+            ,
             occlusion_query_set: None,
             timestamp_writes: None,
         })

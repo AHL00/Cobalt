@@ -1,7 +1,7 @@
-use std::{any::Any, borrow::Cow, sync::LazyLock};
+use std::{any::Any, borrow::Cow, error::Error, sync::LazyLock};
 
 use serde::{Deserialize, Serialize};
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, BlendState};
 
 use crate::{
     ecs::{component::Component, World},
@@ -87,10 +87,20 @@ impl CreateBindGroup for ViewProj {
     }
 }
 
+struct RenderData {
+    depth_view: Option<wgpu::TextureView>,
+}
+
 /// This trait is used to define a pipeline for the renderer.
 /// It renders all components of a specific type in an ECS world.
 pub trait RendererPipeline {
-    fn render(&mut self, frame: &mut Frame, world: &mut World, view_proj: ViewProj);
+    fn render(
+        &mut self,
+        frame: &mut Frame,
+        world: &mut World,
+        view_proj: ViewProj,
+        render_data: &RenderData,
+    );
 
     fn create_wgpu_pipeline(&self, graphics: &Graphics) -> wgpu::RenderPipeline;
 
@@ -98,6 +108,7 @@ pub trait RendererPipeline {
         &self,
         encoder: &'a mut wgpu::CommandEncoder,
         swap_texture: &'a wgpu::TextureView,
+        depth_view: &'a RenderData,
     ) -> wgpu::RenderPass<'a>;
 
     fn name(&self) -> &str;
@@ -105,13 +116,48 @@ pub trait RendererPipeline {
 
 pub struct Renderer {
     pipelines: Vec<Box<dyn RendererPipeline>>,
+    depth_texture: Option<wgpu::Texture>,
 }
 
 impl Renderer {
+    pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
     pub fn new() -> Self {
         Self {
             pipelines: Vec::new(),
+            depth_texture: None,
         }
+    }
+
+    pub(crate) fn resize_callback(&mut self, size: (u32, u32)) {
+        // for pipeline in &mut self.pipelines {
+        //     pipeline.resize_callback(width, height);
+        // }
+
+        self.create_depth_texture(size).unwrap();
+    }
+
+    fn create_depth_texture(&mut self, size: (u32, u32)) -> Result<(), Box<dyn Error>> {
+        let graphics = crate::engine::graphics();
+
+        let depth_texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width: size.0,
+                height: size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        self.depth_texture = Some(depth_texture);
+
+        Ok(())
     }
 
     pub(crate) fn add_default_pipelines(&mut self) {
@@ -129,6 +175,25 @@ impl Renderer {
         }
 
         self.pipelines.push(Box::new(pipeline));
+    }
+
+    fn clear_depth_texture(&self, encoder: &mut wgpu::CommandEncoder) {
+        if let Some(depth_texture) = &self.depth_texture {
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+        }
     }
 
     pub fn render(&mut self, frame: &mut Frame, world: &mut World) {
@@ -174,6 +239,23 @@ impl Renderer {
                 .unwrap()
                 .projection_matrix();
 
+            self.clear_depth_texture(frame.encoder());
+
+            let render_data = RenderData {
+                depth_view: Some(self.depth_texture.as_ref().unwrap().create_view(
+                    &wgpu::TextureViewDescriptor {
+                        label: Some("Depth texture"),
+                        format: Some(Self::DEPTH_FORMAT),
+                        dimension: Some(wgpu::TextureViewDimension::D2),
+                        aspect: wgpu::TextureAspect::DepthOnly,
+                        base_mip_level: 0,
+                        base_array_layer: 0,
+                        array_layer_count: None,
+                        mip_level_count: None,
+                    },
+                )),
+            };
+
             // Render
             for pipeline in &mut self.pipelines {
                 pipeline.render(
@@ -183,6 +265,7 @@ impl Renderer {
                         view: view_matrix,
                         proj: proj_matrix,
                     },
+                    &render_data,
                 );
             }
         } else {

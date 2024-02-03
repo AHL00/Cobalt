@@ -104,6 +104,8 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
                     WindowEvent::Resized(size) => {
                         graphics().configure_surface(size.into());
 
+                        engine.renderer.resize_callback(size.into());
+
                         engine.window.winit.request_redraw();
                     }
                     _ => (),

@@ -8,6 +8,8 @@ use crate::engine::graphics;
 pub mod texture;
 pub mod vertex;
 
+pub use winit::window as winit_window;
+
 pub struct Frame<'a> {
     encoder: wgpu::CommandEncoder,
     swap_texture: wgpu::SurfaceTexture,
@@ -31,7 +33,7 @@ impl Frame<'_> {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         let _render_pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
+            label: Some("Clear"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
                 resolve_target: None,
