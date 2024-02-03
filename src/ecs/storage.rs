@@ -290,6 +290,29 @@ impl ComponentStorage {
         data
     }
 
+    pub fn get_unchecked_mut<T: Component>(&mut self, entity: Entity) -> &mut T {
+        let size = std::mem::size_of::<T>();
+
+        // Zero sized type
+        if size == 0 {
+            // Transmute a 0 byte chunk of mem
+            let res = unsafe { std::mem::transmute::<&mut u8, &mut T>(&mut 0) };
+
+            return res;
+        }
+
+        // Use the entity id to get the index to the dense set.
+        let data_index = self.sparse_set[entity.id as usize].unwrap();
+
+        // Get the pointer to the data.
+        let ptr = unsafe { self.data.as_ptr().add(data_index * size) as *mut T };
+
+        // Get the reference to the data.
+        let data = unsafe { &mut *ptr };
+
+        data
+    }
+
     /// Removes this entity from the sparse set but does not delete the actual data.
     /// Calls drop on the data.
     pub fn remove_unchecked(&mut self, entity: Entity) {

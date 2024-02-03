@@ -42,11 +42,11 @@ fn main() {
     println!("Add time taken: {:?}", add_time_taken);
 
     for _ in 0..100 {
-        run(&world);
+        run(&mut world);
     }
 }
 
-fn run(world: &World) {
+fn run(world: &mut World) {
     let start = std::time::Instant::now();
 
     let query_iter = world.query::<(Position, i32)>().unwrap();
