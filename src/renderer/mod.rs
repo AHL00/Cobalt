@@ -1,11 +1,12 @@
-use std::{any::Any, borrow::Cow};
+use std::{any::Any, borrow::Cow, sync::LazyLock};
 
 use serde::{Deserialize, Serialize};
 use wgpu::util::DeviceExt;
 
 use crate::{
     ecs::{component::Component, World},
-    graphics::{Frame, Graphics, HasBindGroupLayout},
+    engine::graphics,
+    graphics::{CreateBindGroup, Frame, Graphics, HasBindGroupLayout},
     transform::Transform,
 };
 
@@ -14,10 +15,82 @@ use self::camera::Camera;
 pub mod camera;
 pub mod sprite;
 
+struct ViewProj {
+    view: ultraviolet::Mat4,
+    proj: ultraviolet::Mat4,
+}
+
+static VIEW_PROJ_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
+    graphics()
+        .device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        })
+});
+
+impl HasBindGroupLayout for ViewProj {
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+        &*VIEW_PROJ_BIND_GROUP_LAYOUT
+    }
+}
+
+impl CreateBindGroup for ViewProj {
+    fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup {
+        let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(self.view.as_byte_slice()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let proj_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(self.proj.as_byte_slice()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &*VIEW_PROJ_BIND_GROUP_LAYOUT,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(view_buffer.as_entire_buffer_binding()),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(proj_buffer.as_entire_buffer_binding()),
+                },
+            ],
+        })
+    }
+}
+
 /// This trait is used to define a pipeline for the renderer.
 /// It renders all components of a specific type in an ECS world.
 pub trait RendererPipeline {
-    fn render(&mut self, frame: &mut Frame, world: &mut World, view_proj: &ultraviolet::Mat4);
+    fn render(&mut self, frame: &mut Frame, world: &mut World, view_proj: ViewProj);
 
     fn create_wgpu_pipeline(&self, graphics: &Graphics) -> wgpu::RenderPipeline;
 
@@ -104,7 +177,14 @@ impl Renderer {
 
             // Render
             for pipeline in &mut self.pipelines {
-                pipeline.render(frame, world, &(proj_matrix * view_matrix));
+                pipeline.render(
+                    frame,
+                    world,
+                    ViewProj {
+                        view: view_matrix,
+                        proj: proj_matrix,
+                    },
+                );
             }
         } else {
             log_once::warn_once!("No enabled camera found in scene.");
@@ -202,7 +282,7 @@ impl TestTrianglePipeline {
 }
 
 impl RendererPipeline for TestTrianglePipeline {
-    fn render(&mut self, frame: &mut Frame, world: &mut World, view_proj: &ultraviolet::Mat4) {
+    fn render(&mut self, frame: &mut Frame, world: &mut World, view_proj: ViewProj) {
         let texture_view = &frame
             .swap_texture()
             .texture

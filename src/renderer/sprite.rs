@@ -8,7 +8,7 @@ use crate::{
     assets::AssetHandle, ecs::{component::Component, query::QueryIter}, engine::graphics, graphics::{texture::Texture, vertex::UvVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, transform::Transform
 };
 
-use super::RendererPipeline;
+use super::{RendererPipeline, ViewProj};
 
 /// Must have a transform component to be rendered
 pub struct Sprite {
@@ -82,7 +82,7 @@ impl SpritePipeline {
 }
 
 impl RendererPipeline for SpritePipeline {
-    fn render<'a>(&mut self, frame: &mut crate::graphics::Frame, world: &'a mut crate::ecs::World, view_proj: &ultraviolet::Mat4) {
+    fn render<'a>(&mut self, frame: &mut crate::graphics::Frame, world: &'a mut crate::ecs::World, view_proj: ViewProj) {
         let texture_view = &frame
             .swap_texture()
             .texture
@@ -90,7 +90,7 @@ impl RendererPipeline for SpritePipeline {
 
         let mut encoder = frame.encoder();
 
-        let view_proj_bind_group = view_proj.create_bind_group();
+        let view_proj_bind_group = view_proj.create_bind_group(&graphics().device);
 
         let mut render_pass = self.create_wgpu_render_pass(&mut encoder, texture_view);
 
@@ -130,7 +130,7 @@ impl RendererPipeline for SpritePipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("SpritePipeline pipeline layout"),
-                    bind_group_layouts: &[&Transform::bind_group_layout(), &Mat4::bind_group_layout(), &Texture::bind_group_layout()],
+                    bind_group_layouts: &[&Transform::bind_group_layout(), &ViewProj::bind_group_layout(), &Texture::bind_group_layout()],
                     push_constant_ranges: &[],
                 });
 

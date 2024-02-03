@@ -60,7 +60,7 @@ pub(crate) trait HasBindGroup {
 }
 
 pub(crate) trait CreateBindGroup {
-    fn create_bind_group(&self) -> wgpu::BindGroup;
+    fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup;
 }
 
 static MAT4X4_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
@@ -82,25 +82,21 @@ static MAT4X4_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new
 });
 
 impl CreateBindGroup for ultraviolet::Mat4 {
-    fn create_bind_group(&self) -> wgpu::BindGroup {
-        let buffer = graphics()
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(self.as_byte_slice()),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+    fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(self.as_byte_slice()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
-        graphics()
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: &*MAT4X4_BIND_GROUP_LAYOUT,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
-                }],
-            })
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &*MAT4X4_BIND_GROUP_LAYOUT,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
+            }],
+        })
     }
 }
 
@@ -161,8 +157,8 @@ impl Graphics {
             .block_on()
             .map_err(|e| {
                 log::error!("Failed to create device: {}", e);
-                GraphicsError::DeviceError}
-            )?;
+                GraphicsError::DeviceError
+            })?;
 
         let mut res = Self {
             instance,
