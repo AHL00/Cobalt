@@ -245,6 +245,23 @@ impl World {
         // The type is guaranteed to match because of the type ID.
         Some(storage.get_unchecked(entity))
     }
+
+    pub fn get_component_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        // Get the storage for this component type.
+        let (storage, comp_id) = self.components.get_mut(&SerdeTypeId::from(TypeId::of::<T>()))?;
+
+        // Check if the entity has this component.
+        if !self.entities[entity.id as usize]
+            .components
+            .get(comp_id.0 as usize)
+        {
+            return None;
+        }
+
+        // Get the component from the storage.
+        // The type is guaranteed to match because of the type ID.
+        Some(storage.get_unchecked_mut(entity))
+    }
 }
 
 #[cfg(test)]

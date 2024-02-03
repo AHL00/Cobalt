@@ -1,5 +1,9 @@
+use std::sync::LazyLock;
+
 use pollster::FutureExt;
-use wgpu::SurfaceTargetUnsafe;
+use wgpu::{util::DeviceExt, SurfaceTargetUnsafe};
+
+use crate::engine::graphics;
 
 pub mod texture;
 pub mod vertex;
@@ -12,7 +16,7 @@ pub struct Frame<'a> {
 
 impl Frame<'_> {
     /// TODO: For multithreading, we could make new encoders every time this is called.
-    /// Store the encoders in a vec and then submit them all at the end of the frame. 
+    /// Store the encoders in a vec and then submit them all at the end of the frame.
     pub fn encoder(&mut self) -> &mut wgpu::CommandEncoder {
         &mut self.encoder
     }
@@ -22,29 +26,88 @@ impl Frame<'_> {
     }
 
     pub fn clear(&mut self, color: wgpu::Color) {
-        let view = self.swap_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let _render_pass = self
-            .encoder
-            .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(color),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                depth_stencil_attachment: None,
-            });
+        let view = self
+            .swap_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let _render_pass = self.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(color),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            depth_stencil_attachment: None,
+        });
     }
 }
 
 /// Capable of creating a wgpu::BindGroupLayout.
 pub(crate) trait HasBindGroupLayout {
-    fn bind_group_layout(device: &wgpu::Device) -> &wgpu::BindGroupLayout;
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout;
+}
+
+pub(crate) trait HasBindGroup {
+    /// Returns a reference to the bind group.
+    /// Needs to be mutable because the bind group might be dirty and need to be recreated.
+    /// References graphics() to get the device.
+    fn bind_group(&mut self) -> &wgpu::BindGroup;
+}
+
+pub(crate) trait CreateBindGroup {
+    fn create_bind_group(&self) -> wgpu::BindGroup;
+}
+
+static MAT4X4_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
+    graphics()
+        .device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        })
+});
+
+impl CreateBindGroup for ultraviolet::Mat4 {
+    fn create_bind_group(&self) -> wgpu::BindGroup {
+        let buffer = graphics()
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(self.as_byte_slice()),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        graphics()
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &*MAT4X4_BIND_GROUP_LAYOUT,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
+                }],
+            })
+    }
+}
+
+impl HasBindGroupLayout for ultraviolet::Mat4 {
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+        &*MAT4X4_BIND_GROUP_LAYOUT
+    }
 }
 
 pub(crate) trait HasVertexBufferLayout {
@@ -60,14 +123,20 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub(crate) fn new(
-        window: &Window,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let instance = wgpu::Instance::default();
+    pub(crate) fn new(window: &Window) -> Result<Self, Box<dyn std::error::Error>> {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            flags: wgpu::InstanceFlags::DEBUG,
+            backends: wgpu::Backends::PRIMARY,
+            ..Default::default()
+        });
 
-        let surface =
-            unsafe { instance.create_surface_unsafe(SurfaceTargetUnsafe::from_window(&window.winit)?) }
-                .map_err(|_| GraphicsError::CreateSurfaceError)?;
+        let surface = unsafe {
+            instance.create_surface_unsafe(SurfaceTargetUnsafe::from_window(&window.winit)?)
+        }
+        .map_err(|e| {
+            log::error!("Failed to create surface: {}", e);
+            GraphicsError::CreateSurfaceError
+        })?;
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -90,8 +159,11 @@ impl Graphics {
                 None,
             )
             .block_on()
-            .map_err(|_| GraphicsError::DeviceError)?;
-        
+            .map_err(|e| {
+                log::error!("Failed to create device: {}", e);
+                GraphicsError::DeviceError}
+            )?;
+
         let mut res = Self {
             instance,
             adapter,
@@ -99,7 +171,7 @@ impl Graphics {
             surface,
             queue,
         };
-        
+
         res.configure_surface(window.winit.inner_size().into());
 
         Ok(res)
@@ -169,9 +241,7 @@ impl Window {
             .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
             .build(event_loop)?;
 
-        Ok(Self {
-            winit: window,
-        })
+        Ok(Self { winit: window })
     }
 }
 

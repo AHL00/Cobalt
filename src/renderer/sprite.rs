@@ -1,14 +1,16 @@
 use std::sync::LazyLock;
 
 
+use ultraviolet::{Mat4, Mat4x4};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::AssetHandle, ecs::{component::Component, query::QueryIter}, engine::graphics, graphics::{texture::Texture, vertex::UvVertex, HasBindGroupLayout, HasVertexBufferLayout}
+    assets::AssetHandle, ecs::{component::Component, query::QueryIter}, engine::graphics, graphics::{texture::Texture, vertex::UvVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, transform::Transform
 };
 
 use super::RendererPipeline;
 
+/// Must have a transform component to be rendered
 pub struct Sprite {
     pub texture: AssetHandle<Texture>,
     pub(crate) vertex_buffer: &'static wgpu::Buffer,
@@ -80,7 +82,7 @@ impl SpritePipeline {
 }
 
 impl RendererPipeline for SpritePipeline {
-    fn render<'a>(&mut self, frame: &mut crate::graphics::Frame, world: &'a mut crate::ecs::World) {
+    fn render<'a>(&mut self, frame: &mut crate::graphics::Frame, world: &'a mut crate::ecs::World, view_proj: &ultraviolet::Mat4) {
         let texture_view = &frame
             .swap_texture()
             .texture
@@ -88,18 +90,24 @@ impl RendererPipeline for SpritePipeline {
 
         let mut encoder = frame.encoder();
 
+        let view_proj_bind_group = view_proj.create_bind_group();
+
         let mut render_pass = self.create_wgpu_render_pass(&mut encoder, texture_view);
 
         render_pass.set_pipeline(self.pipeline.as_ref().unwrap());
 
-        let query: QueryIter<'a, Sprite> = world.query::<Sprite>().unwrap();
+        render_pass.set_bind_group(1, &view_proj_bind_group, &[]);
 
-        for (entity, sprite) in query {
+        let query = world.query_mut::<(Sprite, Transform)>().unwrap();
+
+        for (entity, (sprite, transform)) in query {
             // Issues with borrow checker
             // It should be 100% safe to do this, but the borrow checker doesn't like it
             let texture = unsafe { &*sprite.texture.as_ptr() };
+            
+            render_pass.set_bind_group(0, &transform.bind_group(), &[]);
 
-            render_pass.set_bind_group(0, &texture.bind_group, &[]);
+            render_pass.set_bind_group(2, &texture.bind_group, &[]);
 
             render_pass.set_vertex_buffer(0, sprite.vertex_buffer.slice(..));
 
@@ -122,7 +130,7 @@ impl RendererPipeline for SpritePipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("SpritePipeline pipeline layout"),
-                    bind_group_layouts: &[&Texture::bind_group_layout(&graphics.device)],
+                    bind_group_layouts: &[&Transform::bind_group_layout(), &Mat4::bind_group_layout(), &Texture::bind_group_layout()],
                     push_constant_ranges: &[],
                 });
 

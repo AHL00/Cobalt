@@ -1,21 +1,48 @@
-
 // TODO: Systems manager that allows systems to be registered from anywhere???
 // But world is not global, so how would that work?
 // Maybe make world a thread safe globa?
 // This is work for later, for now just hardcode updating camera data.
 
-use std::fmt::{Formatter, Debug};
+use std::{
+    fmt::{Debug, Formatter},
+    sync::LazyLock,
+};
 
 use ultraviolet::{Mat4, Rotor3, Vec3};
+use wgpu::util::DeviceExt;
 
-use crate::ecs::component::Component;
+use crate::{
+    ecs::component::Component,
+    engine::graphics,
+    graphics::{HasBindGroup, HasBindGroupLayout},
+};
+
+static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
+    graphics()
+        .device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        })
+});
 
 pub struct Transform {
     position: Vec3,
     rotation: Rotor3,
     scale: Vec3,
     model_matrix: Mat4,
-    dirty: bool,
+    bind_group: Option<wgpu::BindGroup>,
+    model_dirty: bool,
+    bind_group_dirty: bool,
 }
 
 impl Debug for Transform {
@@ -24,7 +51,7 @@ impl Debug for Transform {
             .field("position", &self.position)
             .field("rotation", &self.rotation)
             .field("scale", &self.scale)
-            .field("dirty", &self.dirty)
+            .field("dirty", &self.model_dirty)
             .finish()
     }
 }
@@ -38,7 +65,9 @@ impl Transform {
             rotation: Rotor3::identity(),
             scale: Vec3::one(),
             model_matrix: Mat4::identity(),
-            dirty: true,
+            bind_group: None,
+            model_dirty: true,
+            bind_group_dirty: true,
         }
     }
 
@@ -80,7 +109,7 @@ impl Transform {
     /// Gets a mutable reference to the position.
     // Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn position_mut(&mut self) -> &mut Vec3 {
-        self.dirty = true;
+        self.model_dirty = true;
         &mut self.position
     }
 
@@ -92,7 +121,7 @@ impl Transform {
     /// Gets a mutable reference to the rotation.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn rotation_mut(&mut self) -> &mut Rotor3 {
-        self.dirty = true;
+        self.model_dirty = true;
         &mut self.rotation
     }
 
@@ -104,24 +133,26 @@ impl Transform {
     /// Gets a mutable reference to the scale.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn scale_mut(&mut self) -> &mut Vec3 {
-        self.dirty = true;
+        self.model_dirty = true;
         &mut self.scale
     }
 
-    pub(crate) fn recalculate_model_matrix(&mut self) {
+    fn recalculate_model_matrix(&mut self) {
         let rot_mat = self.rotation.into_matrix().into_homogeneous();
         let scale_mat = Mat4::from_nonuniform_scale(self.scale);
         let translation_mat = Mat4::from_translation(self.position);
 
         self.model_matrix = translation_mat * scale_mat * rot_mat;
 
-        self.dirty = false;
+        self.model_dirty = false;
+
+        self.bind_group_dirty = true;
     }
 
     // Gets the model matrix.
     // If the transform is dirty, it will be recalculated on the fly.
     pub fn model_matrix(&mut self) -> Mat4 {
-        if self.dirty {
+        if self.model_dirty {
             self.recalculate_model_matrix();
         }
 
@@ -138,5 +169,45 @@ impl Transform {
 
     pub fn up(&self) -> Vec3 {
         self.rotation * Vec3::unit_y()
+    }
+}
+
+impl HasBindGroupLayout for Transform {
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+        &TRANSFORM_BIND_GROUP_LAYOUT
+    }
+}
+
+impl HasBindGroup for Transform {
+    fn bind_group(&mut self) -> &wgpu::BindGroup {
+        if self.bind_group_dirty {
+            self.bind_group = Some(
+                graphics().
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: None,
+                    layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Buffer(
+                            graphics().
+                            device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: None,
+                                    contents: bytemuck::cast_slice(
+                                        self.model_matrix.as_byte_slice(),
+                                    ),
+                                    usage: wgpu::BufferUsages::UNIFORM
+                                        | wgpu::BufferUsages::COPY_DST,
+                                })
+                                .as_entire_buffer_binding(),
+                        ),
+                    }],
+                }),
+            );
+
+            self.bind_group_dirty = false;
+        }
+
+        self.bind_group.as_ref().unwrap()
     }
 }

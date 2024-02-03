@@ -2,12 +2,15 @@ use std::sync::LazyLock;
 
 use crate::{assets::Asset, engine::graphics, graphics::HasBindGroupLayout};
 
+use super::HasBindGroup;
+
 pub struct Texture {
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
     pub(crate) size: wgpu::Extent3d,
     pub(crate) bind_group: wgpu::BindGroup,
+    // TODO: Bind group dirty after changing texture?
 }
 
 impl Texture {
@@ -122,8 +125,14 @@ impl Asset for Texture {
     }
 }
 
+impl HasBindGroup for Texture {
+    fn bind_group(&mut self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+}
+
 impl HasBindGroupLayout for Texture {
-    fn bind_group_layout(device: &wgpu::Device) -> &wgpu::BindGroupLayout {
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
         &TEXTURE_BIND_GROUP_LAYOUT
     }
 }

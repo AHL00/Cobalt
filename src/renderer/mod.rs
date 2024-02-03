@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     ecs::{component::Component, World},
-    graphics::{Frame, Graphics},
+    graphics::{Frame, Graphics, HasBindGroupLayout},
     transform::Transform,
 };
 
@@ -17,7 +17,7 @@ pub mod sprite;
 /// This trait is used to define a pipeline for the renderer.
 /// It renders all components of a specific type in an ECS world.
 pub trait RendererPipeline {
-    fn render(&mut self, frame: &mut Frame, world: &mut World);
+    fn render(&mut self, frame: &mut Frame, world: &mut World, view_proj: &ultraviolet::Mat4);
 
     fn create_wgpu_pipeline(&self, graphics: &Graphics) -> wgpu::RenderPipeline;
 
@@ -63,45 +63,48 @@ impl Renderer {
         // Get camera
         let cam_query = world.query::<Camera>().unwrap();
 
-        let mut camera = None;
+        let mut camera_entity = None;
         let mut enabled_camera_count = 0;
 
-        for (ent, cam) in cam_query {
-            if cam.enabled {
-                enabled_camera_count += 1;
-            }
-
-            // Make sure there is only one camera.
-            if enabled_camera_count > 1 {
-                log_once::warn_once!("More than one enabled camera entity found.");
-                break;
-            }
-
-            // Make sure it has a transform.
-            if let Some(transform) = world.get_component::<Transform>(ent) {
+        {
+            for (ent, cam) in cam_query {
                 if cam.enabled {
-                    camera = Some((cam, transform));
+                    enabled_camera_count += 1;
                 }
-                break;
-            }
 
-            log_once::warn_once!(
-                "Camera [{:?}] does not have a transform component.",
-                ent
-            );
+                // Make sure there is only one camera.
+                if enabled_camera_count > 1 {
+                    log_once::warn_once!("More than one enabled camera entity found.");
+                    break;
+                }
+
+                // Make sure it has a transform.
+                if let Some(transform) = world.get_component::<Transform>(ent) {
+                    if cam.enabled {
+                        camera_entity = Some(ent);
+                    }
+                    break;
+                }
+
+                log_once::warn_once!("Camera [{:?}] does not have a transform component.", ent);
+            }
         }
 
-        if let Some((camera, cam_transform)) = camera {
-            // // Update camera data
-            // let view_matrix = cam_transform.model_matrix.inversed();
-            // let proj_matrix = camera.projection_matrix();
+        if let Some(camera_entity) = camera_entity {
+            let view_matrix = world
+                .get_component_mut::<Transform>(camera_entity)
+                .unwrap()
+                .model_matrix()
+                .inversed();
 
-            // let camera_data = crate::engine::graphics().camera_data();
-            // camera_data.update(&view_matrix, &proj_matrix);
+            let proj_matrix = world
+                .get_component_mut::<Camera>(camera_entity)
+                .unwrap()
+                .projection_matrix();
 
             // Render
             for pipeline in &mut self.pipelines {
-                pipeline.render(frame, world);
+                pipeline.render(frame, world, &(proj_matrix * view_matrix));
             }
         } else {
             log_once::warn_once!("No enabled camera found in scene.");
@@ -199,7 +202,7 @@ impl TestTrianglePipeline {
 }
 
 impl RendererPipeline for TestTrianglePipeline {
-    fn render(&mut self, frame: &mut Frame, world: &mut World) {
+    fn render(&mut self, frame: &mut Frame, world: &mut World, view_proj: &ultraviolet::Mat4) {
         let texture_view = &frame
             .swap_texture()
             .texture

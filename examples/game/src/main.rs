@@ -1,5 +1,13 @@
 use cobalt::{
-    assets::asset_server_mut, engine::{Application, Engine}, graphics::texture::Texture, renderer::{camera::Camera, sprite::Sprite}, script::ScriptComponent, transform::Transform
+    assets::asset_server_mut,
+    engine::{Application, Engine},
+    graphics::texture::Texture,
+    renderer::{
+        camera::{Camera, Projection},
+        sprite::Sprite,
+    },
+    script::ScriptComponent,
+    transform::Transform,
 };
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -9,7 +17,13 @@ fn main() {
         .with_level(LevelFilter::Info)
         .init()
         .unwrap();
-    cobalt::engine::run(App {}).unwrap();
+    let res = cobalt::engine::run(App {});
+
+    if let Err(e) = res {
+        log::error!("Exited with error: {}", e);
+    }
+
+    log::info!("Exited");
 }
 
 struct App {}
@@ -32,6 +46,11 @@ impl Application for App {
             .world
             .add_component(ent, Sprite::new(texture.clone()));
 
+        engine
+            .scene
+            .world
+            .add_component(ent, Transform::with_position([0.0, 0.0, 0.0].into()));
+
         engine.scene.world.add_component(
             ent,
             ScriptComponent::with_scripts(vec![Box::new(TestScript {})]),
@@ -39,15 +58,26 @@ impl Application for App {
 
         let cam_ent = engine.scene.world.create_entity();
 
-        engine.scene.world.add_component(cam_ent, Camera {enabled: true});
+        engine.scene.world.add_component(
+            cam_ent,
+            Camera::new(
+                true,
+                Projection::Orthographic {
+                    height: 800.0,
+                    width: 800.0,
+                    near: 0.1,
+                    far: 100.0,
+                },
+            ),
+        );
 
-        engine.scene.world.add_component(cam_ent, Transform::with_position([0.0, 0.0, 5.0].into()));
-
+        engine
+            .scene
+            .world
+            .add_component(cam_ent, Transform::with_position([0.0, 0.0, 5.0].into()));
     }
 
-    fn update(&mut self, _engine: &mut Engine) {
-        
-    }
+    fn update(&mut self, _engine: &mut Engine) {}
 }
 
 struct TestScript {}
