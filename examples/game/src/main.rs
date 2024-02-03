@@ -2,6 +2,7 @@ use cobalt::{
     assets::asset_server_mut,
     engine::{Application, Engine},
     graphics::texture::Texture,
+    input::ButtonState,
     renderer::{
         camera::{Camera, Projection},
         sprite::Sprite,
@@ -17,7 +18,7 @@ fn main() {
         .with_level(LevelFilter::Info)
         .init()
         .unwrap();
-    let res = cobalt::engine::run(App {});
+    let res = cobalt::engine::run(App::new());
 
     if let Err(e) = res {
         log::error!("Exited with error: {}", e);
@@ -26,7 +27,17 @@ fn main() {
     log::info!("Exited");
 }
 
-struct App {}
+struct App {
+    last_debug_print: std::time::Instant,
+}
+
+impl App {
+    pub fn new() -> Self {
+        Self {
+            last_debug_print: std::time::Instant::now(),
+        }
+    }
+}
 
 impl Application for App {
     fn init(&mut self, engine: &mut Engine) {
@@ -37,8 +48,6 @@ impl Application for App {
         asset_server_mut().set_assets_dir("assets");
 
         let texture = asset_server_mut().load::<Texture>("texture.png");
-
-        log::info!("Texture size: {:?}", texture.borrow().size());
 
         // Add test triangle
         engine
@@ -62,9 +71,9 @@ impl Application for App {
             cam_ent,
             Camera::new(
                 true,
-                Projection::Orthographic {
-                    height: 800.0,
-                    width: 800.0,
+                Projection::Perspective {
+                    fov: 70.0,
+                    aspect: 16.0 / 9.0,
                     near: 0.1,
                     far: 100.0,
                 },
@@ -77,7 +86,199 @@ impl Application for App {
             .add_component(cam_ent, Transform::with_position([0.0, 0.0, 5.0].into()));
     }
 
-    fn update(&mut self, _engine: &mut Engine) {}
+    fn update(&mut self, engine: &mut Engine, delta_time: f32) {
+        if self.last_debug_print.elapsed().as_secs_f32() > 1.0 {
+            log::info!("FPS: {}", 1.0 / delta_time);
+            self.last_debug_print = std::time::Instant::now();
+        }
+
+        if engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::Escape)
+            == &ButtonState::Pressed
+        {
+            engine.exit();
+        }
+
+        let query = engine
+            .scene
+            .world
+            .query_mut::<(Camera, Transform)>()
+            .unwrap();
+
+        let mut left = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyA)
+        {
+            left = true;
+        }
+
+        let mut right = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyD)
+        {
+            right = true;
+        }
+
+        let mut up = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::ShiftLeft)
+        {
+            up = true;
+        }
+
+        let mut down = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::ControlLeft)
+        {
+            down = true;
+        }
+
+        let mut forward = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyW)
+        {
+            forward = true;
+        }
+
+        let mut backward = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyS)
+        {
+            backward = true;
+        }
+
+        let mut mouse_delta = engine.input.mouse.get_delta();
+
+        let query = engine
+            .scene
+            .world
+            .query_mut::<(Camera, Transform)>()
+            .unwrap();
+
+        for (entity, (_, transform)) in query {
+            
+            let multiplier = 2.5;
+            
+            if left {
+                let pos = transform.position_mut();
+                pos.x -= multiplier * delta_time;
+            }
+
+            if right {
+                let pos = transform.position_mut();
+                pos.x += multiplier * delta_time;
+            }
+
+            if up {
+                let pos = transform.position_mut();
+                pos.y += multiplier * delta_time;
+            }
+
+            if down {
+                let pos = transform.position_mut();
+                pos.y -= multiplier * delta_time;
+            }
+
+            if forward {
+                let pos = transform.position_mut();
+                pos.z -= multiplier * delta_time;
+            }
+
+            if backward {
+                let pos = transform.position_mut();
+                pos.z += multiplier * delta_time;
+            }
+
+            if down || up || left || right || forward || backward {
+                // log::info!("Camera position: {:?}", pos);
+            }
+        }
+
+        let mut left = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyJ)
+        {
+            left = true;
+        }
+
+        let mut right = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyL)
+        {
+            right = true;
+        }
+
+        let mut up = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyI)
+        {
+            up = true;
+        }
+
+        let mut down = false;
+        if let ButtonState::Held { .. } = engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::KeyK)
+        {
+            down = true;
+        }
+
+        let query = engine
+            .scene
+            .world
+            .query_mut::<(Sprite, Transform)>()
+            .unwrap();
+
+        for (entity, (sprite, transform)) in query {
+            let multiplier = 2.5;
+            
+            if left {
+                let pos = transform.position_mut();
+                pos.x -= multiplier * delta_time;
+            }
+
+            if right {
+                let pos = transform.position_mut();
+                pos.x += multiplier * delta_time;
+            }
+
+            if up {
+                let pos = transform.position_mut();
+                pos.y += multiplier * delta_time;
+            }
+
+            if down {
+                let pos = transform.position_mut();
+                pos.y -= multiplier * delta_time;
+            }
+
+            if down || up || left || right {
+                let pos = transform.position();
+                // log::info!("Sprite position: {:?}", pos);
+            }
+        }
+    }
 }
 
 struct TestScript {}

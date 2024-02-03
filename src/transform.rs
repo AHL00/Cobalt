@@ -151,12 +151,12 @@ impl Transform {
 
     // Gets the model matrix.
     // If the transform is dirty, it will be recalculated on the fly.
-    pub fn model_matrix(&mut self) -> Mat4 {
+    pub fn model_matrix(&mut self) -> &Mat4 {
         if self.model_dirty {
             self.recalculate_model_matrix();
         }
 
-        self.model_matrix
+        &self.model_matrix
     }
 
     pub fn forward(&self) -> Vec3 {
@@ -180,6 +180,10 @@ impl HasBindGroupLayout for Transform {
 
 impl HasBindGroup for Transform {
     fn bind_group(&mut self) -> &wgpu::BindGroup {
+        if self.model_dirty {
+            self.recalculate_model_matrix();
+        }
+
         if self.bind_group_dirty {
             self.bind_group = Some(
                 graphics().

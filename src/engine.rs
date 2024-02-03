@@ -26,19 +26,19 @@ pub(crate) fn graphics_mut() -> RwLockWriteGuard<'static, Graphics> {
 pub trait Application {
     fn init(&mut self, engine: &mut Engine);
 
-    fn update(&mut self, engine: &mut Engine);
+    fn update(&mut self, engine: &mut Engine, delta_time: f32);
 }
 
 pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new()?;
 
-    
     let mut engine = Engine {
         stats: Stats::new(),
         scene: Scene::new("Main Scene"),
         window: Window::new(&event_loop)?,
         renderer: Renderer::new(),
         input: Input::new(),
+        exit_requested: false,
     };
     
     unsafe {
@@ -51,12 +51,20 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
 
     let mut next_frame_prep_needed = true;
 
+    let mut last_app_update = std::time::Instant::now();
+
     event_loop.run(move |event, elwt| {
         elwt.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
+        if engine.exit_requested {
+            elwt.exit();
+        }
+
         if next_frame_prep_needed {  
             // Call main update function.
-            app.update(&mut engine);
+            let app_update_delta = last_app_update.elapsed().as_secs_f32();
+            app.update(&mut engine, app_update_delta);
+            last_app_update = std::time::Instant::now();
             
             // Run update scripts.
             // This workaround is pretty ugly, but it works for now.
@@ -169,6 +177,11 @@ pub struct Engine {
     pub renderer: Renderer,
     pub stats: Stats,
     pub input: Input,
+    exit_requested: bool,
 }
 
-impl Engine {}
+impl Engine {
+    pub fn exit(&mut self) {
+        self.exit_requested = true;
+    }
+}

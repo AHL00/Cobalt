@@ -1,12 +1,6 @@
 use crate::ecs::component::Component;
 
 pub enum Projection {
-    Orthographic {
-        height: f32,
-        width: f32,
-        near: f32,
-        far: f32,
-    },
     Perspective {
         fov: f32,
         aspect: f32,
@@ -49,25 +43,12 @@ impl Camera {
     pub(crate) fn projection_matrix(&mut self) -> ultraviolet::Mat4 {
         if self.matrix_dirty {
             self.projection_matrix = Some(match self.projection {
-                Projection::Orthographic {
-                    height,
-                    width,
-                    near,
-                    far,
-                } => ultraviolet::projection::orthographic_gl(
-                    0.0,
-                    width,
-                    0.0,
-                    height,
-                    near,
-                    far,
-                ),
                 Projection::Perspective {
                     fov,
                     aspect,
                     near,
                     far,
-                } => ultraviolet::projection::perspective_gl(fov, aspect, near, far),
+                } => ultraviolet::projection::perspective_wgpu_dx(fov, aspect, near, far),
             });
             self.matrix_dirty = false;
         }
