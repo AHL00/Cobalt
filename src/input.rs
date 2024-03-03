@@ -199,10 +199,10 @@ impl Mouse {
                 );
 
                 self.position = (position.x as f32, position.y as f32);
-            },
+            }
             WindowEvent::MouseWheel { delta, .. } => {
                 // TODO: Mouse wheel
-            },
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 let mut button_found_in_vec = false;
 

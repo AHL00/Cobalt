@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, time::Duration};
 
 use winit::{
     event::{Event, WindowEvent},
@@ -9,7 +9,9 @@ use crate::graphics::Window;
 
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::{graphics::Graphics, input::Input, internal::queue::SizedQueue, renderer::Renderer, scene::Scene};
+use crate::{
+    graphics::Graphics, input::Input, internal::queue::SizedQueue, renderer::Renderer, scene::Scene,
+};
 
 pub(crate) static mut GRAPHICS: Option<RwLock<Graphics>> = None;
 
@@ -40,7 +42,7 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
         input: Input::new(),
         exit_requested: false,
     };
-    
+
     unsafe {
         GRAPHICS = Some(RwLock::new(Graphics::new(&engine.window)?));
     }
@@ -60,26 +62,24 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
             elwt.exit();
         }
 
-        if next_frame_prep_needed {  
+        if next_frame_prep_needed {
             // Call main update function.
             let app_update_delta = last_app_update.elapsed().as_secs_f32();
             app.update(&mut engine, app_update_delta);
             last_app_update = std::time::Instant::now();
-            
+
             // Run update scripts.
             // This workaround is pretty ugly, but it works for now.
             let engine_ptr = &mut engine as *mut Engine;
             engine.scene.run_update_scripts(unsafe { &mut *engine_ptr });
-            
+
             engine.input.prepare();
 
             next_frame_prep_needed = false;
         }
 
         match event {
-            Event::WindowEvent { event, window_id }
-                if window_id == engine.window.winit.id() =>
-            {
+            Event::WindowEvent { event, window_id } if window_id == engine.window.winit.id() => {
                 engine.input.update(&event);
 
                 match event {
@@ -87,16 +87,21 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
                     WindowEvent::RedrawRequested => {
                         let graphics = graphics();
 
+                        engine.stats.frame_start();
+
                         let mut frame = graphics.begin_frame().unwrap();
 
                         frame.clear(wgpu::Color::GREEN);
 
                         engine.renderer.render(&mut frame, &mut engine.scene.world);
 
+                        engine.stats.cpu_render_end();
+
                         engine.window.winit.pre_present_notify();
 
                         graphics.end_frame(frame);
 
+                        engine.stats.gpu_render_end();
                         engine.stats.update();
 
                         next_frame_prep_needed = true;
@@ -122,7 +127,15 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
 }
 
 pub struct Stats {
-    pub frame_time_history: Box<SizedQueue<f32, 1000>>,
+    /// Total time it took to render the frame.
+    pub frame_time_history: Box<SizedQueue<Duration, 1000>>,
+    /// Time it took to submit render commands.
+    pub cpu_render_time_history: Box<SizedQueue<Duration, 1000>>,
+    /// Time it took to execute the render commands on the GPU.
+    pub gpu_render_time_history: Box<SizedQueue<Duration, 1000>>,
+    /// Time it took to run all systems.
+    pub systems_time_history: Box<SizedQueue<Duration, 1000>>,
+
     last_frame: std::time::Instant,
 }
 
@@ -130,16 +143,36 @@ impl Stats {
     pub fn new() -> Self {
         Self {
             frame_time_history: Box::new(SizedQueue::new()),
+            cpu_render_time_history: Box::new(SizedQueue::new()),
+            gpu_render_time_history: Box::new(SizedQueue::new()),
+            systems_time_history: Box::new(SizedQueue::new()),
+
             last_frame: std::time::Instant::now(),
         }
     }
 
-    pub fn update(&mut self) {
+    pub(crate) fn update(&mut self) {
         let now = std::time::Instant::now();
-        let delta = now.duration_since(self.last_frame).as_secs_f32();
+        let delta = now.duration_since(self.last_frame);
         self.last_frame = now;
 
         self.frame_time_history.enqueue(delta);
+    }
+
+    pub(crate) fn frame_start(&mut self) {
+        self.last_frame = std::time::Instant::now();
+    }
+
+    pub(crate) fn cpu_render_end(&mut self) {
+        let now = std::time::Instant::now();
+        let delta = now.duration_since(self.last_frame);
+        self.cpu_render_time_history.enqueue(delta);
+    }
+
+    pub(crate) fn gpu_render_end(&mut self) {
+        let now = std::time::Instant::now();
+        let delta = now.duration_since(self.last_frame);
+        self.gpu_render_time_history.enqueue(delta - self.cpu_render_time_history.last().unwrap());
     }
 
     pub fn average_frame_time(&self, mut num_frames: usize) -> f32 {
@@ -156,8 +189,8 @@ impl Stats {
             num_frames = num_frames_in_history;
         }
 
-        for i in 0..num_frames {
-            sum += self.frame_time_history.get(i).unwrap();
+        for i in num_frames_in_history - num_frames..num_frames_in_history {
+            sum += self.frame_time_history.get(i).unwrap().as_secs_f32();
         }
 
         sum / num_frames as f32

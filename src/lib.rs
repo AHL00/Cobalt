@@ -5,15 +5,15 @@
 #![feature(lazy_cell)]
 #![allow(dead_code)]
 
-pub(crate) mod internal;
-pub mod scene;
-pub mod engine;
-pub mod ecs;
 pub mod assets;
+pub mod ecs;
+pub mod engine;
 pub mod graphics;
-pub mod renderer;
-pub mod script;
 pub mod input;
+pub(crate) mod internal;
+pub mod renderer;
+pub mod scene;
+pub mod script;
 pub mod stats;
 pub mod transform;
 

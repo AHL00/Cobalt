@@ -1,12 +1,15 @@
-
-use serde::{
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::World;
 
-// TODO: Rework serialization so that only specified component types are serialized.
+// TODO: Is serialization of the world even necessary?
+// This all started from a misunderstanding of how game saving/loading should work.
+// I thought that the world should be serialized and then deserialized to save/load the game.
+// But that's not how it should work.
+// Every game has its own way of saving/loading.
+// All the world has to do is facilitate the reading/writing of entities and components at runtime.
+
+// !!! Rework serialization so that only specified component types are serialized.
 // This will be able to be added to any existing world.
 // What this means is that users can just serialize things like player position, health, etc.
 // without having to serialize the entire world.
@@ -254,7 +257,7 @@ use super::World;
 //         let ent_count = world.entities.len();
 //         let deserialized_ent_count = deserialized.entities.len();
 
-//         assert_eq!(ent_count, deserialized_ent_count); 
+//         assert_eq!(ent_count, deserialized_ent_count);
 //     }
 
 //     #[derive(Serialize, Deserialize)]
@@ -273,7 +276,7 @@ use super::World;
 //     }
 
 //     static mut DROPPED: bool = false;
-            
+
 //     #[test]
 //     fn serde_world_drop_fn() {
 //         let mut world = World::with_capacity(10);

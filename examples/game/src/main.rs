@@ -7,7 +7,6 @@ use cobalt::{
         camera::{Camera, Projection},
         sprite::Sprite,
     },
-    script::ScriptComponent,
     transform::Transform,
 };
 use log::LevelFilter;
@@ -43,30 +42,23 @@ impl Application for App {
     fn init(&mut self, engine: &mut Engine) {
         log::info!("Initializing app");
 
-        asset_server().write().set_assets_dir("examples/game/assets");
-        
-        let texture = asset_server().write().load::<Texture>("texture.png");
-        let logo_texture = asset_server().write().load::<Texture>("logo.png");
-        
-        let ent = engine.scene.world.create_entity();
-        engine
-            .scene
-            .world
-            .add_component(ent, Sprite::new(texture.clone()));
-        engine
-            .scene
-            .world
-            .add_component(ent, Transform::with_position([-1.5, 0.0, 0.0].into()));
+        asset_server().write().set_assets_dir("assets");
 
-        let ent2 = engine.scene.world.create_entity();
-        engine
-            .scene
-            .world
-            .add_component(ent2, Sprite::new(logo_texture.clone()));
-        engine
-            .scene
-            .world
-            .add_component(ent2, Transform::with_position([1.5, 0.0, 0.0].into()));
+        let texture = asset_server().write().load::<Texture>("texture.png");
+
+        for x in -50..50 {
+            for y in -0..100 {
+                let ent = engine.scene.world.create_entity();
+
+                let transform = Transform::with_position([x as f32 * 1.5, y as f32 * 1.5, 0.0].into());
+
+                engine.scene.world.add_component(ent, transform);
+                engine
+                    .scene
+                    .world
+                    .add_component(ent, Sprite::new(texture.clone()));
+            }
+        }
 
         let cam_ent = engine.scene.world.create_entity();
         engine.scene.world.add_component(
@@ -82,21 +74,36 @@ impl Application for App {
             ),
         );
 
+        let mut cam_transform = Transform::with_position([0.0, 0.0, 5.0].into());
+
+        cam_transform.rotate_y(45.0);
+
         engine
             .scene
             .world
-            .add_component(cam_ent, Transform::with_position([0.0, 0.0, 5.0].into()));
+            .add_component(cam_ent, cam_transform);
     }
 
     fn update(&mut self, engine: &mut Engine, delta_time: f32) {
         if self.last_debug_print.elapsed().as_secs_f32() > 1.0 {
-            log::info!("FPS: {}", 1.0 / delta_time);
+            let stats = &engine.stats;
+
+            log::info!(
+                "AVG FPS: {:?}, CPU: {:.2?}, GPU: {:.2?}",
+                stats.average_fps(10),
+                stats.cpu_render_time_history.last().unwrap(),
+                stats.gpu_render_time_history.last().unwrap()
+            );
+
             self.last_debug_print = std::time::Instant::now();
         }
 
         movement(engine, delta_time);
 
-        if engine.input.keyboard.get_key_state(cobalt::input::KeyCode::F11)
+        if engine
+            .input
+            .keyboard
+            .get_key_state(cobalt::input::KeyCode::F11)
             == &ButtonState::Pressed
         {
             log::info!("Toggled fullscreen");
@@ -106,7 +113,10 @@ impl Application for App {
             if let Some(fullscreen) = fullscren {
                 engine.window.winit.set_fullscreen(None);
             } else {
-                engine.window.winit.set_fullscreen(Some(winit_window::Fullscreen::Borderless(None)));
+                engine
+                    .window
+                    .winit
+                    .set_fullscreen(Some(winit_window::Fullscreen::Borderless(None)));
             }
         }
     }

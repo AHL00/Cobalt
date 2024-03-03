@@ -1,6 +1,5 @@
 use super::HasVertexBufferLayout;
 
-
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct UvVertex {
@@ -20,8 +19,7 @@ impl HasVertexBufferLayout for UvVertex {
                     shader_location: 0,
                 },
                 wgpu::VertexAttribute {
-                    offset: (std::mem::size_of::<[f32; 3]>())
-                        as wgpu::BufferAddress,
+                    offset: (std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
                     format: wgpu::VertexFormat::Float32x2,
                     shader_location: 1,
                 },

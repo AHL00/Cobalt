@@ -10,7 +10,8 @@ fn main() {
         let path = entry.path();
         let file_name = path.file_name().unwrap().to_str().unwrap();
         if path.is_file() && file_name.ends_with(".rs") {
-            let asset = cobalt::assets::asset_server().write()
+            let asset = cobalt::assets::asset_server()
+                .write()
                 .load::<cobalt::assets::Text>(path.to_str().unwrap());
 
             assets.push(asset);
@@ -45,5 +46,8 @@ fn main() {
     println!("Loops: {}", loop_count);
     println!("Accesses: {}", count);
     println!("Time taken: {:?}", time_taken);
-    println!("Time per access: {:?}ns", time_taken.as_nanos() as f32 / count as f32);
+    println!(
+        "Time per access: {:?}ns",
+        time_taken.as_nanos() as f32 / count as f32
+    );
 }

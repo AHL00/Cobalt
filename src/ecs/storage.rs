@@ -1,13 +1,8 @@
-use std::{self, fmt::Debug};
-
-use serde::{Deserialize, Serialize};
-
-use crate::ecs::component::Component;
-
-use std::any::TypeId;
-
 use super::{Entity, SerdeTypeId};
-
+use crate::ecs::component::Component;
+use serde::{Deserialize, Serialize};
+use std::any::TypeId;
+use std::fmt::Debug;
 use std::ptr::NonNull;
 
 /// ### Safety

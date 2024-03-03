@@ -125,6 +125,40 @@ impl Transform {
         &mut self.rotation
     }
 
+    /// Rotates the transform around a center point.
+    /// center: The point to rotate around. Coordinate is relative to transform.
+    /// rotations: The rotations to apply.
+    pub fn rotate(&mut self, center: Vec3, rotations: Vec3) {
+        let center = self.position + center;
+        let rot = Rotor3::from_rotation_between(Vec3::unit_z(), center - self.position);
+        let rot = Rotor3::from_euler_angles(rotations.x, rotations.y, rotations.z) * rot;
+        let rot = Rotor3::from_rotation_between(center - self.position, Vec3::unit_z()) * rot;
+
+        self.rotation = rot * self.rotation;
+        self.model_dirty = true;
+    }
+
+    pub fn rotate_x(&mut self, angle: f32) {
+        self.rotation = Rotor3::from_rotation_between(Vec3::unit_x(), self.rotation * Vec3::unit_x())
+            * Rotor3::from_euler_angles(angle, 0.0, 0.0)
+            * self.rotation;
+        self.model_dirty = true;
+    }
+
+    pub fn rotate_y(&mut self, angle: f32) {
+        self.rotation = Rotor3::from_rotation_between(Vec3::unit_y(), self.rotation * Vec3::unit_y())
+            * Rotor3::from_euler_angles(0.0, angle, 0.0)
+            * self.rotation;
+        self.model_dirty = true;
+    }
+
+    pub fn rotate_z(&mut self, angle: f32) {
+        self.rotation = Rotor3::from_rotation_between(Vec3::unit_z(), self.rotation * Vec3::unit_z())
+            * Rotor3::from_euler_angles(0.0, 0.0, angle)
+            * self.rotation;
+        self.model_dirty = true;
+    }
+
     /// Gets the scale.
     pub fn scale(&self) -> Vec3 {
         self.scale
@@ -186,27 +220,28 @@ impl HasBindGroup for Transform {
 
         if self.bind_group_dirty {
             self.bind_group = Some(
-                graphics().
-                device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: None,
-                    layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(
-                            graphics().
-                            device
-                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                    label: None,
-                                    contents: bytemuck::cast_slice(
-                                        self.model_matrix.as_byte_slice(),
-                                    ),
-                                    usage: wgpu::BufferUsages::UNIFORM
-                                        | wgpu::BufferUsages::COPY_DST,
-                                })
-                                .as_entire_buffer_binding(),
-                        ),
-                    }],
-                }),
+                graphics()
+                    .device
+                    .create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: None,
+                        layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
+                        entries: &[wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(
+                                graphics()
+                                    .device
+                                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                        label: None,
+                                        contents: bytemuck::cast_slice(
+                                            self.model_matrix.as_byte_slice(),
+                                        ),
+                                        usage: wgpu::BufferUsages::UNIFORM
+                                            | wgpu::BufferUsages::COPY_DST,
+                                    })
+                                    .as_entire_buffer_binding(),
+                            ),
+                        }],
+                    }),
             );
 
             self.bind_group_dirty = false;

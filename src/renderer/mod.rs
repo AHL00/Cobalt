@@ -1,10 +1,9 @@
-use std::{any::Any, borrow::Cow, error::Error, sync::LazyLock};
+use std::{any::Any, error::Error, sync::LazyLock};
 
-use serde::{Deserialize, Serialize};
-use wgpu::{util::DeviceExt, BlendState};
+use wgpu::util::DeviceExt;
 
 use crate::{
-    ecs::{component::Component, World},
+    ecs::World,
     engine::graphics,
     graphics::{CreateBindGroup, Frame, Graphics, HasBindGroupLayout},
     transform::Transform,
@@ -87,13 +86,13 @@ impl CreateBindGroup for ViewProj {
     }
 }
 
-struct RenderData {
+pub(crate) struct RenderData {
     depth_view: Option<wgpu::TextureView>,
 }
 
 /// This trait is used to define a pipeline for the renderer.
 /// It renders all components of a specific type in an ECS world.
-pub trait RendererPipeline {
+pub(crate) trait RendererPipeline {
     fn render(
         &mut self,
         frame: &mut Frame,
@@ -166,7 +165,7 @@ impl Renderer {
         self.add_pipeline(sprite::SpritePipeline::new(&graphics));
     }
 
-    pub fn add_pipeline<T: RendererPipeline + 'static>(&mut self, pipeline: T) {
+    pub(crate) fn add_pipeline<T: RendererPipeline + 'static>(&mut self, pipeline: T) {
         // Make sure pipeline doesn't already exist.
         for existing_pipeline in &self.pipelines {
             if std::any::TypeId::of::<T>() == existing_pipeline.type_id() {
@@ -216,7 +215,7 @@ impl Renderer {
                 }
 
                 // Make sure it has a transform.
-                if let Some(transform) = world.get_component::<Transform>(ent) {
+                if let Some(transform_) = world.get_component::<Transform>(ent) {
                     if cam.enabled {
                         camera_entity = Some(ent);
                     }

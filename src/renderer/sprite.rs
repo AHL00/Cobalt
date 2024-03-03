@@ -42,19 +42,19 @@ static SPRITE_VERTEX_BUFFER: LazyLock<wgpu::Buffer> = LazyLock::new(|| {
             label: None,
             contents: bytemuck::cast_slice(&[
                 UvVertex {
-                    position: [-1.0, -1.0, 0.0],
+                    position: [-0.5, -0.5, 0.0],
                     uv: [0.0, 0.0],
                 },
                 UvVertex {
-                    position: [1.0, -1.0, 0.0],
+                    position: [0.5, -0.5, 0.0],
                     uv: [1.0, 0.0],
                 },
                 UvVertex {
-                    position: [1.0, 1.0, 0.0],
+                    position: [0.5, 0.5, 0.0],
                     uv: [1.0, 1.0],
                 },
                 UvVertex {
-                    position: [-1.0, 1.0, 0.0],
+                    position: [-0.5, 0.5, 0.0],
                     uv: [0.0, 1.0],
                 },
             ]),
@@ -122,7 +122,7 @@ impl RendererPipeline for SpritePipeline {
             // It should be 100% safe to do this, but the borrow checker doesn't like it
             let mut texture = sprite.texture.borrow_mut();
 
-            let texture_unsafe = unsafe {&mut *(&mut *texture as *mut Texture)};
+            let texture_unsafe = unsafe { &mut *(&mut *texture as *mut Texture) };
 
             render_pass.set_bind_group(0, &transform.bind_group(), &[]);
 
@@ -199,8 +199,7 @@ impl RendererPipeline for SpritePipeline {
                         polygon_mode: wgpu::PolygonMode::Fill,
                         conservative: false,
                     },
-                    depth_stencil:
-                    Some(wgpu::DepthStencilState {
+                    depth_stencil: Some(wgpu::DepthStencilState {
                         format: Renderer::DEPTH_FORMAT,
                         depth_write_enabled: true,
                         depth_compare: wgpu::CompareFunction::Less,
@@ -234,8 +233,7 @@ impl RendererPipeline for SpritePipeline {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: 
-            if let Some(depth_view) = &render_data.depth_view {
+            depth_stencil_attachment: if let Some(depth_view) = &render_data.depth_view {
                 Some(wgpu::RenderPassDepthStencilAttachment {
                     view: depth_view,
                     depth_ops: Some(wgpu::Operations {
@@ -246,8 +244,7 @@ impl RendererPipeline for SpritePipeline {
                 })
             } else {
                 None
-            }
-            ,
+            },
             occlusion_query_set: None,
             timestamp_writes: None,
         })

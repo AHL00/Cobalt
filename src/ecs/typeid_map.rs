@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use super::SerdeTypeId;
 
 /// Inspired by HECS.
-/// Since TypeId is already a hash, use a hasher that does nothing. 
+/// Since TypeId is already a hash, use a hasher that does nothing.
 /// Tested against a 256 item array with linear search and a 256 item hashmap.
 pub(crate) type TypeIdMap<V> = HashMap<SerdeTypeId, V, BuildHasherDefault<TypeIdHasher>>;
 
@@ -25,7 +25,7 @@ fn type_id_map_test() {
 /// TypeId can be a u64 or u128 depending on ???.
 #[derive(Default)]
 pub(crate) struct TypeIdHasher {
-    hash: u64
+    hash: u64,
 }
 
 impl Hasher for TypeIdHasher {

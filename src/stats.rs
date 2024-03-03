@@ -1,6 +1,5 @@
 use crate::internal::queue::SizedQueue;
 
-
 pub struct Stats {
     pub frame_time_history: Box<SizedQueue<f32, 1000>>,
     last_frame: std::time::Instant,

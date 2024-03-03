@@ -8,10 +8,17 @@
 
 use hashbrown::HashMap;
 use imstr::ImString;
-use parking_lot::{lock_api::{RwLockReadGuard, RwLockWriteGuard}, RawRwLock, RwLock};
+use parking_lot::{
+    lock_api::{RwLockReadGuard, RwLockWriteGuard},
+    RawRwLock, RwLock,
+};
 use serde::Serialize;
 use std::{
-    any::Any, fmt::{Debug, Formatter}, path::PathBuf, str::FromStr, sync::{Arc, OnceLock, Weak}
+    any::Any,
+    fmt::{Debug, Formatter},
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, OnceLock, Weak},
 };
 
 /// Global asset server.
@@ -23,8 +30,10 @@ pub fn asset_server() -> &'static RwLock<AssetServer> {
     unsafe { ASSET_SERVER.get_mut() }.unwrap_or_else(|| {
         unsafe {
             ASSET_SERVER.get_or_init(|| RwLock::new(AssetServer::new()));
+
+            ASSET_SERVER.get_mut()
         }
-        unsafe { ASSET_SERVER.get_mut() }.unwrap()
+        .unwrap()
     })
 }
 
@@ -65,10 +74,7 @@ impl<T: Asset + 'static> AssetHandle<T> {
             )
         });
 
-        Self {
-            path,
-            arc,
-        }
+        Self { path, arc }
     }
 }
 
@@ -156,7 +162,7 @@ impl AssetServer {
             *count += 1;
 
             if let Some(asset) = asset.upgrade() {
-                return AssetHandle::new(ImString::from_str(path).unwrap(), asset)
+                return AssetHandle::new(ImString::from_str(path).unwrap(), asset);
             }
         }
 
@@ -170,11 +176,14 @@ impl AssetServer {
         });
 
         let asset = Arc::new(RwLock::new(T::load(data)));
-        let asset_any =
-            unsafe { Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static)) };
+        let asset_any = unsafe {
+            Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
+        };
 
-        self.assets
-            .insert(ImString::from_str(path).unwrap(), (Arc::downgrade(&asset_any), 1));
+        self.assets.insert(
+            ImString::from_str(path).unwrap(),
+            (Arc::downgrade(&asset_any), 1),
+        );
 
         AssetHandle::new(ImString::from_str(path).unwrap(), asset_any)
     }
@@ -212,7 +221,7 @@ mod tests {
     #[test]
     fn test_asset_server() {
         reset_asset_server();
-        
+
         let asset = asset_server().write().load::<Text>("Cargo.toml");
 
         let asset_ref = asset.borrow();
@@ -229,7 +238,7 @@ mod tests {
     #[test]
     fn test_asset_handle_serde() {
         reset_asset_server();
-        
+
         let asset = asset_server().write().load::<Text>("Cargo.toml");
 
         let serialized = serde_yaml::to_string(&asset).unwrap();
@@ -250,7 +259,7 @@ mod tests {
     #[test]
     fn test_asset_handle_clone() {
         reset_asset_server();
-        
+
         let asset = asset_server().write().load::<Text>("Cargo.toml");
 
         let asset_clone = asset.clone();
@@ -265,7 +274,7 @@ mod tests {
     #[test]
     fn test_asset_handle_drop() {
         reset_asset_server();
-        
+
         let asset = asset_server().write().load::<Text>("Cargo.toml");
 
         let asset_ref = asset.borrow();

@@ -175,7 +175,6 @@ where
     }
 }
 
-
 /// Bit array that is stored in a fixed-size array.
 /// Array size granularity is 256 bits.
 /// Uses SIMD instructions for bitwise operations and comparisons.

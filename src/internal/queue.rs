@@ -54,6 +54,15 @@ impl<T: Copy, const N: usize> SizedQueue<T, N> {
         self.filled
     }
 
+    pub fn last(&self) -> Option<T> {
+        if self.filled == 0 {
+            return None;
+        }
+
+        let index = (self.pointer + self.size - 1) % self.size;
+        self.data[index]
+    }
+
     pub const fn capacity(&self) -> usize {
         N
     }

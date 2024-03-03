@@ -19,7 +19,10 @@ impl Scene {
     }
 
     pub(crate) fn run_update_scripts(&self, engine: &mut crate::engine::Engine) {
-        let query = self.world.query::<crate::script::ScriptComponent>().unwrap();
+        let query = self
+            .world
+            .query::<crate::script::ScriptComponent>()
+            .unwrap();
 
         for (entity, script) in query {
             for script in script.scripts.iter() {
