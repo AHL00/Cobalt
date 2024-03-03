@@ -120,11 +120,13 @@ impl RendererPipeline for SpritePipeline {
         for (entity, (sprite, transform)) in query {
             // Issues with borrow checker
             // It should be 100% safe to do this, but the borrow checker doesn't like it
-            let texture = unsafe { &mut *sprite.texture.as_mut_ptr() };
+            let mut texture = sprite.texture.borrow_mut();
+
+            let texture_unsafe = unsafe {&mut *(&mut *texture as *mut Texture)};
 
             render_pass.set_bind_group(0, &transform.bind_group(), &[]);
 
-            render_pass.set_bind_group(2, &texture.bind_group(), &[]);
+            render_pass.set_bind_group(2, texture_unsafe.bind_group(), &[]);
 
             render_pass.set_vertex_buffer(0, sprite.vertex_buffer.slice(..));
 

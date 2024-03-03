@@ -10,8 +10,8 @@ fn main() {
         let path = entry.path();
         let file_name = path.file_name().unwrap().to_str().unwrap();
         if path.is_file() && file_name.ends_with(".rs") {
-            let asset = cobalt::assets::asset_server_mut()
-                .load::<cobalt::assets::TextAsset>(path.to_str().unwrap());
+            let asset = cobalt::assets::asset_server().write()
+                .load::<cobalt::assets::Text>(path.to_str().unwrap());
 
             assets.push(asset);
         }

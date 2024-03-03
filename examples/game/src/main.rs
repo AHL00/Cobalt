@@ -1,5 +1,5 @@
 use cobalt::{
-    assets::asset_server_mut,
+    assets::asset_server,
     engine::{Application, Engine},
     graphics::{texture::Texture, winit_window},
     input::ButtonState,
@@ -43,10 +43,10 @@ impl Application for App {
     fn init(&mut self, engine: &mut Engine) {
         log::info!("Initializing app");
 
-        asset_server_mut().set_assets_dir("examples/game/assets");
+        asset_server().write().set_assets_dir("examples/game/assets");
         
-        let texture = asset_server_mut().load::<Texture>("texture.png");
-        let logo_texture = asset_server_mut().load::<Texture>("logo.png");
+        let texture = asset_server().write().load::<Texture>("texture.png");
+        let logo_texture = asset_server().write().load::<Texture>("logo.png");
         
         let ent = engine.scene.world.create_entity();
         engine
