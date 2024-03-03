@@ -188,7 +188,7 @@ impl Graphics {
                 format,
                 width: size.0,
                 height: size.1,
-                present_mode: wgpu::PresentMode::AutoNoVsync,
+                present_mode: wgpu::PresentMode::Mailbox,
                 desired_maximum_frame_latency: 2,
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 view_formats: vec![wgpu::TextureFormat::Bgra8UnormSrgb],

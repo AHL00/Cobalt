@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 use imstr::ImString;
 use serde::Serialize;
 use std::{
-    any::Any, cell::{Ref, RefCell, RefMut}, fmt::Formatter, path::PathBuf, rc::{Rc, Weak}, str::FromStr, sync::OnceLock, fmt::Debug
+    any::Any, cell::{Ref, RefCell, RefMut}, fmt::{Debug, Formatter}, path::PathBuf, str::FromStr, sync::{Arc, OnceLock, Weak}
 };
 
 // Global asset server
@@ -42,12 +42,14 @@ pub fn asset_server() -> &'static AssetServer {
 /// When the handle is serialized, it will serialize the path.
 /// When the handle is deserialized, it will load the asset into the global
 /// asset server.
-/// TODO: Make this thread safe
 pub struct AssetHandle<T: Asset + 'static> {
     /// The relative path to the asset
     pub(crate) path: ImString,
-    pub(crate) rc: std::rc::Rc<std::cell::RefCell<T>>,
+    pub(crate) rc: Arc<RefCell<T>>,
 }
+
+unsafe impl<T: Asset + 'static> Send for AssetHandle<T> {}
+unsafe impl<T: Asset + 'static> Sync for AssetHandle<T> {}
 
 impl<T: Asset + 'static> Debug for AssetHandle<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -59,9 +61,10 @@ impl<T: Asset + 'static> Debug for AssetHandle<T> {
 
 impl<T: Asset + 'static> AssetHandle<T> {
     // Any must be of type T
-    fn new(path: ImString, rc: Rc<RefCell<dyn Any>>) -> Self {
-        // Downcast the Rc<RefCell<dyn Any>> to Rc<RefCell<T>>
-        let rc = unsafe { Rc::from_raw(Rc::into_raw(rc) as *const RefCell<T>) };
+    fn new(path: ImString, rc: Arc<RefCell<dyn Any>>) -> Self {
+        // Downcast the Arc<RefCell<dyn Any>> to Arc<RefCell<T>>
+        let rc = unsafe { Arc::from_raw(Arc::into_raw(rc) as *const RefCell<T>) };
+        
 
         Self {
             path,
@@ -176,12 +179,12 @@ impl AssetServer {
             )
         });
 
-        let asset = Rc::new(RefCell::new(T::load(data)));
-        let asset_any: Rc<RefCell<dyn Any>> =
-            unsafe { Rc::from_raw(Rc::into_raw(asset) as *const RefCell<dyn Any>) };
+        let asset = Arc::new(RefCell::new(T::load(data)));
+        let asset_any: Arc<RefCell<dyn Any>> =
+            unsafe { Arc::from_raw(Arc::into_raw(asset) as *const RefCell<dyn Any>) };
 
         self.assets
-            .insert(ImString::from_str(path).unwrap(), (Rc::downgrade(&asset_any), 1));
+            .insert(ImString::from_str(path).unwrap(), (Arc::downgrade(&asset_any), 1));
 
         AssetHandle::new(ImString::from_str(path).unwrap(), asset_any)
     }
@@ -203,9 +206,7 @@ impl Asset for TextAsset {
     }
 }
 
-// NOTE: These tests do not work when multithreading is enabled
-// This is because the asset server is not thread safe YET
-// Run tests with `cargo test -- --test-threads=1`
+
 #[cfg(test)]
 mod tests {
     use std::borrow::Borrow;
