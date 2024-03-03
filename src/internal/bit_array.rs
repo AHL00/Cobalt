@@ -1,5 +1,7 @@
 // TODO: SIMD rewrite for bitwise operations and comparisons
 
+use std::simd::u8x32;
+
 use serde::{ser::SerializeSeq, Deserialize, Serialize, Serializer};
 
 /// Bit array that is stored in a fixed-size array.
@@ -173,6 +175,7 @@ where
     }
 }
 
+
 /// Bit array that is stored in a fixed-size array.
 /// Array size granularity is 256 bits.
 /// Uses SIMD instructions for bitwise operations and comparisons.
@@ -181,7 +184,7 @@ pub struct SimdBitArray<const N: usize>
 where
     [(); N / 256]:,
 {
-    data: [packed_simd::u8x32; N / 256],
+    data: [u8x32; N / 256],
 }
 
 impl<const N: usize> SimdBitArray<N>
@@ -190,16 +193,16 @@ where
 {
     pub fn new() -> Self {
         Self {
-            data: [packed_simd::u8x32::splat(0); N / 256],
+            data: [u8x32::splat(0); N / 256],
         }
     }
 
     pub fn fill(&mut self, value: bool) {
         for i in 0..N / 256 {
             if value {
-                self.data[i] = packed_simd::u8x32::splat(u8::MAX);
+                self.data[i] = u8x32::splat(u8::MAX);
             } else {
-                self.data[i] = packed_simd::u8x32::splat(0);
+                self.data[i] = u8x32::splat(0);
             }
         }
     }
@@ -212,25 +215,28 @@ where
         let byte = 1u8 << (bit_index % 8);
 
         if value {
-            self.data[vector_index] = self.data[vector_index].replace(
-                lane_index,
-                self.data[vector_index].extract(lane_index) | byte,
-            );
+            let mut temp = self.data[vector_index];
+            temp[lane_index] |= byte;
+            self.data[vector_index] = temp;
         } else {
-            self.data[vector_index] = self.data[vector_index].replace(
-                lane_index,
-                self.data[vector_index].extract(lane_index) & !byte,
-            );
+            let mut temp = self.data[vector_index];
+            temp[lane_index] &= !byte;
+            self.data[vector_index] = temp;
         }
     }
 
     pub fn get(&self, index: usize) -> bool {
         let vector_index = index / 256;
-        let bit_index = index % 256;
-        let lane_index = bit_index / 8;
-        let byte = 1u8 << (bit_index % 8);
+        let lane_index = (index % 256) / 8;
+        let bit_index = index % 8;
 
-        (self.data[vector_index].extract(lane_index) & byte) != 0
+        // Get vector, and then extract the lane.
+        let vector = &self.data[vector_index];
+        let byte = vector[lane_index];
+
+        let mask = 1 << bit_index;
+
+        (byte & mask) != 0
     }
 
     /// Returns true if the bit array contains all of the bits in the other bit array.
@@ -307,12 +313,12 @@ where
         for i in 0..N / 256 {
             let mut val1 = 0u128;
             for j in 0..16 {
-                val1 |= (self.data[i].extract(j) as u128) << (j * 8);
+                val1 |= (self.data[i][j] as u128) << (j * 8);
             }
 
             let mut val2 = 0u128;
             for j in 16..32 {
-                val2 |= (self.data[i].extract(j) as u128) << ((j - 16) * 8);
+                val2 |= (self.data[i][j] as u128) << ((j - 16) * 8);
             }
 
             seq.serialize_element(&val1)?;
@@ -360,13 +366,16 @@ where
 
                     // Fill the first 128 bits.
                     for j in 0..16 {
-                        bit_array.data[i] = bit_array.data[i].replace(j, (val1 >> (j * 8)) as u8);
+                        let mut temp = bit_array.data[i];
+                        temp[j] = (val1 >> (j * 8)) as u8;
+                        bit_array.data[i] = temp;
                     }
 
                     // Fill the second 128 bits.
                     for j in 16..32 {
-                        bit_array.data[i] =
-                            bit_array.data[i].replace(j, (val2 >> ((j - 16) * 8)) as u8);
+                        let mut temp = bit_array.data[i];
+                        temp[j] = (val2 >> ((j - 16) * 8)) as u8;
+                        bit_array.data[i] = temp;
                     }
                 }
 

@@ -1,4 +1,5 @@
 #![feature(generic_const_exprs)]
+#![feature(portable_simd)]
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
 #![feature(lazy_cell)]

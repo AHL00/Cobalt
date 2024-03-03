@@ -148,6 +148,7 @@ impl AssetServer {
         }
     }
 
+    // TODO: Better handling of different path formats, like adding a ./ or something
     pub fn set_assets_dir(&mut self, assets_dir: &str) {
         self.assets_dir = PathBuf::from(assets_dir);
     }

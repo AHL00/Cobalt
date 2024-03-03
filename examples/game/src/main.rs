@@ -43,8 +43,7 @@ impl Application for App {
     fn init(&mut self, engine: &mut Engine) {
         log::info!("Initializing app");
 
-        
-        asset_server_mut().set_assets_dir("assets");
+        asset_server_mut().set_assets_dir("examples/game/assets");
         
         let texture = asset_server_mut().load::<Texture>("texture.png");
         let logo_texture = asset_server_mut().load::<Texture>("logo.png");

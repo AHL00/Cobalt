@@ -25,7 +25,6 @@ hashbrown = { version = "0.14.3", features = [
     "serde",
     "ahash",
 ], default-features = false }
-packed_simd = "0.3.9"
 pollster = "0.3.0"
 thiserror = "1.0.56"
 log = "0.4.20"
