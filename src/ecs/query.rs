@@ -737,7 +737,7 @@ mod tests {
 
         let mut count = 0;
 
-        for (entity, x) in query {
+        for (_entity, _x) in query {
             count += 1;
         }
 
@@ -757,7 +757,7 @@ mod tests {
 
         let mut count = 0;
 
-        for (entity, x) in query {
+        for (_entity, _x) in query {
             count += 1;
         }
 
@@ -782,7 +782,7 @@ mod tests {
 
         let mut count = 0;
 
-        for (entity, component) in query {
+        for (_entity, component) in query {
             *component += count as f32;
 
             count += 1;
@@ -795,7 +795,7 @@ mod tests {
         let mut count = 0;
         let mut sum = 0.0;
 
-        for (entity, component) in query {
+        for (_entity, component) in query {
             count += 1;
 
             sum += *component;

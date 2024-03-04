@@ -1,11 +1,10 @@
 use std::sync::LazyLock;
 
-use ultraviolet::{Mat4, Mat4x4};
 use wgpu::util::DeviceExt;
 
 use crate::{
     assets::AssetHandle,
-    ecs::{component::Component, query::QueryIter},
+    ecs::component::Component,
     engine::graphics,
     graphics::{
         texture::Texture, vertex::UvVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout,
@@ -14,7 +13,7 @@ use crate::{
     transform::Transform,
 };
 
-use super::{RenderData, Renderer, RendererPipeline, ViewProj};
+use super::{RenderData, RendererPipeline, ViewProj};
 
 /// Must have a transform component to be rendered
 pub struct Sprite {
@@ -117,7 +116,7 @@ impl RendererPipeline for SpritePipeline {
 
         let query = world.query_mut::<(Sprite, Transform)>().unwrap();
 
-        for (entity, (sprite, transform)) in query {
+        for (_, (sprite, transform)) in query {
             // Issues with borrow checker
             // It should be 100% safe to do this, but the borrow checker doesn't like it
             let mut texture = sprite.texture.borrow_mut();
@@ -200,7 +199,7 @@ impl RendererPipeline for SpritePipeline {
                         conservative: false,
                     },
                     depth_stencil: Some(wgpu::DepthStencilState {
-                        format: Renderer::DEPTH_FORMAT,
+                        format: graphics.output_depth_format.expect("No depth format"),
                         depth_write_enabled: true,
                         depth_compare: wgpu::CompareFunction::Less,
                         stencil: wgpu::StencilState::default(),

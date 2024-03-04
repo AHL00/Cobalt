@@ -111,6 +111,10 @@ impl World {
         }
     }
 
+    pub fn entity_count(&self) -> usize {
+        self.entities.len()
+    }
+
     /// Creates a new entity.
     pub fn create_entity(&mut self) -> Entity {
         // If current capacity is reached, expand all sparse sets in storages and entities list

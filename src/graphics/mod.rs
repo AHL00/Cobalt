@@ -118,6 +118,8 @@ pub struct Graphics {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
     pub(crate) surface: wgpu::Surface<'static>,
+    pub(crate) output_color_format: wgpu::TextureFormat,
+    pub(crate) output_depth_format: Option<wgpu::TextureFormat>,
 }
 
 impl Graphics {
@@ -162,12 +164,26 @@ impl Graphics {
                 GraphicsError::DeviceError
             })?;
 
-        let mut res = Self {
+        let surface_capabilities = surface.get_capabilities(&adapter);
+
+        // Get preferred format
+        let output_color_format = if surface_capabilities.formats.is_empty() {
+            log::warn!("No preferred format found, using Bgra8UnormSrgb");
+            wgpu::TextureFormat::Bgra8UnormSrgb
+        } else {
+            surface_capabilities.formats[0]
+        };
+
+        let output_depth_format = Some(wgpu::TextureFormat::Depth32Float);
+
+        let res = Self {
             instance,
             adapter,
             device,
             surface,
             queue,
+            output_color_format,
+            output_depth_format,
         };
 
         res.configure_surface(window.winit.inner_size().into());
@@ -176,22 +192,17 @@ impl Graphics {
     }
 
     pub(crate) fn configure_surface(&self, size: (u32, u32)) {
-        let surface_capabilities = self.surface.get_capabilities(&self.adapter);
-
-        // Get preferred format
-        let format = surface_capabilities.formats[0];
-
         self.surface.configure(
             &self.device,
             &wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format,
+                format: self.output_color_format,
                 width: size.0,
                 height: size.1,
                 present_mode: wgpu::PresentMode::Mailbox,
                 desired_maximum_frame_latency: 2,
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                view_formats: vec![wgpu::TextureFormat::Bgra8UnormSrgb],
+                view_formats: vec![self.output_color_format],
             },
         );
     }

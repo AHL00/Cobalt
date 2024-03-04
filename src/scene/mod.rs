@@ -1,4 +1,4 @@
-use crate::ecs::World;
+use crate::{ecs::World, engine::DynApp};
 
 /// A scene is a collection of entities.
 pub struct Scene {
@@ -18,15 +18,15 @@ impl Scene {
         }
     }
 
-    pub(crate) fn run_update_scripts(&self, engine: &mut crate::engine::Engine) {
+    pub(crate) fn run_update_scripts(&mut self, engine: &mut crate::engine::Engine, app: &mut DynApp) {
         let query = self
             .world
-            .query::<crate::script::ScriptComponent>()
+            .query_mut::<crate::script::ScriptComponent>()
             .unwrap();
 
         for (entity, script) in query {
-            for script in script.scripts.iter() {
-                script.update(engine, entity);
+            for script in script.scripts.iter_mut() {
+                script.update(engine, app, entity);
             }
         }
     }

@@ -1,17 +1,20 @@
-use std::{error::Error, time::Duration};
+use std::{any::Any, error::Error, time::Duration};
 
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
 };
 
-use crate::graphics::Window;
+use crate::{graphics::Window, internal::as_any::AsAny};
 
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
     graphics::Graphics, input::Input, internal::queue::SizedQueue, renderer::Renderer, scene::Scene,
 };
+
+#[cfg(feature = "dev_gui")]
+use egui_wgpu::ScreenDescriptor;
 
 pub(crate) static mut GRAPHICS: Option<RwLock<Graphics>> = None;
 
@@ -23,29 +26,45 @@ pub(crate) fn graphics_mut() -> RwLockWriteGuard<'static, Graphics> {
     unsafe { GRAPHICS.as_ref().unwrap().write() }
 }
 
+pub type DynApp = dyn Application + 'static;
+
 /// Entry point for the engine.
 /// This trait is implemented by the user.
-pub trait Application {
+pub trait Application: Any + AsAny {
     fn init(&mut self, engine: &mut Engine);
 
     fn update(&mut self, engine: &mut Engine, delta_time: f32);
 }
 
-pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
+pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new()?;
+
+    let window = Window::new(&event_loop)?;
+
+    unsafe {
+        GRAPHICS = Some(RwLock::new(Graphics::new(&window)?));
+    }
+
+    #[cfg(feature = "dev_gui")]
+    let dev_gui = crate::dev_gui::DevGui::new(
+        &graphics().device,
+        graphics().output_color_format,
+        1, // MSAA samples, the most widely supported values are 1 and 4
+        &window.winit,
+    );
 
     let mut engine = Engine {
         stats: Stats::new(),
         scene: Scene::new("Main Scene"),
-        window: Window::new(&event_loop)?,
+        window,
         renderer: Renderer::new(),
         input: Input::new(),
+        #[cfg(feature = "dev_gui")]
+        dev_gui,
+
+        start_time: std::time::Instant::now(),
         exit_requested: false,
     };
-
-    unsafe {
-        GRAPHICS = Some(RwLock::new(Graphics::new(&engine.window)?));
-    }
 
     engine.renderer.add_default_pipelines();
 
@@ -70,8 +89,13 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
 
             // Run update scripts.
             // This workaround is pretty ugly, but it works for now.
+            // TODO: Think of a better way
+            engine.stats.run_scripts_start();
             let engine_ptr = &mut engine as *mut Engine;
-            engine.scene.run_update_scripts(unsafe { &mut *engine_ptr });
+            engine
+                .scene
+                .run_update_scripts(unsafe { &mut *engine_ptr }, &mut app);
+            engine.stats.run_scripts_end();
 
             engine.input.prepare();
 
@@ -80,6 +104,11 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
 
         match event {
             Event::WindowEvent { event, window_id } if window_id == engine.window.winit.id() => {
+                #[cfg(feature = "dev_gui")]
+                if engine.dev_gui.handle_event(&engine.window.winit, &event) {
+                    return;
+                }
+
                 engine.input.update(&event);
 
                 match event {
@@ -91,10 +120,32 @@ pub fn run<A: Application>(mut app: A) -> Result<(), Box<dyn Error>> {
 
                         let mut frame = graphics.begin_frame().unwrap();
 
-                        frame.clear(wgpu::Color::GREEN);
+                        frame.clear(wgpu::Color::BLACK);
 
                         engine.renderer.render(&mut frame, &mut engine.scene.world);
 
+                        // This is about to get crazy unsafe, but who cares.
+                        #[cfg(feature = "dev_gui")]
+                        {
+                            let engine_ptr = &mut engine as *mut Engine;
+
+                            let screen_descriptor = ScreenDescriptor {
+                                size_in_pixels: engine.window.winit.inner_size().into(),
+                                pixels_per_point: engine.window.winit.scale_factor() as f32,
+                            };
+
+                            unsafe {&mut *engine_ptr}
+                                .dev_gui
+                                .render(
+                                    &mut engine,
+                                    &mut app,
+                                    &mut frame,
+                                    &screen_descriptor,
+                                )
+                                .unwrap_or_else(|e| {
+                                    log::error!("Failed to render dev gui: {:?}", e)
+                                });
+                        }
                         engine.stats.cpu_render_end();
 
                         engine.window.winit.pre_present_notify();
@@ -134,8 +185,9 @@ pub struct Stats {
     /// Time it took to execute the render commands on the GPU.
     pub gpu_render_time_history: Box<SizedQueue<Duration, 1000>>,
     /// Time it took to run all systems.
-    pub systems_time_history: Box<SizedQueue<Duration, 1000>>,
+    pub script_time_history: Box<SizedQueue<Duration, 1000>>,
 
+    last_scripts_run: std::time::Instant,
     last_frame: std::time::Instant,
 }
 
@@ -145,8 +197,9 @@ impl Stats {
             frame_time_history: Box::new(SizedQueue::new()),
             cpu_render_time_history: Box::new(SizedQueue::new()),
             gpu_render_time_history: Box::new(SizedQueue::new()),
-            systems_time_history: Box::new(SizedQueue::new()),
+            script_time_history: Box::new(SizedQueue::new()),
 
+            last_scripts_run: std::time::Instant::now(),
             last_frame: std::time::Instant::now(),
         }
     }
@@ -172,7 +225,18 @@ impl Stats {
     pub(crate) fn gpu_render_end(&mut self) {
         let now = std::time::Instant::now();
         let delta = now.duration_since(self.last_frame);
-        self.gpu_render_time_history.enqueue(delta - self.cpu_render_time_history.last().unwrap());
+        self.gpu_render_time_history
+            .enqueue(delta - self.cpu_render_time_history.last().unwrap());
+    }
+
+    pub(crate) fn run_scripts_start(&mut self) {
+        self.last_scripts_run = std::time::Instant::now();
+    }
+
+    pub(crate) fn run_scripts_end(&mut self) {
+        let now = std::time::Instant::now();
+        let delta = now.duration_since(self.last_scripts_run);
+        self.script_time_history.enqueue(delta);
     }
 
     pub fn average_frame_time(&self, mut num_frames: usize) -> f32 {
@@ -212,6 +276,10 @@ pub struct Engine {
     pub renderer: Renderer,
     pub stats: Stats,
     pub input: Input,
+    pub start_time: std::time::Instant,
+    #[cfg(feature = "dev_gui")]
+    pub dev_gui: crate::dev_gui::DevGui,
+
     exit_requested: bool,
 }
 

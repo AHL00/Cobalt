@@ -1,12 +1,20 @@
 use crate::{
     ecs::{component::Component, Entity},
-    engine::Engine,
+    engine::{Application, DynApp, Engine},
 };
 
 pub trait Script {
-    fn update(&self, engine: &mut Engine, entity: Entity);
+    fn name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
 
-    fn on_load(&self, engine: &mut Engine, entity: Entity);
+    fn update(&mut self, engine: &mut Engine, app: &mut DynApp, entity: Entity) {
+
+    }
+
+    fn on_load(&self, engine: &mut Engine, entity: Entity) {
+        
+    }
 }
 
 pub struct ScriptComponent {
@@ -16,7 +24,7 @@ pub struct ScriptComponent {
 impl Component for ScriptComponent {}
 
 impl ScriptComponent {
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         Self {
             scripts: Vec::new(),
         }

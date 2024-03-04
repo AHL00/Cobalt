@@ -6,6 +6,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["dev_gui"]
+dev_gui = ["egui", "egui-winit", "egui-wgpu"]
+
 [dependencies]
 # Graphics
 wgpu = "0.19.1"
@@ -31,6 +35,11 @@ log-once = "0.4.1"
 # ECS
 serde_traitobject = "0.2.8"
 serde_closure = "0.3.3"
+
+# Dev GUI
+egui = {version = "0.26.2", optional = true}
+egui-winit = {version = "0.26.2", optional = true}
+egui-wgpu = {version = "0.26.2", optional = true}
 
 [dev-dependencies]
 simple_logger = "4.3.3"

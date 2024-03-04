@@ -16,6 +16,8 @@ pub mod scene;
 pub mod script;
 pub mod stats;
 pub mod transform;
+#[cfg(feature = "dev_gui")]
+pub mod dev_gui;
 
 // Tell NVIDIA Optimus to use high performance GPU.
 #[cfg(target_os = "windows")]

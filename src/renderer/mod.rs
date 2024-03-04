@@ -119,8 +119,6 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-
     pub fn new() -> Self {
         Self {
             pipelines: Vec::new(),
@@ -149,7 +147,7 @@ impl Renderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::DEPTH_FORMAT,
+            format: crate::engine::graphics().output_depth_format.expect("No depth format"),
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -215,7 +213,7 @@ impl Renderer {
                 }
 
                 // Make sure it has a transform.
-                if let Some(transform_) = world.get_component::<Transform>(ent) {
+                if let Some(_) = world.get_component::<Transform>(ent) {
                     if cam.enabled {
                         camera_entity = Some(ent);
                     }
@@ -244,7 +242,7 @@ impl Renderer {
                 depth_view: Some(self.depth_texture.as_ref().unwrap().create_view(
                     &wgpu::TextureViewDescriptor {
                         label: Some("Depth texture"),
-                        format: Some(Self::DEPTH_FORMAT),
+                        format: Some(graphics().output_depth_format.expect("No depth format")),
                         dimension: Some(wgpu::TextureViewDimension::D2),
                         aspect: wgpu::TextureAspect::DepthOnly,
                         base_mip_level: 0,

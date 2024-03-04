@@ -117,7 +117,7 @@ impl<T: Asset + 'static> Drop for AssetHandle<T> {
     fn drop(&mut self) {
         let asset_hashmap_ref = &mut asset_server().write().assets;
 
-        if let Some((asset, count)) = asset_hashmap_ref.get_mut(&self.path) {
+        if let Some((_asset, count)) = asset_hashmap_ref.get_mut(&self.path) {
             if *count == 1 {
                 asset_hashmap_ref.remove(&self.path);
             } else {
