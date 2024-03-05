@@ -8,8 +8,7 @@ use std::{
     sync::LazyLock,
 };
 
-use ultraviolet::Mat4;
-use ultraviolet::projection::rh_yup;
+use ultraviolet::{Mat4, Rotor3, Vec3};
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -17,9 +16,6 @@ use crate::{
     engine::graphics,
     graphics::{HasBindGroup, HasBindGroupLayout},
 };
-
-pub use ultraviolet::Vec3 as Vec3;
-pub use ultraviolet::Rotor3 as Rotor3;
 
 static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
     graphics()

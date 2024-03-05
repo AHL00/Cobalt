@@ -19,6 +19,12 @@ pub mod transform;
 #[cfg(feature = "dev_gui")]
 pub mod dev_gui;
 
+// Maths
+pub mod maths {
+    pub use ultraviolet::{Vec2, Vec3, Vec4, Rotor3, Rotor2, rotor, vec, transform};
+}
+
+
 // Tell NVIDIA Optimus to use high performance GPU.
 #[cfg(target_os = "windows")]
 #[allow(non_snake_case)]

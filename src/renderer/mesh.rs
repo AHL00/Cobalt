@@ -5,9 +5,7 @@ use std::{
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::{Asset, AssetLoadError},
-    engine::graphics,
-    graphics::vertex::{NormalUvVertex, NormalVertex, UvVertex},
+    assets::{Asset, AssetLoadError}, ecs::component::Component, engine::graphics, graphics::vertex::{NormalUvVertex, NormalVertex, UvVertex}
 };
 
 pub struct MeshAsset {
@@ -171,4 +169,23 @@ impl Asset for MeshAsset {
             has_uv: model.mesh.texcoords.len() > 0,
         })
     }
+}
+
+pub struct Mesh {
+    pub mesh: MeshAsset,
+    // TODO: Material
+    // Contains texture, color, etc.
+    // pub material: Material,
+}
+
+impl Mesh {
+    pub fn new(mesh: MeshAsset) -> Self {
+        Self { mesh }
+    }
+}
+
+impl Component for Mesh {}
+
+pub(crate) struct MeshPipeline {
+    pipeline: Option<wgpu::RenderPipeline>,
 }

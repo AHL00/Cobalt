@@ -1,19 +1,11 @@
 use std::{path::Path, time::Duration};
 
 use cobalt::{
-    assets::asset_server,
-    dev_gui::egui::{self, Button},
-    ecs::Entity,
-    engine::{Application, DynApp, Engine},
-    graphics::{texture::TextureAsset, winit_window},
-    input::ButtonState,
-    renderer::{
+    assets::asset_server, dev_gui::egui::{self, Button}, ecs::Entity, engine::{Application, DynApp, Engine}, graphics::{texture::TextureAsset, winit_window}, input::ButtonState, maths::{Rotor3, Vec3}, renderer::{
         camera::{Camera, Projection},
         mesh::MeshAsset,
         sprite::Sprite,
-    },
-    script::{Script, ScriptComponent},
-    transform::{Rotor3, Transform, Vec3},
+    }, script::{Script, ScriptComponent}, transform::Transform
 };
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -58,7 +50,7 @@ impl Application for App {
             .load::<TextureAsset>(Path::new("texture.png"))
             .unwrap();
 
-        let h_count = 60;
+        let h_count = 70;
         let v_count = h_count * 9 / 16;
 
         for x in -h_count / 2..h_count / 2 {
@@ -66,7 +58,7 @@ impl Application for App {
                 let ent = engine.scene.world.create_entity();
 
                 let transform =
-                    Transform::with_position([x as f32 * 1.0, y as f32 * 1.0, 10.0].into());
+                    Transform::with_position([x as f32 * 1.0, y as f32 * 1.0, 50.0].into());
 
                 engine.scene.world.add_component(ent, transform);
                 engine
@@ -107,7 +99,7 @@ impl Application for App {
 
         engine.dev_gui.set_ui(|ctx, engine, app| {
             // Stats window
-            egui::Window::new("Stats").show(ctx, |ui| {
+            egui::Window::new("Info").show(ctx, |ui| {
                 ui.label(format!("FPS: {:.2?}", engine.stats.average_fps(10)));
                 ui.label(format!(
                     "CPU: {:.2?}",
@@ -133,6 +125,19 @@ impl Application for App {
                         .last()
                         .unwrap_or(Duration::from_secs(0))
                 ));
+
+                // Camera position
+                let app = app.as_any_mut().downcast_mut::<App>().unwrap();
+                if let Some(cam_ent) = app.main_camera {
+                    let cam_transform = engine
+                        .scene
+                        .world
+                        .get_component::<Transform>(cam_ent)
+                        .unwrap();
+
+                    ui.label(format!("Camera pos: [{:.2}, {:.2}, {:.2}]", cam_transform.position().x, cam_transform.position().y, cam_transform.position().z));
+                    
+                }
             });
         });
     }

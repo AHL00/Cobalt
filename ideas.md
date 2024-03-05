@@ -11,3 +11,6 @@
 ## ECS heirarchy
 - I think it would be useful to have a way to organize entities in a hierarchy. This would be useful for things like parenting, but also for organizing the scene in the editor. I'm not sure how this would work with the ECS, though. How it'll
   be done is to be determined.
+
+## ultraviolet::transform
+- Look at this and how it can be used to optimise transform calculations.
