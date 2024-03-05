@@ -1,5 +1,6 @@
 use std::{any::Any, error::Error, sync::LazyLock};
 
+use ultraviolet::Mat4;
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -226,11 +227,13 @@ impl Renderer {
         }
 
         if let Some(camera_entity) = camera_entity {
-            let view_matrix = world
-                .get_component_mut::<Transform>(camera_entity)
-                .unwrap()
-                .model_matrix()
-                .inversed();
+            let cam_transform = world.get_component::<Transform>(camera_entity).unwrap();
+
+            let view_matrix = Mat4::look_at(
+                cam_transform.position(),
+                cam_transform.position() + cam_transform.forward(),
+                cam_transform.up(),
+            );
 
             let proj_matrix = world
                 .get_component_mut::<Camera>(camera_entity)

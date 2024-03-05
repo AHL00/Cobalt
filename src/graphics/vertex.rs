@@ -30,16 +30,44 @@ impl HasVertexBufferLayout for UvVertex {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct ModelVertex {
+pub struct NormalVertex {
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+}
+
+impl HasVertexBufferLayout for NormalVertex {
+    fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<NormalVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    offset: (std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
+                    format: wgpu::VertexFormat::Float32x3,
+                    shader_location: 1,
+                },
+            ],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct NormalUvVertex {
     pub position: [f32; 3],
     pub uv: [f32; 2],
     pub normal: [f32; 3],
 }
 
-impl HasVertexBufferLayout for ModelVertex {
+impl HasVertexBufferLayout for NormalUvVertex {
     fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<NormalUvVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {

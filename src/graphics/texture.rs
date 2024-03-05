@@ -1,4 +1,4 @@
-use std::{io::BufReader, sync::LazyLock};
+use std::{io::BufReader, path::Path, sync::LazyLock};
 
 use crate::{
     assets::{Asset, AssetLoadError},
@@ -8,7 +8,7 @@ use crate::{
 
 use super::HasBindGroup;
 
-pub struct Texture {
+pub struct TextureAsset {
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
@@ -17,7 +17,7 @@ pub struct Texture {
     // TODO: Bind group dirty after changing texture?
 }
 
-impl Texture {
+impl TextureAsset {
     pub fn size(&self) -> (u32, u32) {
         (self.size.width, self.size.height)
     }
@@ -49,8 +49,8 @@ static TEXTURE_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::ne
         })
 });
 
-impl Asset for Texture {
-    fn load(reader: BufReader<std::fs::File>) -> Result<Self, AssetLoadError> {
+impl Asset for TextureAsset {
+    fn load(reader: BufReader<std::fs::File>, _: &imstr::ImString, _: &Path) -> Result<Self, AssetLoadError> {
         let rgba = image::load(reader, image::ImageFormat::Png)
             .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?
             .flipv()
@@ -135,13 +135,13 @@ impl Asset for Texture {
     }
 }
 
-impl HasBindGroup for Texture {
+impl HasBindGroup for TextureAsset {
     fn bind_group(&mut self) -> &wgpu::BindGroup {
         &self.bind_group
     }
 }
 
-impl HasBindGroupLayout for Texture {
+impl HasBindGroupLayout for TextureAsset {
     fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
         &TEXTURE_BIND_GROUP_LAYOUT
     }

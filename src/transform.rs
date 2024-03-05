@@ -9,6 +9,7 @@ use std::{
 };
 
 use ultraviolet::Mat4;
+use ultraviolet::projection::rh_yup;
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -38,6 +39,9 @@ static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::
         })
 });
 
+/// A transform component.
+/// Contains position, rotation, and scale.
+// Coordinate space is right-handed, with y-up.
 pub struct Transform {
     position: Vec3,
     rotation: Rotor3,

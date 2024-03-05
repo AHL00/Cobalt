@@ -45,6 +45,24 @@ pub enum ButtonState {
     NotPressed,
 }
 
+impl ButtonState {
+    pub fn is_pressed(&self) -> bool {
+        match self {
+            ButtonState::Pressed => true,
+            ButtonState::Held { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_held(&self) -> bool {
+        match self {
+            ButtonState::Held { .. } => true,
+            _ => false,
+        }
+    }
+}
+
+
 pub struct Keyboard {
     /// When a new key is pressed, it is added to this list.
     /// When a key is released, it is not removed from this list.

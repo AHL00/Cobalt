@@ -153,7 +153,15 @@ impl AssetServer {
 
     // TODO: Better handling of different path formats, like adding a ./ or something
     pub fn set_assets_dir(&mut self, assets_dir: &str) {
-        self.assets_dir = PathBuf::from(assets_dir);
+        let assets_dir_path = PathBuf::from(assets_dir);
+
+        let absolute_assets_dir_path = if assets_dir_path.is_absolute() {
+            assets_dir_path
+        } else {
+            std::env::current_dir().unwrap().join(assets_dir_path)
+        };
+
+        self.assets_dir = absolute_assets_dir_path;
     }
 
     /// Load an asset from disk.
@@ -181,25 +189,27 @@ impl AssetServer {
             }
         }
 
+        let asset_handle_path = ImString::from_str(path_str).unwrap();
+
         let absolute_path = self.assets_dir.join(path);
 
-        let file = std::fs::File::open(absolute_path)?;
+        let file = std::fs::File::open(&absolute_path)?;
 
         let buf_reader = BufReader::new(file);
 
-        let asset = Arc::new(RwLock::new(T::load(buf_reader)?));
+        let asset = Arc::new(RwLock::new(T::load(buf_reader, &asset_handle_path, &absolute_path)?));
 
         let asset_any = unsafe {
             Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
         };
 
         self.assets.insert(
-            ImString::from_str(path_str).unwrap(),
+            asset_handle_path.clone(),
             (Arc::downgrade(&asset_any), 1),
         );
 
         Ok(AssetHandle::new(
-            ImString::from_str(path_str).unwrap(),
+            asset_handle_path,
             asset_any,
         ))
     }
@@ -208,7 +218,7 @@ impl AssetServer {
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
 pub trait Asset: Sized + Send + Sync + 'static {
-    fn load(data: BufReader<std::fs::File>) -> Result<Self, AssetLoadError> ;
+    fn load(data: BufReader<std::fs::File>, name: &ImString, path: &Path) -> Result<Self, AssetLoadError>; 
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -224,7 +234,7 @@ pub struct Text {
 }
 
 impl Asset for Text {
-    fn load(mut reader: BufReader<std::fs::File>) -> Result<Self, AssetLoadError> {
+    fn load(mut reader: BufReader<std::fs::File>, _: &imstr::ImString, _: &Path) -> Result<Self, AssetLoadError> {
         let mut text = String::new();
         reader
             .read_to_string(&mut text)

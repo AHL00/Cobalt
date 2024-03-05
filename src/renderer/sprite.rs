@@ -7,7 +7,7 @@ use crate::{
     ecs::component::Component,
     engine::graphics,
     graphics::{
-        texture::Texture, vertex::UvVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout,
+        texture::TextureAsset, vertex::UvVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout,
         HasVertexBufferLayout,
     },
     transform::Transform,
@@ -17,13 +17,13 @@ use super::{RenderData, RendererPipeline, ViewProj};
 
 /// Must have a transform component to be rendered
 pub struct Sprite {
-    pub texture: AssetHandle<Texture>,
+    pub texture: AssetHandle<TextureAsset>,
     pub(crate) vertex_buffer: &'static wgpu::Buffer,
     pub(crate) index_buffer: &'static wgpu::Buffer,
 }
 
 impl Sprite {
-    pub fn new(texture: AssetHandle<Texture>) -> Self {
+    pub fn new(texture: AssetHandle<TextureAsset>) -> Self {
         Self {
             texture,
             vertex_buffer: &SPRITE_VERTEX_BUFFER,
@@ -121,7 +121,7 @@ impl RendererPipeline for SpritePipeline {
             // It should be 100% safe to do this, but the borrow checker doesn't like it
             let mut texture = sprite.texture.borrow_mut();
 
-            let texture_unsafe = unsafe { &mut *(&mut *texture as *mut Texture) };
+            let texture_unsafe = unsafe { &mut *(&mut *texture as *mut TextureAsset) };
 
             render_pass.set_bind_group(0, &transform.bind_group(), &[]);
 
@@ -151,7 +151,7 @@ impl RendererPipeline for SpritePipeline {
                     bind_group_layouts: &[
                         &Transform::bind_group_layout(),
                         &ViewProj::bind_group_layout(),
-                        &Texture::bind_group_layout(),
+                        &TextureAsset::bind_group_layout(),
                     ],
                     push_constant_ranges: &[],
                 });
