@@ -40,6 +40,7 @@ serde_closure = "0.3.3"
 egui = {version = "0.26.2", optional = true}
 egui-winit = {version = "0.26.2", optional = true}
 egui-wgpu = {version = "0.26.2", optional = true}
+tobj = "4.0.1"
 
 [dev-dependencies]
 simple_logger = "4.3.3"

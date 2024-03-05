@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use cobalt::{
     assets::asset_server, dev_gui::egui, engine::{Application, DynApp, Engine}, graphics::{texture::Texture, winit_window}, input::ButtonState, renderer::{
@@ -41,7 +41,7 @@ impl Application for App {
 
         asset_server().write().set_assets_dir("assets");
 
-        let texture = asset_server().write().load::<Texture>("texture.png");
+        let texture = asset_server().write().load::<Texture>(Path::new("texture.png")).unwrap();
 
         let h_count = 50;
         let v_count = h_count * 9 / 16;

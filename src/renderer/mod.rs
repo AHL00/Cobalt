@@ -13,6 +13,7 @@ use self::camera::Camera;
 
 pub mod camera;
 pub mod sprite;
+pub mod mesh;
 
 pub(crate) struct ViewProj {
     view: ultraviolet::Mat4,

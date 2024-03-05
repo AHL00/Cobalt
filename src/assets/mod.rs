@@ -16,7 +16,8 @@ use serde::Serialize;
 use std::{
     any::Any,
     fmt::{Debug, Formatter},
-    path::PathBuf,
+    io::{BufReader, Read, Seek},
+    path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, OnceLock, Weak},
 };
@@ -109,7 +110,10 @@ impl<'de, T: Asset + 'static> serde::Deserialize<'de> for AssetHandle<T> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let path = String::deserialize(deserializer)?;
 
-        Ok(asset_server().write().load::<T>(&path))
+        Ok(asset_server()
+            .write()
+            .load::<T>(&Path::new(&path))
+            .map_err(serde::de::Error::custom)?)
     }
 }
 
@@ -155,44 +159,64 @@ impl AssetServer {
     /// Load an asset from disk.
     /// If the asset is already loaded, it will not load it again.
     /// The path is relative to the assets directory.
-    pub fn load<T: Asset + 'static>(&mut self, path: &str) -> AssetHandle<T> {
+    pub fn load<T: Asset + 'static>(
+        &mut self,
+        path: &Path,
+    ) -> Result<AssetHandle<T>, AssetLoadError> {
+        let path_str = path
+            .as_os_str()
+            .to_str()
+            .expect("Failed to convert path to string");
+
         // Check if the asset is already loaded
-        if let Some((asset, count)) = self.assets.get_mut(path) {
+        if let Some((asset, count)) = self.assets.get_mut(path_str) {
             // If the asset is loaded, increment the count
             *count += 1;
 
             if let Some(asset) = asset.upgrade() {
-                return AssetHandle::new(ImString::from_str(path).unwrap(), asset);
+                return Ok(AssetHandle::new(
+                    ImString::from_str(path_str).unwrap(),
+                    asset,
+                ));
             }
         }
 
         let absolute_path = self.assets_dir.join(path);
 
-        let data = std::fs::read(absolute_path).unwrap_or_else(|_| {
-            panic!(
-                "Failed to load asset: {}",
-                self.assets_dir.join(path).to_str().unwrap()
-            )
-        });
+        let file = std::fs::File::open(absolute_path)?;
 
-        let asset = Arc::new(RwLock::new(T::load(data)));
+        let buf_reader = BufReader::new(file);
+
+        let asset = Arc::new(RwLock::new(T::load(buf_reader)?));
+
         let asset_any = unsafe {
             Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
         };
 
         self.assets.insert(
-            ImString::from_str(path).unwrap(),
+            ImString::from_str(path_str).unwrap(),
             (Arc::downgrade(&asset_any), 1),
         );
 
-        AssetHandle::new(ImString::from_str(path).unwrap(), asset_any)
+        Ok(AssetHandle::new(
+            ImString::from_str(path_str).unwrap(),
+            asset_any,
+        ))
     }
 }
 
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
 pub trait Asset: Sized + Send + Sync + 'static {
-    fn load(data: Vec<u8>) -> Self;
+    fn load(data: BufReader<std::fs::File>) -> Result<Self, AssetLoadError> ;
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AssetLoadError {
+    #[error("Failed to read file")]
+    ReadError(#[from] std::io::Error),
+    #[error("Failed to load asset")]
+    LoadError(#[from] Box<dyn std::error::Error>),
 }
 
 pub struct Text {
@@ -200,10 +224,12 @@ pub struct Text {
 }
 
 impl Asset for Text {
-    fn load(data: Vec<u8>) -> Self {
-        Self {
-            text: String::from_utf8(data).unwrap(),
-        }
+    fn load(mut reader: BufReader<std::fs::File>) -> Result<Self, AssetLoadError> {
+        let mut text = String::new();
+        reader
+            .read_to_string(&mut text)
+            .map_err(|e| AssetLoadError::ReadError(e))?;
+        Ok(Self { text })
     }
 }
 
@@ -226,7 +252,7 @@ mod tests {
     fn test_asset_server() {
         reset_asset_server();
 
-        let asset = asset_server().write().load::<Text>("Cargo.toml");
+        let asset = asset_server().write().load::<Text>(Path::new("Cargo.toml")).unwrap();
 
         let asset_ref = asset.borrow();
 
@@ -244,7 +270,7 @@ mod tests {
     fn test_asset_handle_serde() {
         reset_asset_server();
 
-        let asset = asset_server().write().load::<Text>("Cargo.toml");
+        let asset = asset_server().write().load::<Text>(Path::new("Cargo.toml")).unwrap();
 
         let serialized = serde_yaml::to_string(&asset).unwrap();
 
@@ -266,7 +292,7 @@ mod tests {
     fn test_asset_handle_clone() {
         reset_asset_server();
 
-        let asset = asset_server().write().load::<Text>("Cargo.toml");
+        let asset = asset_server().write().load::<Text>(Path::new("Cargo.toml")).unwrap();
 
         let asset_clone = asset.clone();
 
@@ -282,7 +308,7 @@ mod tests {
     fn test_asset_handle_drop() {
         reset_asset_server();
 
-        let asset = asset_server().write().load::<Text>("Cargo.toml");
+        let asset = asset_server().write().load::<Text>(Path::new("Cargo.toml")).unwrap();
 
         let asset_ref = asset.borrow();
 
@@ -295,5 +321,14 @@ mod tests {
         drop(asset);
 
         assert_eq!(asset_server().read().assets.len(), 0);
+    }
+
+    #[test]
+    fn test_asset_read_error() {
+        reset_asset_server();
+
+        let result = asset_server().write().load::<Text>(Path::new("nonexistent_file.txt"));
+
+        assert!(result.is_err());
     }
 }

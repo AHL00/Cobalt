@@ -1,5 +1,5 @@
 pub use egui;
-use egui::{epaint::Shadow, Visuals};
+use egui::Visuals;
 use egui_wgpu::ScreenDescriptor;
 use winit::{event::WindowEvent, window::Window};
 

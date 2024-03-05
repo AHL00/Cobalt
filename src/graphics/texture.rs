@@ -1,6 +1,10 @@
-use std::sync::LazyLock;
+use std::{io::BufReader, sync::LazyLock};
 
-use crate::{assets::Asset, engine::graphics, graphics::HasBindGroupLayout};
+use crate::{
+    assets::{Asset, AssetLoadError},
+    engine::graphics,
+    graphics::HasBindGroupLayout,
+};
 
 use super::HasBindGroup;
 
@@ -46,8 +50,11 @@ static TEXTURE_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::ne
 });
 
 impl Asset for Texture {
-    fn load(data: Vec<u8>) -> Self {
-        let rgba = image::load_from_memory(&data).unwrap().flipv().to_rgba8();
+    fn load(reader: BufReader<std::fs::File>) -> Result<Self, AssetLoadError> {
+        let rgba = image::load(reader, image::ImageFormat::Png)
+            .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?
+            .flipv()
+            .to_rgba8();
 
         let (width, height) = rgba.dimensions();
 
@@ -118,13 +125,13 @@ impl Asset for Texture {
                 ],
             });
 
-        Self {
+        Ok(Self {
             texture,
             view,
             sampler,
             size,
             bind_group,
-        }
+        })
     }
 }
 

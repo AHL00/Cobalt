@@ -12,7 +12,7 @@ fn main() {
         if path.is_file() && file_name.ends_with(".rs") {
             let asset = cobalt::assets::asset_server()
                 .write()
-                .load::<cobalt::assets::Text>(path.to_str().unwrap());
+                .load::<cobalt::assets::Text>(path).unwrap();
 
             assets.push(asset);
         }
