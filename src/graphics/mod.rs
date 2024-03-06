@@ -125,7 +125,10 @@ pub struct Graphics {
 impl Graphics {
     pub(crate) fn new(window: &Window) -> Result<Self, Box<dyn std::error::Error>> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            flags: wgpu::InstanceFlags::DEBUG,
+            #[cfg(debug)]
+            flags: wgpu::InstanceFlags::debugging(),
+            #[cfg(not(debug))]
+            flags: wgpu::InstanceFlags::empty(),
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
         });
