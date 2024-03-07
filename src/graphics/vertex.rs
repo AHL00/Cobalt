@@ -58,16 +58,16 @@ impl HasVertexBufferLayout for NormalVertex {
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct NormalUvVertex {
+pub struct UvNormalVertex {
     pub position: [f32; 3],
     pub uv: [f32; 2],
     pub normal: [f32; 3],
 }
 
-impl HasVertexBufferLayout for NormalUvVertex {
+impl HasVertexBufferLayout for UvNormalVertex {
     fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<NormalUvVertex>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<UvNormalVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {

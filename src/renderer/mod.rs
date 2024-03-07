@@ -16,6 +16,7 @@ pub mod camera;
 pub mod sprite;
 pub mod mesh;
 pub mod material;
+mod default_pipelines;
 
 pub(crate) struct ViewProj {
     view: ultraviolet::Mat4,
@@ -104,8 +105,6 @@ pub(crate) trait RendererPipeline {
         render_data: &RenderData,
     );
 
-    fn create_wgpu_pipeline(&self, graphics: &Graphics) -> wgpu::RenderPipeline;
-
     fn create_wgpu_render_pass<'a>(
         &self,
         encoder: &'a mut wgpu::CommandEncoder,
@@ -113,7 +112,9 @@ pub(crate) trait RendererPipeline {
         depth_view: &'a RenderData,
     ) -> wgpu::RenderPass<'a>;
 
-    fn name(&self) -> &str;
+    fn name(&self) -> &str {
+        std::any::type_name::<Self>()
+    }
 }
 
 pub struct Renderer {
@@ -158,12 +159,6 @@ impl Renderer {
         self.depth_texture = Some(depth_texture);
 
         Ok(())
-    }
-
-    pub(crate) fn add_default_pipelines(&mut self) {
-        let graphics = crate::engine::graphics();
-
-        self.add_pipeline(sprite::SpritePipeline::new(&graphics));
     }
 
     pub(crate) fn add_pipeline<T: RendererPipeline + 'static>(&mut self, pipeline: T) {

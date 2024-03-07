@@ -37,7 +37,8 @@ static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::
 
 /// A transform component.
 /// Contains position, rotation, and scale.
-// Coordinate space is right-handed, with y-up.
+/// Coordinate space is right-handed, with y-up.
+// TODO: Fix rotations
 pub struct Transform {
     position: Vec3,
     rotation: Rotor3,

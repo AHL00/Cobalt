@@ -1,12 +1,22 @@
 use std::{
-    fmt::format, io::{BufReader, Cursor}, path::Path
+    io::{BufReader, Cursor},
+    path::Path,
 };
 
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::{Asset, AssetLoadError}, ecs::component::Component, engine::graphics, graphics::vertex::{NormalUvVertex, NormalVertex, UvVertex}
+    assets::{Asset, AssetHandle, AssetLoadError},
+    ecs::component::Component,
+    engine::graphics,
+    graphics::{
+        vertex::{NormalVertex, UvNormalVertex},
+        CreateBindGroup, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout,
+    },
+    transform::Transform,
 };
+
+use super::{material::Material, RendererPipeline, ViewProj};
 
 pub struct MeshAsset {
     /// Buffer of NormalUvVertex, or NormalVertex if the mesh does not have texture coordinates
@@ -38,7 +48,11 @@ impl Asset for MeshAsset {
 
         let result = tobj::load_obj_buf(
             &mut reader,
-            &tobj::GPU_LOAD_OPTIONS,
+            &tobj::LoadOptions {
+                triangulate: true,
+                single_index: true,
+                ..Default::default()
+            },
             |p| {
                 let p = obj_parent_dir.join(p);
 
@@ -64,7 +78,7 @@ impl Asset for MeshAsset {
             },
         );
 
-        let (models, mats) = match result {
+        let (models, _mats) = match result {
             Ok((models, mats)) => {
                 let mats = match mats {
                     Ok(m) => m,
@@ -100,25 +114,24 @@ impl Asset for MeshAsset {
         }
 
         let vertex_buffer = if model.mesh.texcoords.len() > 0 {
-            let mut vertices = Vec::new();
-            for i in 0..model.mesh.indices.len() / 3 {
-                vertices.push(NormalUvVertex {
+            let vertices = (0..model.mesh.positions.len() / 3)
+                .map(|i| UvNormalVertex {
                     position: [
-                        model.mesh.positions[model.mesh.indices[i * 3] as usize * 3],
-                        model.mesh.positions[model.mesh.indices[i * 3] as usize * 3 + 1],
-                        model.mesh.positions[model.mesh.indices[i * 3] as usize * 3 + 2],
-                    ],
-                    normal: [
-                        model.mesh.normals[model.mesh.indices[i * 3] as usize * 3],
-                        model.mesh.normals[model.mesh.indices[i * 3] as usize * 3 + 1],
-                        model.mesh.normals[model.mesh.indices[i * 3] as usize * 3 + 2],
+                        model.mesh.positions[i * 3],
+                        model.mesh.positions[i * 3 + 1],
+                        model.mesh.positions[i * 3 + 2],
                     ],
                     uv: [
-                        model.mesh.texcoords[model.mesh.indices[i * 3 + 1] as usize * 2],
-                        model.mesh.texcoords[model.mesh.indices[i * 3 + 1] as usize * 2 + 1],
+                        model.mesh.texcoords[i * 2],
+                        1.0 - model.mesh.texcoords[i * 2 + 1],
+                    ],
+                    normal: [
+                        model.mesh.normals[i * 3],
+                        model.mesh.normals[i * 3 + 1],
+                        model.mesh.normals[i * 3 + 2],
                     ],
                 })
-            }
+                .collect::<Vec<_>>();
 
             graphics()
                 .device
@@ -128,21 +141,20 @@ impl Asset for MeshAsset {
                     usage: wgpu::BufferUsages::VERTEX,
                 })
         } else {
-            let mut vertices = Vec::new();
-            for i in 0..model.mesh.indices.len() / 3 {
-                vertices.push(NormalVertex {
+            let vertices = (0..model.mesh.positions.len() / 3)
+                .map(|i| NormalVertex {
                     position: [
-                        model.mesh.positions[model.mesh.indices[i * 3] as usize * 3],
-                        model.mesh.positions[model.mesh.indices[i * 3] as usize * 3 + 1],
-                        model.mesh.positions[model.mesh.indices[i * 3] as usize * 3 + 2],
+                        model.mesh.positions[i * 3],
+                        model.mesh.positions[i * 3 + 1],
+                        model.mesh.positions[i * 3 + 2],
                     ],
                     normal: [
-                        model.mesh.normals[model.mesh.indices[i * 3] as usize * 3],
-                        model.mesh.normals[model.mesh.indices[i * 3] as usize * 3 + 1],
-                        model.mesh.normals[model.mesh.indices[i * 3] as usize * 3 + 2],
+                        model.mesh.normals[i * 3],
+                        model.mesh.normals[i * 3 + 1],
+                        model.mesh.normals[i * 3 + 2],
                     ],
                 })
-            }
+                .collect::<Vec<_>>();
 
             graphics()
                 .device
@@ -172,20 +184,185 @@ impl Asset for MeshAsset {
 }
 
 pub struct Mesh {
-    pub mesh: MeshAsset,
+    pub mesh_asset: AssetHandle<MeshAsset>,
     // TODO: Material
     // Contains texture, color, etc.
-    // pub material: Material,
+    pub material: Material,
 }
 
 impl Mesh {
-    pub fn new(mesh: MeshAsset) -> Self {
-        Self { mesh }
+    pub fn new(mesh: AssetHandle<MeshAsset>, material: Material) -> Self {
+        Self {
+            mesh_asset: mesh,
+            material,
+        }
     }
 }
 
 impl Component for Mesh {}
 
 pub(crate) struct MeshPipeline {
-    pipeline: Option<wgpu::RenderPipeline>,
+    // TODO: Add another pipeline which renders meshes with textures
+    textureless_pipeline: Option<wgpu::RenderPipeline>,
+}
+
+impl MeshPipeline {
+    pub fn new(graphics: &crate::graphics::Graphics) -> Self {
+        let mut res = Self {
+            textureless_pipeline: None,
+        };
+
+        let shader = graphics
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Mesh Vertex Shader"),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("shaders/textureless_mesh.wgsl").into(),
+                ),
+            });
+
+        let pipeline_layout =
+            graphics
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Mesh Pipeline Layout"),
+                    bind_group_layouts: &[
+                        &Transform::bind_group_layout(),
+                        &ViewProj::bind_group_layout(),
+                    ],
+                    push_constant_ranges: &[],
+                });
+
+        let render_pipeline =
+            graphics
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("Mesh Render Pipeline"),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: "vs_main",
+                        // TODO: What if the mesh doesn't have texture coordinates?
+                        buffers: &[NormalVertex::vertex_buffer_layout()],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: "fs_main",
+                        targets: &[Some(graphics.output_color_format.into())],
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: Some(wgpu::Face::Back),
+                        unclipped_depth: false,
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        conservative: false,
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: graphics.output_depth_format.unwrap(),
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState {
+                            front: wgpu::StencilFaceState::IGNORE,
+                            back: wgpu::StencilFaceState::IGNORE,
+                            read_mask: 0,
+                            write_mask: 0,
+                        },
+                        bias: wgpu::DepthBiasState {
+                            constant: 0,
+                            slope_scale: 0.0,
+                            clamp: 0.0,
+                        },
+                    }),
+                    multisample: wgpu::MultisampleState {
+                        count: 1,
+                        mask: !0,
+                        alpha_to_coverage_enabled: false,
+                    },
+                    multiview: None,
+                });
+
+        res.textureless_pipeline = Some(render_pipeline);
+
+        res
+    }
+}
+
+impl RendererPipeline for MeshPipeline {
+    fn render(
+        &mut self,
+        frame: &mut crate::graphics::Frame,
+        world: &mut crate::ecs::World,
+        view_proj: super::ViewProj,
+        render_data: &super::RenderData,
+    ) {
+        let swap_texture_view = &frame
+            .swap_texture()
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = frame.encoder();
+
+        let view_proj_bind_group = view_proj.create_bind_group(&graphics().device);
+
+        let mut render_pass =
+            self.create_wgpu_render_pass(&mut encoder, swap_texture_view, render_data);
+
+        render_pass.set_pipeline(self.textureless_pipeline.as_ref().unwrap());
+
+        render_pass.set_bind_group(1, &view_proj_bind_group, &[]);
+
+        let query = world.query_mut::<(Mesh, Transform)>().unwrap();
+
+        for (_, (mesh, transform)) in query {
+            render_pass.set_bind_group(0, &transform.bind_group(), &[]);
+
+            let mesh_asset = mesh.mesh_asset.borrow();
+
+            // This is perfectly safe as long as the mesh asset is not dropped while the render pass is being executed
+            // This should never be an issue, as the mesh asset is owned by the mesh component, which is owned by the world
+            // The component can't be dropped while the world is borrowed. Even if multithreaded, the user of the engine would
+            // never be able to drop the mesh asset while the render pass is being executed.
+            let mesh_asset_unsafe = unsafe { &*(&*mesh_asset as *const MeshAsset) };
+
+            render_pass.set_vertex_buffer(0, mesh_asset_unsafe.vertex_buffer.slice(..));
+
+            render_pass.set_index_buffer(
+                mesh_asset_unsafe.index_buffer.slice(..),
+                wgpu::IndexFormat::Uint32,
+            );
+
+            render_pass.draw_indexed(0..mesh_asset.num_indices, 0, 0..1);
+        }
+    }
+
+    fn create_wgpu_render_pass<'a>(
+        &self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        swap_texture: &'a wgpu::TextureView,
+        depth_view: &'a super::RenderData,
+    ) -> wgpu::RenderPass<'a> {
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Mesh Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: swap_texture,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth_view.depth_view.as_ref().unwrap(),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        })
+    }
 }

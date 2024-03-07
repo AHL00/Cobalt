@@ -84,7 +84,82 @@ impl SpritePipeline {
     pub fn new(graphics: &crate::graphics::Graphics) -> Self {
         let mut res = Self { pipeline: None };
 
-        res.pipeline = Some(res.create_wgpu_pipeline(graphics));
+        let shader = graphics
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Sprite shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/sprite.wgsl").into()),
+            });
+
+        let pipeline_layout =
+            graphics
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("SpritePipeline pipeline layout"),
+                    bind_group_layouts: &[
+                        &Transform::bind_group_layout(),
+                        &ViewProj::bind_group_layout(),
+                        &TextureAsset::bind_group_layout(),
+                    ],
+                    push_constant_ranges: &[],
+                });
+
+        let render_pipeline =
+            graphics
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("SpritePipeline render pipeline"),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: "vs_main",
+                        buffers: &[UvVertex::vertex_buffer_layout()],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: "fs_main",
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: graphics.output_color_format,
+                            blend: Some(wgpu::BlendState {
+                                color: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::SrcAlpha,
+                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                                alpha: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::One,
+                                    dst_factor: wgpu::BlendFactor::One,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                            }),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Ccw,
+                        cull_mode: Some(wgpu::Face::Back),
+                        unclipped_depth: false,
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        conservative: false,
+                    },
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: graphics.output_depth_format.expect("No depth format"),
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState::default(),
+                    }),
+                    multisample: wgpu::MultisampleState {
+                        count: 1,
+                        mask: !0,
+                        alpha_to_coverage_enabled: false,
+                    },
+                    multiview: None,
+                });
+
+        res.pipeline = Some(render_pipeline);
 
         res
     }
@@ -135,87 +210,6 @@ impl RendererPipeline for SpritePipeline {
         }
     }
 
-    fn create_wgpu_pipeline(&self, graphics: &crate::graphics::Graphics) -> wgpu::RenderPipeline {
-        let shader = graphics
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("SpritePipeline shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("sprite.wgsl").into()),
-            });
-
-        let pipeline_layout =
-            graphics
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("SpritePipeline pipeline layout"),
-                    bind_group_layouts: &[
-                        &Transform::bind_group_layout(),
-                        &ViewProj::bind_group_layout(),
-                        &TextureAsset::bind_group_layout(),
-                    ],
-                    push_constant_ranges: &[],
-                });
-
-        let swapchain_format = graphics.surface.get_capabilities(&graphics.adapter).formats[0];
-
-        let render_pipeline =
-            graphics
-                .device
-                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some("SpritePipeline render pipeline"),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: "vs_main",
-                        buffers: &[UvVertex::vertex_buffer_layout()],
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: "fs_main",
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: swapchain_format,
-                            blend: Some(wgpu::BlendState {
-                                color: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::SrcAlpha,
-                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                                alpha: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::One,
-                                    dst_factor: wgpu::BlendFactor::One,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                            }),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                    }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
-                        strip_index_format: None,
-                        front_face: wgpu::FrontFace::Ccw,
-                        cull_mode: Some(wgpu::Face::Back),
-                        unclipped_depth: false,
-                        polygon_mode: wgpu::PolygonMode::Fill,
-                        conservative: false,
-                    },
-                    depth_stencil: Some(wgpu::DepthStencilState {
-                        format: graphics.output_depth_format.expect("No depth format"),
-                        depth_write_enabled: true,
-                        depth_compare: wgpu::CompareFunction::Less,
-                        stencil: wgpu::StencilState::default(),
-                        bias: wgpu::DepthBiasState::default(),
-                    }),
-                    multisample: wgpu::MultisampleState {
-                        count: 1,
-                        mask: !0,
-                        alpha_to_coverage_enabled: false,
-                    },
-                    multiview: None,
-                });
-
-        render_pipeline
-    }
-
     fn create_wgpu_render_pass<'a>(
         &self,
         encoder: &'a mut wgpu::CommandEncoder,
@@ -247,9 +241,5 @@ impl RendererPipeline for SpritePipeline {
             occlusion_query_set: None,
             timestamp_writes: None,
         })
-    }
-
-    fn name(&self) -> &str {
-        "SpritePipeline"
     }
 }

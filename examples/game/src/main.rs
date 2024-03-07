@@ -1,11 +1,9 @@
 use std::{path::Path, time::Duration};
 
 use cobalt::{
-    assets::asset_server, dev_gui::egui::{self, Button}, ecs::Entity, engine::{Application, DynApp, Engine}, graphics::{texture::TextureAsset, winit_window}, input::ButtonState, maths::{Rotor3, Vec3}, renderer::{
-        camera::{Camera, Projection},
-        mesh::MeshAsset,
-        sprite::Sprite,
-    }, script::{Script, ScriptComponent}, transform::Transform
+    assets::asset_server, dev_gui::egui, ecs::Entity, engine::{Application, DynApp, Engine}, graphics::{texture::TextureAsset, winit_window}, input::ButtonState, maths::{Rotor3, Vec3}, renderer::{
+        camera::{Camera, Projection}, material::{Material, PBR}, mesh::{Mesh, MeshAsset}, sprite::Sprite
+    }, script::Script, transform::Transform
 };
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -40,35 +38,49 @@ impl Application for App {
 
         asset_server().write().set_assets_dir("assets");
 
-        let model = asset_server()
+        let mesh_asset = asset_server()
             .write()
-            .load::<MeshAsset>(Path::new("volkswagen.obj"))
+            .load::<MeshAsset>(Path::new("suzanne_uvless.obj"))
+            // .load::<MeshAsset>(Path::new("cube.obj"))
             .unwrap();
+
+        log::info!("Mesh loaded: {:?}", mesh_asset);
+
+        let model_ent = engine.scene.world.create_entity();
+
+        let transform = Transform::with_position([0.0, 0.0, 10.0].into());
+
+        let mesh = Mesh::new(mesh_asset.clone(), Material::PBR(PBR::default()));
+
+        engine.scene.world.add_component(model_ent, transform);
+        engine.scene.world.add_component(model_ent, mesh);
 
         let texture = asset_server()
             .write()
             .load::<TextureAsset>(Path::new("texture.png"))
             .unwrap();
 
-        let h_count = 70;
+        let h_count = 50;
         let v_count = h_count * 9 / 16;
 
         for x in -h_count / 2..h_count / 2 {
             for y in -v_count / 2..v_count / 2 {
                 let ent = engine.scene.world.create_entity();
 
-                let transform =
+                let mut transform =
                     Transform::with_position([x as f32 * 1.0, y as f32 * 1.0, 50.0].into());
+
+                transform.rotate_y(180.0);
 
                 engine.scene.world.add_component(ent, transform);
                 engine
                     .scene
                     .world
                     .add_component(ent, Sprite::new(texture.clone()));
-                engine.scene.world.add_component(
-                    ent,
-                    ScriptComponent::with_scripts(vec![Box::new(LookAtCameraScript::new())]),
-                );
+                // engine.scene.world.add_component(
+                //     ent,
+                //     ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
+                // );
             }
         }
 
@@ -211,14 +223,32 @@ impl App {
 
             *cam_transform.position_mut() += move_dir * 5.0 * delta_time;
         }
+
+        let mut yaw = 0.0;
+
+        if kb.get_key_state(cobalt::input::KeyCode::ArrowRight).is_held() {
+            yaw += 1.0 * delta_time;
+        }
+
+        if kb.get_key_state(cobalt::input::KeyCode::ArrowLeft).is_held() {
+            yaw -= 1.0 * delta_time;
+        }
+
+        let cam_rot = cam_transform.rotation_mut(); 
+
+        *cam_rot = *cam_rot * Rotor3::from_euler_angles(0.0, 0.0, yaw);
+
+        if kb.get_key_state(cobalt::input::KeyCode::Escape) == &ButtonState::Pressed {
+            engine.exit();
+        }
     }
 }
 
-struct LookAtCameraScript {
+struct SpritesScript {
     cam_pos: Vec3,
 }
 
-impl LookAtCameraScript {
+impl SpritesScript {
     pub fn new() -> Self {
         Self {
             cam_pos: Vec3::zero(),
@@ -226,7 +256,7 @@ impl LookAtCameraScript {
     }
 }
 
-impl Script for LookAtCameraScript {
+impl Script for SpritesScript {
     fn update(&mut self, engine: &mut Engine, app: &mut DynApp, entity: cobalt::ecs::Entity) {
         let sprite_trans = engine
             .scene
