@@ -61,7 +61,6 @@ impl Asset for TextureAsset {
     fn load(reader: BufReader<std::fs::File>, _: &imstr::ImString, _: &Path) -> Result<Self, AssetLoadError> {
         let rgba = image::load(reader, image::ImageFormat::Png)
             .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?
-            .flipv()
             .to_rgba8();
 
         let (width, height) = rgba.dimensions();

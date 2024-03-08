@@ -1,9 +1,21 @@
 use std::{path::Path, time::Duration};
 
 use cobalt::{
-    assets::asset_server, dev_gui::egui, ecs::Entity, engine::{Application, DynApp, Engine}, graphics::{texture::TextureAsset, winit_window}, input::ButtonState, maths::{Rotor3, Vec3, Vec4}, renderer::{
-        camera::{Camera, Projection}, material::{Material, Unlit}, mesh::{Mesh, MeshAsset}, sprite::Sprite
-    }, script::Script, transform::Transform
+    assets::asset_server,
+    dev_gui::egui,
+    ecs::Entity,
+    engine::{Application, DynApp, Engine},
+    graphics::{texture::TextureAsset, winit_window},
+    input::ButtonState,
+    maths::{Rotor3, Vec3, Vec4},
+    renderer::{
+        camera::{Camera, Projection},
+        material::{Material, Unlit},
+        mesh::{Mesh, MeshAsset},
+        sprite::Sprite,
+    },
+    script::Script,
+    transform::Transform,
 };
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
@@ -38,28 +50,34 @@ impl Application for App {
 
         asset_server().write().set_assets_dir("assets");
 
-        let mesh_asset = asset_server()
+        let test_texture = asset_server()
             .write()
-            // .load::<MeshAsset>(Path::new("suzanne_uvless.obj"))
-            // .load::<MeshAsset>(Path::new("cube.obj"))
-            .load::<MeshAsset>(Path::new("teapot.obj"))
+            .load::<TextureAsset>(Path::new("texture.png"))
             .unwrap();
-
-        log::info!("Mesh loaded: {:?}", mesh_asset);
 
         let model_ent = engine.scene.world.create_entity();
 
         let transform = Transform::with_position([0.0, 0.0, 10.0].into());
 
-        let mesh = Mesh::new(mesh_asset.clone(), Material::Unlit(Unlit::new(Vec4::new(0.2, 0.6, 1.0, 1.0), None)));
+        let model_mesh = asset_server()
+            .write()
+            .load::<MeshAsset>(Path::new("jet.obj"))
+            .unwrap();
+
+        let model_texture = asset_server()
+            .write()
+            .load::<TextureAsset>(Path::new("jet.png"))
+            .unwrap();
+
+        let model_material = Material::Unlit(Unlit::new(
+            Vec4::one(),
+            Some(model_texture.clone()),
+        ));
+
+        let mesh = Mesh::new(model_mesh.clone(), model_material);
 
         engine.scene.world.add_component(model_ent, transform);
         engine.scene.world.add_component(model_ent, mesh);
-
-        let texture = asset_server()
-            .write()
-            .load::<TextureAsset>(Path::new("texture.png"))
-            .unwrap();
 
         let h_count = 50;
         let v_count = h_count * 9 / 16;
@@ -77,7 +95,7 @@ impl Application for App {
                 engine
                     .scene
                     .world
-                    .add_component(ent, Sprite::new(texture.clone()));
+                    .add_component(ent, Sprite::new(test_texture.clone()));
                 // engine.scene.world.add_component(
                 //     ent,
                 //     ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
@@ -148,8 +166,12 @@ impl Application for App {
                         .get_component::<Transform>(cam_ent)
                         .unwrap();
 
-                    ui.label(format!("Camera pos: [{:.2}, {:.2}, {:.2}]", cam_transform.position().x, cam_transform.position().y, cam_transform.position().z));
-                    
+                    ui.label(format!(
+                        "Camera pos: [{:.2}, {:.2}, {:.2}]",
+                        cam_transform.position().x,
+                        cam_transform.position().y,
+                        cam_transform.position().z
+                    ));
                 }
             });
         });
@@ -191,7 +213,7 @@ impl App {
         let mut move_dir = Vec3::zero();
 
         // log::info!("Camera pos:\n{:?}", cam_transform.position());
-        
+
         let kb = &engine.input.keyboard;
 
         // RHS y-up
@@ -215,7 +237,10 @@ impl App {
             move_dir += cam_transform.up();
         }
 
-        if kb.get_key_state(cobalt::input::KeyCode::ShiftLeft).is_held() {
+        if kb
+            .get_key_state(cobalt::input::KeyCode::ShiftLeft)
+            .is_held()
+        {
             move_dir -= cam_transform.up();
         }
 
@@ -227,15 +252,21 @@ impl App {
 
         let mut yaw = 0.0;
 
-        if kb.get_key_state(cobalt::input::KeyCode::ArrowRight).is_held() {
+        if kb
+            .get_key_state(cobalt::input::KeyCode::ArrowRight)
+            .is_held()
+        {
             yaw += 1.0 * delta_time;
         }
 
-        if kb.get_key_state(cobalt::input::KeyCode::ArrowLeft).is_held() {
+        if kb
+            .get_key_state(cobalt::input::KeyCode::ArrowLeft)
+            .is_held()
+        {
             yaw -= 1.0 * delta_time;
         }
 
-        let cam_rot = cam_transform.rotation_mut(); 
+        let cam_rot = cam_transform.rotation_mut();
 
         *cam_rot = *cam_rot * Rotor3::from_euler_angles(0.0, 0.0, yaw);
 

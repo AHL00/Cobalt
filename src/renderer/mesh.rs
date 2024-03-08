@@ -54,6 +54,9 @@ impl Asset for MeshAsset {
                 single_index: true,
                 ..Default::default()
             },
+            // TODO: Fix bug that happens when loading materials
+            // with spaces in their names. This is an issue with 
+            // the tobj crate. 
             |p| {
                 let p = obj_parent_dir.join(p);
 

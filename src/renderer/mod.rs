@@ -131,10 +131,6 @@ impl Renderer {
     }
 
     pub(crate) fn resize_callback(&mut self, size: (u32, u32)) {
-        // for pipeline in &mut self.pipelines {
-        //     pipeline.resize_callback(width, height);
-        // }
-
         self.create_depth_texture(size).unwrap();
     }
 
