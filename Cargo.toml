@@ -1,4 +1,3 @@
-workspace = { members = ["examples/game"] }
 [package]
 name = "cobalt"
 version = "0.1.0"
@@ -51,3 +50,6 @@ walkdir = "2.4.0"
 [profile.relwdeb]
 inherits = "release"
 debug = true
+
+[workspace]
+members = ["examples/game"]

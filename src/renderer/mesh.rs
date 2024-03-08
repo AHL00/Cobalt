@@ -10,16 +10,17 @@ use crate::{
     ecs::component::Component,
     engine::graphics,
     graphics::{
-        vertex::{NormalVertex, UvNormalVertex},
+        vertex::UvNormalVertex,
         CreateBindGroup, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout,
     },
     transform::Transform,
 };
 
-use super::{material::Material, RendererPipeline, ViewProj};
+use super::{material::{Material, MaterialTrait}, RendererPipeline, ViewProj};
+
 
 pub struct MeshAsset {
-    /// Buffer of NormalUvVertex, or NormalVertex if the mesh does not have texture coordinates
+    /// Buffer of NormalUvVertex
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: wgpu::Buffer,
     pub(crate) num_indices: u32,
@@ -110,10 +111,12 @@ impl Asset for MeshAsset {
         }
 
         if model.mesh.texcoords.len() == 0 {
-            log::warn!("Mesh {} does not contain texture coordinates. The mesh will not have texture coordinates.", name);
+            log::warn!("Mesh {} does not contain texture coordinates. There will be issues if rendering with textures.", name);
         }
 
-        let vertex_buffer = if model.mesh.texcoords.len() > 0 {
+        let includes_texcoords = model.mesh.texcoords.len() > 0;
+
+        let vertex_buffer = {
             let vertices = (0..model.mesh.positions.len() / 3)
                 .map(|i| UvNormalVertex {
                     position: [
@@ -122,31 +125,16 @@ impl Asset for MeshAsset {
                         model.mesh.positions[i * 3 + 2],
                     ],
                     uv: [
-                        model.mesh.texcoords[i * 2],
-                        1.0 - model.mesh.texcoords[i * 2 + 1],
-                    ],
-                    normal: [
-                        model.mesh.normals[i * 3],
-                        model.mesh.normals[i * 3 + 1],
-                        model.mesh.normals[i * 3 + 2],
-                    ],
-                })
-                .collect::<Vec<_>>();
-
-            graphics()
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Mesh Vertex Buffer"),
-                    contents: bytemuck::cast_slice(&vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                })
-        } else {
-            let vertices = (0..model.mesh.positions.len() / 3)
-                .map(|i| NormalVertex {
-                    position: [
-                        model.mesh.positions[i * 3],
-                        model.mesh.positions[i * 3 + 1],
-                        model.mesh.positions[i * 3 + 2],
+                        if includes_texcoords {
+                            model.mesh.texcoords[i * 2]
+                        } else {
+                            0.0
+                        },
+                        if includes_texcoords {
+                            1.0 - model.mesh.texcoords[i * 2 + 1]
+                        } else {
+                            0.0
+                        },
                     ],
                     normal: [
                         model.mesh.normals[i * 3],
@@ -242,8 +230,7 @@ impl MeshPipeline {
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "vs_main",
-                        // TODO: What if the mesh doesn't have texture coordinates?
-                        buffers: &[NormalVertex::vertex_buffer_layout()],
+                        buffers: &[UvNormalVertex::vertex_buffer_layout()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
@@ -309,8 +296,6 @@ impl RendererPipeline for MeshPipeline {
         let mut render_pass =
             self.create_wgpu_render_pass(&mut encoder, swap_texture_view, render_data);
 
-        render_pass.set_pipeline(self.textureless_pipeline.as_ref().unwrap());
-
         render_pass.set_bind_group(1, &view_proj_bind_group, &[]);
 
         let query = world.query_mut::<(Mesh, Transform)>().unwrap();
@@ -325,6 +310,12 @@ impl RendererPipeline for MeshPipeline {
             // The component can't be dropped while the world is borrowed. Even if multithreaded, the user of the engine would
             // never be able to drop the mesh asset while the render pass is being executed.
             let mesh_asset_unsafe = unsafe { &*(&*mesh_asset as *const MeshAsset) };
+
+            // Set material
+            mesh.material.set_uniforms(1, &mut render_pass);
+
+            // Set pipeline
+            render_pass.set_pipeline(mesh.material.get_pipeline());
 
             render_pass.set_vertex_buffer(0, mesh_asset_unsafe.vertex_buffer.slice(..));
 

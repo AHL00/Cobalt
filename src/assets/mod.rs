@@ -98,6 +98,18 @@ impl<T: Asset + 'static> AssetHandle<T> {
     pub fn borrow_mut<'a>(&'a self) -> RwLockWriteGuard<'a, RawRwLock, T> {
         self.arc.write()
     }
+
+    pub(crate) unsafe fn borrow_unsafe(&self) -> &'static T {
+        let ptr = &*self.arc.read() as *const T;
+
+        &*ptr
+    }
+
+    pub(crate) unsafe fn borrow_mut_unsafe(&self) -> &'static mut T {
+        let ptr = &mut *self.arc.write() as *mut T;
+
+        &mut *ptr
+    }
 }
 
 impl<T: Asset + 'static> Serialize for AssetHandle<T> {

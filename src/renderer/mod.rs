@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     ecs::World,
     engine::graphics,
-    graphics::{CreateBindGroup, Frame, Graphics, HasBindGroupLayout},
+    graphics::{CreateBindGroup, Frame, HasBindGroupLayout},
     transform::Transform,
 };
 

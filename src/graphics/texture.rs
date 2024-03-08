@@ -17,9 +17,17 @@ pub struct TextureAsset {
     // TODO: Bind group dirty after changing texture?
 }
 
+
 impl TextureAsset {
     pub fn size(&self) -> (u32, u32) {
         (self.size.width, self.size.height)
+    }
+
+    /// Get the empty texture
+    /// This is a 1x1 white texture
+    /// Used for unused texture uniforms in materials
+    pub(crate) fn empty() -> &'static TextureAsset {
+        &EMPTY_TEXTURE
     }
 }
 
@@ -146,3 +154,64 @@ impl HasBindGroupLayout for TextureAsset {
         &TEXTURE_BIND_GROUP_LAYOUT
     }
 }
+
+static EMPTY_TEXTURE: LazyLock<TextureAsset> = LazyLock::new(|| {
+    let size = wgpu::Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+
+    let texture = graphics()
+        .device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[
+                wgpu::TextureFormat::Rgba8UnormSrgb,
+                wgpu::TextureFormat::Rgba8Unorm,
+            ],
+        });
+
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+    let sampler = graphics().device.create_sampler(&wgpu::SamplerDescriptor {
+        label: None,
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Nearest,
+        min_filter: wgpu::FilterMode::Nearest,
+        ..Default::default()
+    });
+
+    let bind_group = graphics()
+        .device
+        .create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &TEXTURE_BIND_GROUP_LAYOUT,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+        });
+
+    TextureAsset {
+        texture,
+        view,
+        sampler,
+        size,
+        bind_group,
+    }
+});

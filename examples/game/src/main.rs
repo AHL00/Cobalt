@@ -1,8 +1,8 @@
 use std::{path::Path, time::Duration};
 
 use cobalt::{
-    assets::asset_server, dev_gui::egui, ecs::Entity, engine::{Application, DynApp, Engine}, graphics::{texture::TextureAsset, winit_window}, input::ButtonState, maths::{Rotor3, Vec3}, renderer::{
-        camera::{Camera, Projection}, material::{Material, PBR}, mesh::{Mesh, MeshAsset}, sprite::Sprite
+    assets::asset_server, dev_gui::egui, ecs::Entity, engine::{Application, DynApp, Engine}, graphics::{texture::TextureAsset, winit_window}, input::ButtonState, maths::{Rotor3, Vec3, Vec4}, renderer::{
+        camera::{Camera, Projection}, material::{Material, Unlit}, mesh::{Mesh, MeshAsset}, sprite::Sprite
     }, script::Script, transform::Transform
 };
 use log::LevelFilter;
@@ -40,8 +40,9 @@ impl Application for App {
 
         let mesh_asset = asset_server()
             .write()
-            .load::<MeshAsset>(Path::new("suzanne_uvless.obj"))
+            // .load::<MeshAsset>(Path::new("suzanne_uvless.obj"))
             // .load::<MeshAsset>(Path::new("cube.obj"))
+            .load::<MeshAsset>(Path::new("teapot.obj"))
             .unwrap();
 
         log::info!("Mesh loaded: {:?}", mesh_asset);
@@ -50,7 +51,7 @@ impl Application for App {
 
         let transform = Transform::with_position([0.0, 0.0, 10.0].into());
 
-        let mesh = Mesh::new(mesh_asset.clone(), Material::PBR(PBR::default()));
+        let mesh = Mesh::new(mesh_asset.clone(), Material::Unlit(Unlit::new(Vec4::new(0.2, 0.6, 1.0, 1.0), None)));
 
         engine.scene.world.add_component(model_ent, transform);
         engine.scene.world.add_component(model_ent, mesh);
