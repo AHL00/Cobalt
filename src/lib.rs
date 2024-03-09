@@ -6,6 +6,7 @@
 #![allow(dead_code)]
 
 pub mod assets;
+pub mod resource;
 pub mod ecs;
 pub mod engine;
 pub mod graphics;

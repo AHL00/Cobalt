@@ -16,7 +16,7 @@ use serde::Serialize;
 use std::{
     any::Any,
     fmt::{Debug, Formatter},
-    io::{BufReader, Read, Seek},
+    io::{BufReader, Read},
     path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, OnceLock, Weak},
@@ -24,18 +24,13 @@ use std::{
 
 /// Global asset server.
 /// This is in a RwLock to allow for multiple threads to access the asset server.
-pub static mut ASSET_SERVER: OnceLock<RwLock<AssetServer>> = OnceLock::new();
+static mut ASSET_SERVER: OnceLock<Arc<RwLock<AssetServer>>> = OnceLock::new();
 
 #[inline]
-pub fn asset_server() -> &'static RwLock<AssetServer> {
-    unsafe { ASSET_SERVER.get_mut() }.unwrap_or_else(|| {
-        unsafe {
-            ASSET_SERVER.get_or_init(|| RwLock::new(AssetServer::new()));
-
-            ASSET_SERVER.get_mut()
-        }
-        .unwrap()
-    })
+pub fn asset_server() -> &'static Arc<RwLock<AssetServer>> {
+    unsafe {
+        ASSET_SERVER.get_or_init(|| Arc::new(RwLock::new(AssetServer::new())))
+    }
 }
 
 /// Handle to an asset
@@ -44,16 +39,16 @@ pub fn asset_server() -> &'static RwLock<AssetServer> {
 /// When the handle is serialized, it will serialize the path.
 /// When the handle is deserialized, it will load the asset into the global
 /// asset server.
-pub struct AssetHandle<T: Asset + 'static> {
+pub struct Asset<T: AssetTrait> {
     /// The relative path to the asset
     pub(crate) path: ImString,
-    pub(crate) arc: Arc<RwLock<T>>,
+    data: Arc<RwLock<T>>,
 }
 
-unsafe impl<T: Asset + 'static> Send for AssetHandle<T> {}
-unsafe impl<T: Asset + 'static> Sync for AssetHandle<T> {}
+unsafe impl<T: AssetTrait> Send for Asset<T> {}
+unsafe impl<T: AssetTrait> Sync for Asset<T> {}
 
-impl<T: Asset + 'static> Debug for AssetHandle<T> {
+impl<T: AssetTrait> Debug for Asset<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AssetHandle")
             .field("path", &self.path)
@@ -61,7 +56,7 @@ impl<T: Asset + 'static> Debug for AssetHandle<T> {
     }
 }
 
-impl<T: Asset + 'static> AssetHandle<T> {
+impl<T: AssetTrait> Asset<T> {
     // Any must be of type T
     fn new(path: ImString, arc: Arc<dyn Any + Send + Sync + 'static>) -> Self {
         // This is safe because we know that the type is T
@@ -75,50 +70,50 @@ impl<T: Asset + 'static> AssetHandle<T> {
             )
         });
 
-        Self { path, arc }
+        Self { path, data: arc }
     }
 }
 
-impl<T: Asset + 'static> Clone for AssetHandle<T> {
+impl<T: AssetTrait> Clone for Asset<T> {
     fn clone(&self) -> Self {
         Self {
             path: self.path.clone(),
-            arc: self.arc.clone(),
+            data: self.data.clone(),
         }
     }
 }
 
-impl<T: Asset + 'static> AssetHandle<T> {
+impl<T: AssetTrait> Asset<T> {
     /// This will return a reference to the asset.
     pub fn borrow<'a>(&'a self) -> RwLockReadGuard<'a, RawRwLock, T> {
-        self.arc.read()
+        self.data.read()
     }
 
     /// This will return a mutable reference to the asset.
     pub fn borrow_mut<'a>(&'a self) -> RwLockWriteGuard<'a, RawRwLock, T> {
-        self.arc.write()
+        self.data.write()
     }
 
     pub(crate) unsafe fn borrow_unsafe(&self) -> &'static T {
-        let ptr = &*self.arc.read() as *const T;
+        let ptr = &*self.data.read() as *const T;
 
         &*ptr
     }
 
     pub(crate) unsafe fn borrow_mut_unsafe(&self) -> &'static mut T {
-        let ptr = &mut *self.arc.write() as *mut T;
+        let ptr = &mut *self.data.write() as *mut T;
 
         &mut *ptr
     }
 }
 
-impl<T: Asset + 'static> Serialize for AssetHandle<T> {
+impl<T: AssetTrait> Serialize for Asset<T> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.path)
     }
 }
 
-impl<'de, T: Asset + 'static> serde::Deserialize<'de> for AssetHandle<T> {
+impl<'de, T: AssetTrait> serde::Deserialize<'de> for Asset<T> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let path = String::deserialize(deserializer)?;
 
@@ -129,7 +124,7 @@ impl<'de, T: Asset + 'static> serde::Deserialize<'de> for AssetHandle<T> {
     }
 }
 
-impl<T: Asset + 'static> Drop for AssetHandle<T> {
+impl<T: AssetTrait> Drop for Asset<T> {
     fn drop(&mut self) {
         let asset_hashmap_ref = &mut asset_server().write().assets;
 
@@ -179,10 +174,10 @@ impl AssetServer {
     /// Load an asset from disk.
     /// If the asset is already loaded, it will not load it again.
     /// The path is relative to the assets directory.
-    pub fn load<T: Asset + 'static>(
+    pub fn load<T: AssetTrait>(
         &mut self,
         path: &Path,
-    ) -> Result<AssetHandle<T>, AssetLoadError> {
+    ) -> Result<Asset<T>, AssetLoadError> {
         let path_str = path
             .as_os_str()
             .to_str()
@@ -194,7 +189,7 @@ impl AssetServer {
             *count += 1;
 
             if let Some(asset) = asset.upgrade() {
-                return Ok(AssetHandle::new(
+                return Ok(Asset::new(
                     ImString::from_str(path_str).unwrap(),
                     asset,
                 ));
@@ -209,7 +204,7 @@ impl AssetServer {
 
         let buf_reader = BufReader::new(file);
 
-        let asset = Arc::new(RwLock::new(T::load(buf_reader, &asset_handle_path, &absolute_path)?));
+        let asset = Arc::new(RwLock::new(T::load_from_file(buf_reader, &asset_handle_path, &absolute_path)?));
 
         let asset_any = unsafe {
             Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
@@ -220,7 +215,7 @@ impl AssetServer {
             (Arc::downgrade(&asset_any), 1),
         );
 
-        Ok(AssetHandle::new(
+        Ok(Asset::new(
             asset_handle_path,
             asset_any,
         ))
@@ -229,8 +224,8 @@ impl AssetServer {
 
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
-pub trait Asset: Sized + Send + Sync + 'static {
-    fn load(data: BufReader<std::fs::File>, name: &ImString, path: &Path) -> Result<Self, AssetLoadError>; 
+pub trait AssetTrait: Sized + Send + Sync + 'static {
+    fn load_from_file(data: BufReader<std::fs::File>, name: &ImString, path: &Path) -> Result<Self, AssetLoadError>;
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -245,8 +240,8 @@ pub struct Text {
     pub text: String,
 }
 
-impl Asset for Text {
-    fn load(mut reader: BufReader<std::fs::File>, _: &imstr::ImString, _: &Path) -> Result<Self, AssetLoadError> {
+impl AssetTrait for Text {
+    fn load_from_file(mut reader: BufReader<std::fs::File>, _: &imstr::ImString, _: &Path) -> Result<Self, AssetLoadError> {
         let mut text = String::new();
         reader
             .read_to_string(&mut text)
@@ -296,7 +291,7 @@ mod tests {
 
         let serialized = serde_yaml::to_string(&asset).unwrap();
 
-        let deserialized: AssetHandle<Text> = serde_yaml::from_str(&serialized).unwrap();
+        let deserialized: Asset<Text> = serde_yaml::from_str(&serialized).unwrap();
 
         let asset_ref = deserialized.borrow();
 

@@ -4,20 +4,20 @@ use ultraviolet::Vec4;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::AssetHandle, engine::graphics, graphics::{texture::TextureAsset, vertex::UvNormalVertex, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, renderer::ViewProj, transform::Transform
+    assets::Asset, engine::graphics, graphics::{texture::TextureAsset, vertex::UvNormalVertex, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, renderer::ViewProj, transform::Transform
 };
 
 use super::MaterialTrait;
 
 pub struct Unlit {
     color: Vec4,
-    texture: Option<AssetHandle<TextureAsset>>,
+    texture: Option<Asset<TextureAsset>>,
 
     bind_group: wgpu::BindGroup,
 }
 
 impl Unlit {
-    pub fn new(color: Vec4, texture: Option<AssetHandle<TextureAsset>>) -> Self {
+    pub fn new(color: Vec4, texture: Option<Asset<TextureAsset>>) -> Self {
         let bind_group = Some(
             graphics()
                 .device
@@ -78,14 +78,14 @@ impl Unlit {
         self.color = color;
     }
 
-    pub fn get_texture(&self) -> Option<AssetHandle<TextureAsset>> {
+    pub fn get_texture(&self) -> Option<Asset<TextureAsset>> {
         self.texture.clone()
     }
 
     /// Set the texture for the material.
     /// Removing or adding a texture will regenerate the shader,
     /// however, changing the texture will not.
-    pub fn set_texture(&mut self, texture: Option<AssetHandle<TextureAsset>>) {
+    pub fn set_texture(&mut self, texture: Option<Asset<TextureAsset>>) {
         self.texture = texture;
 
         // TODO: regenerate shader if texture is no longer None or becomes None

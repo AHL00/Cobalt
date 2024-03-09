@@ -55,7 +55,7 @@ fn run(world: &mut World) {
     let start = std::time::Instant::now();
 
     let mut sum: usize = 0;
-    for (e, (pos, int)) in query_iter {
+    for (_, (_, int)) in query_iter {
         sum += *int as usize;
     }
 

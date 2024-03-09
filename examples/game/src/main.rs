@@ -11,9 +11,10 @@ use cobalt::{
     renderer::{
         camera::{Camera, Projection},
         material::{Material, Unlit},
-        mesh::{Mesh, MeshAsset},
-        sprite::Sprite,
+        mesh::MeshAsset,
+        renderable::{mesh::Mesh, plane::Plane, Renderable},
     },
+    resource::Resource,
     script::Script,
     transform::Transform,
 };
@@ -69,18 +70,24 @@ impl Application for App {
             .load::<TextureAsset>(Path::new("jet.png"))
             .unwrap();
 
-        let model_material = Material::Unlit(Unlit::new(
-            Vec4::one(),
-            Some(model_texture.clone()),
-        ));
-
-        let mesh = Mesh::new(model_mesh.clone(), model_material);
+        let model_material = Resource::new(Material::Unlit(Unlit::new(
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            Some(model_texture),
+        )));
 
         engine.scene.world.add_component(model_ent, transform);
-        engine.scene.world.add_component(model_ent, mesh);
+        engine.scene.world.add_component(
+            model_ent,
+            Renderable::Mesh(Mesh::new(model_mesh.clone(), model_material.clone())),
+        );
 
         let h_count = 50;
         let v_count = h_count * 9 / 16;
+
+        let sprite_material = Resource::new(Material::Unlit(Unlit::new(
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            Some(test_texture),
+        )));
 
         for x in -h_count / 2..h_count / 2 {
             for y in -v_count / 2..v_count / 2 {
@@ -95,7 +102,7 @@ impl Application for App {
                 engine
                     .scene
                     .world
-                    .add_component(ent, Sprite::new(test_texture.clone()));
+                    .add_component(ent, Renderable::Plane(Plane::new(sprite_material.clone())));
                 // engine.scene.world.add_component(
                 //     ent,
                 //     ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
@@ -120,9 +127,7 @@ impl Application for App {
             ),
         );
 
-        let mut cam_transform = Transform::with_position([0.0, 0.0, 0.0].into());
-
-        // cam_transform.rotate_y(45.0);
+        let cam_transform = Transform::with_position([0.0, 0.0, 0.0].into());
 
         engine.scene.world.add_component(cam_ent, cam_transform);
 

@@ -1,7 +1,7 @@
 use std::{io::BufReader, path::Path, sync::LazyLock};
 
 use crate::{
-    assets::{Asset, AssetLoadError},
+    assets::{AssetTrait, AssetLoadError},
     engine::graphics,
     graphics::HasBindGroupLayout,
 };
@@ -57,8 +57,8 @@ static TEXTURE_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::ne
         })
 });
 
-impl Asset for TextureAsset {
-    fn load(reader: BufReader<std::fs::File>, _: &imstr::ImString, _: &Path) -> Result<Self, AssetLoadError> {
+impl AssetTrait for TextureAsset {
+    fn load_from_file(reader: BufReader<std::fs::File>, _: &imstr::ImString, _: &Path) -> Result<Self, AssetLoadError> {
         let rgba = image::load(reader, image::ImageFormat::Png)
             .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?
             .to_rgba8();

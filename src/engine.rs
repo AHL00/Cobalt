@@ -1,16 +1,16 @@
-use std::{any::Any, error::Error, time::Duration};
+use std::{any::Any, error::Error};
 
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
 };
 
-use crate::{graphics::Window, internal::as_any::AsAny, stats::Stats};
+use crate::{graphics::Window, internal::as_any::AsAny, renderer::DefaultRenderer, stats::Stats};
 
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
-    graphics::Graphics, input::Input, internal::queue::SizedQueue, renderer::Renderer, scene::Scene,
+    graphics::Graphics, input::Input, renderer::Renderer, scene::Scene,
 };
 
 #[cfg(feature = "dev_gui")]
@@ -57,7 +57,7 @@ pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
         stats: Stats::new(),
         scene: Scene::new("Main Scene"),
         window,
-        renderer: Renderer::new(),
+        renderer: Box::new(DefaultRenderer::new()),
         input: Input::new(),
         #[cfg(feature = "dev_gui")]
         dev_gui,
@@ -65,8 +65,6 @@ pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
         start_time: std::time::Instant::now(),
         exit_requested: false,
     };
-
-    engine.renderer.add_default_pipelines();
 
     app.init(&mut engine);
 
@@ -160,7 +158,9 @@ pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
                     WindowEvent::Resized(size) => {
                         graphics().configure_surface(size.into());
 
-                        engine.renderer.resize_callback(size.into());
+                        engine.renderer.resize_callback(size.into()).unwrap_or_else(|e| {
+                            log::error!("Failed to resize renderer: {:?}", e);
+                        });
 
                         engine.window.winit.request_redraw();
                     }
@@ -185,7 +185,7 @@ pub struct Engine {
     // Schedule scene swaps for the next frame.
     pub scene: Scene,
     pub window: Window,
-    pub renderer: Renderer,
+    pub renderer: Box<dyn Renderer>,
     pub stats: Stats,
     pub input: Input,
     pub start_time: std::time::Instant,

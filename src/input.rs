@@ -220,6 +220,7 @@ impl Mouse {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 // TODO: Mouse wheel
+                let _ = delta;
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let mut button_found_in_vec = false;

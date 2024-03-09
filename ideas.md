@@ -51,3 +51,14 @@
   it's easiest solved by using unsafe Rust. It shouldn't be a big deal as whenever rendering is happening, the renderer has sole
   control over the engine/world/main thread. 
 - This system would probably be implemented in the main Renderer struct. Probably will need to change the RendererPipelines too.
+
+## Multiple lights
+- How do I handle lights
+- On every frame, lights will be added to a buffer
+- Do I do forward or deferred renderring
+
+## Culling 
+
+## Renderer architecture changes
+- Submit render queue on another thread
+- Add all renderables to a list to perform things like culling and material grouping

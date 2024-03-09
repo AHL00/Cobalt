@@ -1,6 +1,6 @@
 use crate::{
     ecs::{component::Component, Entity},
-    engine::{Application, DynApp, Engine},
+    engine::{DynApp, Engine},
 };
 
 pub trait Script {
@@ -9,11 +9,14 @@ pub trait Script {
     }
 
     fn update(&mut self, engine: &mut Engine, app: &mut DynApp, entity: Entity) {
-
+        let _ = entity;
+        let _ = app;
+        let _ = engine;
     }
 
     fn on_load(&self, engine: &mut Engine, entity: Entity) {
-        
+        let _ = entity;
+        let _ = engine;
     }
 }
 
