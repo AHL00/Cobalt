@@ -20,9 +20,7 @@ struct FragmentInput {
 var<uniform> u_model: mat4x4<f32>;
 
 @group(1) @binding(0)
-var<uniform> u_view: mat4x4<f32>;
-@group(1) @binding(1)
-var<uniform> u_proj: mat4x4<f32>;
+var<uniform> u_proj_view: mat4x4<f32>;
 
 @group(2) @binding(0)
 var<uniform> u_color: vec4<f32>;
@@ -37,7 +35,7 @@ var u_sampler: sampler;
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.clip_position = u_proj * u_view * u_model * vec4<f32>(input.position, 1.0);
+    output.clip_position = u_proj_view * u_model * vec4<f32>(input.position, 1.0);
     output.tex_coords = input.tex_coords;
     output.normal = input.normal;
     return output;

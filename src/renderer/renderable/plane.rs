@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use wgpu::util::DeviceExt;
 
-use crate::{engine::graphics, graphics::vertex::UvNormalVertex, renderer::material::Material, resource::Resource};
+use crate::{engine::graphics, graphics::vertex::UvNormalVertex, internal::aabb::AABB, renderer::material::Material, resource::Resource};
 
 use super::RenderableTrait;
 

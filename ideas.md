@@ -58,6 +58,7 @@
 - Do I do forward or deferred renderring
 
 ## Culling 
+- Sphere or box bounding boxes?
 
 ## Renderer architecture changes
 - Submit render queue on another thread

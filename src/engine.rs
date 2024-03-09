@@ -120,7 +120,7 @@ pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
 
                         frame.clear(wgpu::Color::BLACK);
 
-                        engine.renderer.render(&mut frame, &mut engine.scene.world);
+                        engine.renderer.render(&mut frame, &mut engine.scene.world, &mut engine.stats);
 
                         // This is about to get crazy unsafe, but who cares.
                         #[cfg(feature = "dev_gui")]

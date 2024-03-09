@@ -161,6 +161,14 @@ impl Application for App {
                         .last()
                         .unwrap_or(Duration::from_secs(0))
                 ));
+                ui.label(format!(
+                    "Culled: {}",
+                    engine.stats.culled_entities
+                ));
+                ui.label(format!(
+                    "Rendered: {}",
+                    engine.stats.rendered_entities
+                ));
 
                 // Camera position
                 let app = app.as_any_mut().downcast_mut::<App>().unwrap();

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::internal::queue::SizedQueue;
 
-
+// TODO: Redo stats
 pub struct Stats {
     /// Total time it took to render the frame.
     pub frame_time_history: Box<SizedQueue<Duration, 1000>>,
@@ -12,6 +12,9 @@ pub struct Stats {
     pub gpu_render_time_history: Box<SizedQueue<Duration, 1000>>,
     /// Time it took to run all systems.
     pub script_time_history: Box<SizedQueue<Duration, 1000>>,
+
+    pub culled_entities: usize,
+    pub rendered_entities: usize,
 
     last_scripts_run: std::time::Instant,
     last_frame: std::time::Instant,
@@ -24,6 +27,9 @@ impl Stats {
             cpu_render_time_history: Box::new(SizedQueue::new()),
             gpu_render_time_history: Box::new(SizedQueue::new()),
             script_time_history: Box::new(SizedQueue::new()),
+            
+            culled_entities: 0,
+            rendered_entities: 0,
 
             last_scripts_run: std::time::Instant::now(),
             last_frame: std::time::Instant::now(),

@@ -3,23 +3,20 @@ use std::error::Error;
 use ultraviolet::Mat4;
 
 use crate::{
-    ecs::{Entity, World},
-    engine::graphics,
-    graphics::{CreateBindGroup, Frame, HasBindGroup},
-    transform::Transform,
+    ecs::{Entity, World}, engine::graphics, graphics::{CreateBindGroup, Frame, HasBindGroup}, stats::Stats, transform::Transform
 };
 
-use self::{camera::Camera, material::MaterialTrait, renderable::Renderable, view_proj::ViewProj};
+use self::{camera::Camera, material::MaterialTrait, renderable::Renderable, proj_view::ProjView};
 
 pub mod camera;
 pub mod material;
 pub mod mesh;
 pub mod renderable;
 
-mod view_proj;
+mod proj_view;
 
 pub trait Renderer {
-    fn render(&mut self, frame: &mut Frame, world: &mut World);
+    fn render(&mut self, frame: &mut Frame, world: &mut World, stats: &mut Stats);
 
     fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn Error>>;
 }
@@ -31,7 +28,7 @@ trait RenderPass {
     fn render(
         &mut self,
         frame: &mut Frame,
-        view_proj: ViewProj,
+        proj_view: ProjView,
         frame_data: &mut FrameData,
     );
 
@@ -51,6 +48,7 @@ struct RenderData<'a> {
     renderable: &'a Renderable,
     transform: &'a mut Transform,
     entity: Entity,
+    in_frustum: bool,
 }
 
 struct FrameData<'a> {
@@ -80,19 +78,18 @@ impl RenderPass for ForwardPass {
     fn render(
         &mut self,
         frame: &mut Frame,
-        view_proj: ViewProj,
+        proj_view: ProjView,
         frame_data: &mut FrameData,
     ) {
         let swap_texture = frame.swap_texture().texture.create_view(&wgpu::TextureViewDescriptor::default());
         
         let mut encoder = frame.encoder();
 
-        let view_proj_bind_group = view_proj.create_bind_group(&graphics().device);
+        let proj_view_bind_group = proj_view.create_bind_group(&graphics().device);
 
         let mut render_pass = self.create_wgpu_render_pass(&mut encoder, &swap_texture, &frame_data.depth_view.as_ref().unwrap());
 
-        // Set view_proj uniform
-        render_pass.set_bind_group(1, &view_proj_bind_group, &[]);
+        render_pass.set_bind_group(1, &proj_view_bind_group, &[]);
 
         for render_data in &mut frame_data.render_data_vec {
             let material_resource = render_data.renderable.get_material();
@@ -149,7 +146,7 @@ impl RenderPass for ForwardPass {
 }
 
 impl Renderer for DefaultRenderer {
-    fn render(&mut self, frame: &mut Frame, world: &mut World) {
+    fn render(&mut self, frame: &mut Frame, world: &mut World, stats: &mut Stats) {
         let camera_entity = self.get_camera(world);
 
         if let Some(camera_entity) = camera_entity {
@@ -166,7 +163,7 @@ impl Renderer for DefaultRenderer {
                 .unwrap()
                 .projection_matrix();
 
-            let view_proj = ViewProj::new(view_matrix, proj_matrix);
+            let proj_view = ProjView::new(view_matrix, proj_matrix);
 
             self.clear_depth_texture(frame.encoder());
 
@@ -176,16 +173,21 @@ impl Renderer for DefaultRenderer {
             let renderable_query = world.query_mut::<(Transform, Renderable)>().unwrap();
 
             for (ent, (transform, renderable)) in renderable_query {
+                // Frustum test
+                // TODO: Frustum culling, maybe expose this to the user?
+                
                 let render_data = RenderData {
                     renderable,
                     transform: transform,
                     entity: ent,
+                    in_frustum: true,
                 };
 
                 render_data_vec.push(render_data);
             }
 
             // Sort by material
+            // TODO: Instead of sorting, maybe just group
             render_data_vec.sort_unstable_by(|a, b| {
                 a.renderable
                     .get_material()
@@ -193,7 +195,17 @@ impl Renderer for DefaultRenderer {
                     .cmp(&b.renderable.get_material().id)
             });
 
+            // NOTE: Shadow mapping should be done before culling
+            // Can the shadow map do its own culling?
+            // 
+
+            let pre_cull_count = render_data_vec.len();
+
             // TODO: Implement frustum culling
+
+
+            stats.culled_entities = pre_cull_count - render_data_vec.len();
+            stats.rendered_entities = render_data_vec.len();
 
             let mut frame_data = FrameData {
                 depth_view: Some(self.depth_texture.as_ref().unwrap().create_view(
@@ -211,7 +223,7 @@ impl Renderer for DefaultRenderer {
                 render_data_vec,
             };
 
-            self.forward_pass.render(frame, view_proj, &mut frame_data);
+            self.forward_pass.render(frame, proj_view, &mut frame_data);
 
         } else {
             log_once::warn_once!("No enabled camera found in scene.");

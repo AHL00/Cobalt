@@ -4,7 +4,7 @@ use ultraviolet::Vec4;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::Asset, engine::graphics, graphics::{texture::TextureAsset, vertex::UvNormalVertex, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, renderer::ViewProj, transform::Transform
+    assets::Asset, engine::graphics, graphics::{texture::TextureAsset, vertex::UvNormalVertex, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, renderer::ProjView, transform::Transform
 };
 
 use super::MaterialTrait;
@@ -141,7 +141,7 @@ static UNLIT_RENDER_PIPELINE: LazyLock<wgpu::RenderPipeline> = LazyLock::new(|| 
         label: Some("Unlit Pipeline Layout"),
         bind_group_layouts: &[
             &Transform::bind_group_layout(),
-            &ViewProj::bind_group_layout(),
+            &ProjView::bind_group_layout(),
             &*UNLIT_BIND_GROUP_LAYOUT,
             &TextureAsset::bind_group_layout(),
         ],
