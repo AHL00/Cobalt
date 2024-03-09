@@ -114,13 +114,15 @@ pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
                     WindowEvent::RedrawRequested => {
                         let graphics = graphics();
 
-                        engine.stats.frame_start();
+                        engine.stats.cpu_render_start();
 
                         let mut frame = graphics.begin_frame().unwrap();
 
                         frame.clear(wgpu::Color::BLACK);
 
                         engine.renderer.render(&mut frame, &mut engine.scene.world, &mut engine.stats);
+
+                        engine.stats.cpu_render_end();
 
                         // This is about to get crazy unsafe, but who cares.
                         #[cfg(feature = "dev_gui")]
@@ -144,13 +146,14 @@ pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
                                     log::error!("Failed to render dev gui: {:?}", e)
                                 });
                         }
-                        engine.stats.cpu_render_end();
 
-                        engine.window.winit.pre_present_notify();
+                        engine.stats.gpu_render_start();
 
                         graphics.end_frame(frame);
-
+                        
+                        // engine.window.winit.pre_present_notify();
                         engine.stats.gpu_render_end();
+
                         engine.stats.update();
 
                         next_frame_prep_needed = true;

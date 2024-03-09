@@ -58,7 +58,7 @@ pub(crate) trait HasBindGroup {
     /// Returns a reference to the bind group.
     /// Needs to be mutable because the bind group might be dirty and need to be recreated.
     /// References graphics() to get the device.
-    fn bind_group(&mut self) -> &wgpu::BindGroup;
+    fn bind_group(&mut self, graphics: &Graphics) -> &wgpu::BindGroup;
 }
 
 pub(crate) trait CreateBindGroup {

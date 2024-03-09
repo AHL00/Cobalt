@@ -3,7 +3,7 @@ use std::error::Error;
 use ultraviolet::Mat4;
 
 use crate::{
-    ecs::{Entity, World}, engine::graphics, graphics::{CreateBindGroup, Frame, HasBindGroup}, stats::Stats, transform::Transform
+    ecs::{Entity, World}, engine::graphics, graphics::{CreateBindGroup, Frame, Graphics, HasBindGroup}, stats::Stats, transform::Transform
 };
 
 use self::{camera::Camera, material::MaterialTrait, renderable::Renderable, proj_view::ProjView};
@@ -28,6 +28,7 @@ trait RenderPass {
     fn render(
         &mut self,
         frame: &mut Frame,
+        graphics: &Graphics,
         proj_view: ProjView,
         frame_data: &mut FrameData,
     );
@@ -78,6 +79,7 @@ impl RenderPass for ForwardPass {
     fn render(
         &mut self,
         frame: &mut Frame,
+        graphics: &Graphics,
         proj_view: ProjView,
         frame_data: &mut FrameData,
     ) {
@@ -85,7 +87,7 @@ impl RenderPass for ForwardPass {
         
         let mut encoder = frame.encoder();
 
-        let proj_view_bind_group = proj_view.create_bind_group(&graphics().device);
+        let proj_view_bind_group = proj_view.create_bind_group(&graphics.device);
 
         let mut render_pass = self.create_wgpu_render_pass(&mut encoder, &swap_texture, &frame_data.depth_view.as_ref().unwrap());
 
@@ -101,12 +103,12 @@ impl RenderPass for ForwardPass {
             }
 
             // Set transform uniform
-            render_pass.set_bind_group(0, &mut render_data.transform.bind_group(), &[]);
+            render_pass.set_bind_group(0, &mut render_data.transform.bind_group(graphics), &[]);
 
             // Set material bind group
             // Should be safe because the material is guaranteed to be the same for the entire frame
             // as the global RwLock graphics state is borrowed by renderer.
-            unsafe { material_resource.borrow_unsafe().set_uniforms(1, &mut render_pass) };
+            unsafe { material_resource.borrow_unsafe().set_uniforms(1, &mut render_pass, graphics) };
 
             render_data.renderable.draw(&mut render_pass);
         }
@@ -223,7 +225,7 @@ impl Renderer for DefaultRenderer {
                 render_data_vec,
             };
 
-            self.forward_pass.render(frame, proj_view, &mut frame_data);
+            self.forward_pass.render(frame, &graphics(), proj_view, &mut frame_data);
 
         } else {
             log_once::warn_once!("No enabled camera found in scene.");

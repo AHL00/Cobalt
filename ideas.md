@@ -63,3 +63,23 @@
 ## Renderer architecture changes
 - Submit render queue on another thread
 - Add all renderables to a list to perform things like culling and material grouping
+
+## Jobs system
+- Global, will be utilised by engine and users
+- This will help prevent too many threads being created
+- Or is it better to have a struct JobSystem. The renderer, physics and user will have different instances
+- This will make it easier to stop user's jobs while rendering
+- Could make it so jobs can't access engine resources, that means
+  safety is guaranteed while running. If the user deletes a material
+  resource while the engine is rendering, there will be issues as it is
+  assumed resources live longer than the renderpass.
+### Current finalised design
+- Not global, global is again stupid because it will 100% increase the latency of subsytems as
+  they have to wait for other systems to finish. Or is that good??? If we have separate 
+  instances, they will wait for each other anyways, but I don't have to deal with
+  scheduling.
+- Prioritises engine internal jobs
+- If I stop user jobs before rendering, waiting for the finishing of the task WILL cause issues. 
+  So what is better in my opinion is restricting access to the Engine struct. Will asset_server
+  be an issue? No because assets can't be dropped manually, they are dropped if their reference
+  is dropped and that won't happen without the user accessing Engine.

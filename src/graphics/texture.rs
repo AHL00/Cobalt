@@ -6,7 +6,7 @@ use crate::{
     graphics::HasBindGroupLayout,
 };
 
-use super::HasBindGroup;
+use super::{Graphics, HasBindGroup};
 
 pub struct TextureAsset {
     pub(crate) texture: wgpu::Texture,
@@ -143,7 +143,8 @@ impl AssetTrait for TextureAsset {
 }
 
 impl HasBindGroup for TextureAsset {
-    fn bind_group(&mut self) -> &wgpu::BindGroup {
+    // TODO: Handle texture changes
+    fn bind_group(&mut self, _: &Graphics) -> &wgpu::BindGroup {
         &self.bind_group
     }
 }

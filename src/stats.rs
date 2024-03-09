@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::internal::queue::SizedQueue;
 
@@ -16,8 +16,9 @@ pub struct Stats {
     pub culled_entities: usize,
     pub rendered_entities: usize,
 
-    last_scripts_run: std::time::Instant,
-    last_frame: std::time::Instant,
+    last_scripts_run: Instant,
+    last_cpu_render_start: Instant,
+    last_gpu_render_start: Instant,
 }
 
 impl Stats {
@@ -27,46 +28,50 @@ impl Stats {
             cpu_render_time_history: Box::new(SizedQueue::new()),
             gpu_render_time_history: Box::new(SizedQueue::new()),
             script_time_history: Box::new(SizedQueue::new()),
-            
+
             culled_entities: 0,
             rendered_entities: 0,
 
-            last_scripts_run: std::time::Instant::now(),
-            last_frame: std::time::Instant::now(),
+            last_scripts_run: Instant::now(),
+            last_cpu_render_start: Instant::now(),
+            last_gpu_render_start: Instant::now(),
         }
     }
 
     pub(crate) fn update(&mut self) {
-        let now = std::time::Instant::now();
-        let delta = now.duration_since(self.last_frame);
-        self.last_frame = now;
+        let now = Instant::now();
+        let delta = now.duration_since(self.last_cpu_render_start);
+        self.last_cpu_render_start = now;
 
         self.frame_time_history.enqueue(delta);
     }
 
-    pub(crate) fn frame_start(&mut self) {
-        self.last_frame = std::time::Instant::now();
+    pub(crate) fn cpu_render_start(&mut self) {
+        self.last_cpu_render_start = Instant::now();
+    }
+
+    pub(crate) fn gpu_render_start(&mut self) {
+        self.last_gpu_render_start = Instant::now();
     }
 
     pub(crate) fn cpu_render_end(&mut self) {
-        let now = std::time::Instant::now();
-        let delta = now.duration_since(self.last_frame);
+        let now = Instant::now();
+        let delta = now.duration_since(self.last_cpu_render_start);
         self.cpu_render_time_history.enqueue(delta);
     }
 
     pub(crate) fn gpu_render_end(&mut self) {
-        let now = std::time::Instant::now();
-        let delta = now.duration_since(self.last_frame);
-        self.gpu_render_time_history
-            .enqueue(delta - self.cpu_render_time_history.last().unwrap());
+        let now = Instant::now();
+        let delta = now.duration_since(self.last_gpu_render_start);
+        self.gpu_render_time_history.enqueue(delta);
     }
 
     pub(crate) fn run_scripts_start(&mut self) {
-        self.last_scripts_run = std::time::Instant::now();
+        self.last_scripts_run = Instant::now();
     }
 
     pub(crate) fn run_scripts_end(&mut self) {
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let delta = now.duration_since(self.last_scripts_run);
         self.script_time_history.enqueue(delta);
     }

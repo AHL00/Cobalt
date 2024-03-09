@@ -14,7 +14,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     ecs::component::Component,
     engine::graphics,
-    graphics::{HasBindGroup, HasBindGroupLayout},
+    graphics::{Graphics, HasBindGroup, HasBindGroupLayout},
 };
 
 static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
@@ -44,9 +44,9 @@ pub struct Transform {
     rotation: Rotor3,
     scale: Vec3,
     model_matrix: Mat4,
-    bind_group: Option<wgpu::BindGroup>,
-    model_dirty: bool,
-    bind_group_dirty: bool,
+    bind_group: wgpu::BindGroup,
+    buffer: wgpu::Buffer,
+    dirty: bool,
 }
 
 impl Debug for Transform {
@@ -55,7 +55,7 @@ impl Debug for Transform {
             .field("position", &self.position)
             .field("rotation", &self.rotation)
             .field("scale", &self.scale)
-            .field("dirty", &self.model_dirty)
+            .field("dirty", &self.dirty)
             .finish()
     }
 }
@@ -64,14 +64,33 @@ impl Component for Transform {}
 
 impl Transform {
     pub fn new() -> Self {
+        let buffer = graphics()
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(Mat4::identity().as_byte_slice()),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let bind_group = graphics()
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
+                }],
+            });
+
         Self {
             position: Vec3::zero(),
             rotation: Rotor3::identity(),
             scale: Vec3::one(),
             model_matrix: Mat4::identity(),
-            bind_group: None,
-            model_dirty: true,
-            bind_group_dirty: true,
+            bind_group,
+            buffer,
+            dirty: true,
         }
     }
 
@@ -113,7 +132,7 @@ impl Transform {
     /// Gets a mutable reference to the position.
     // Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn position_mut(&mut self) -> &mut Vec3 {
-        self.model_dirty = true;
+        self.dirty = true;
         &mut self.position
     }
 
@@ -125,7 +144,7 @@ impl Transform {
     /// Gets a mutable reference to the rotation.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn rotation_mut(&mut self) -> &mut Rotor3 {
-        self.model_dirty = true;
+        self.dirty = true;
         &mut self.rotation
     }
 
@@ -139,28 +158,31 @@ impl Transform {
         let rot = Rotor3::from_rotation_between(center - self.position, Vec3::unit_z()) * rot;
 
         self.rotation = rot * self.rotation;
-        self.model_dirty = true;
+        self.dirty = true;
     }
 
     pub fn rotate_x(&mut self, angle: f32) {
-        self.rotation = Rotor3::from_rotation_between(Vec3::unit_x(), self.rotation * Vec3::unit_x())
-            * Rotor3::from_euler_angles(angle, 0.0, 0.0)
-            * self.rotation;
-        self.model_dirty = true;
+        self.rotation =
+            Rotor3::from_rotation_between(Vec3::unit_x(), self.rotation * Vec3::unit_x())
+                * Rotor3::from_euler_angles(angle, 0.0, 0.0)
+                * self.rotation;
+        self.dirty = true;
     }
 
     pub fn rotate_y(&mut self, angle: f32) {
-        self.rotation = Rotor3::from_rotation_between(Vec3::unit_y(), self.rotation * Vec3::unit_y())
-            * Rotor3::from_euler_angles(0.0, angle, 0.0)
-            * self.rotation;
-        self.model_dirty = true;
+        self.rotation =
+            Rotor3::from_rotation_between(Vec3::unit_y(), self.rotation * Vec3::unit_y())
+                * Rotor3::from_euler_angles(0.0, angle, 0.0)
+                * self.rotation;
+        self.dirty = true;
     }
 
     pub fn rotate_z(&mut self, angle: f32) {
-        self.rotation = Rotor3::from_rotation_between(Vec3::unit_z(), self.rotation * Vec3::unit_z())
-            * Rotor3::from_euler_angles(0.0, 0.0, angle)
-            * self.rotation;
-        self.model_dirty = true;
+        self.rotation =
+            Rotor3::from_rotation_between(Vec3::unit_z(), self.rotation * Vec3::unit_z())
+                * Rotor3::from_euler_angles(0.0, 0.0, angle)
+                * self.rotation;
+        self.dirty = true;
     }
 
     /// Gets the scale.
@@ -171,7 +193,7 @@ impl Transform {
     /// Gets a mutable reference to the scale.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn scale_mut(&mut self) -> &mut Vec3 {
-        self.model_dirty = true;
+        self.dirty = true;
         &mut self.scale
     }
 
@@ -182,15 +204,13 @@ impl Transform {
 
         self.model_matrix = translation_mat * scale_mat * rot_mat;
 
-        self.model_dirty = false;
-
-        self.bind_group_dirty = true;
+        self.dirty = false;
     }
 
     // Gets the model matrix.
     // If the transform is dirty, it will be recalculated on the fly.
     pub fn model_matrix(&mut self) -> &Mat4 {
-        if self.model_dirty {
+        if self.dirty {
             self.recalculate_model_matrix();
         }
 
@@ -217,40 +237,17 @@ impl HasBindGroupLayout for Transform {
 }
 
 impl HasBindGroup for Transform {
-    fn bind_group(&mut self) -> &wgpu::BindGroup {
-        if self.model_dirty {
+    fn bind_group(&mut self, graphics: &Graphics) -> &wgpu::BindGroup {
+        if self.dirty {
             self.recalculate_model_matrix();
-        }
 
-        if self.bind_group_dirty {
-            self.bind_group = Some(
-                graphics()
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: None,
-                        layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Buffer(
-                                graphics()
-                                    .device
-                                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                        label: None,
-                                        contents: bytemuck::cast_slice(
-                                            self.model_matrix.as_byte_slice(),
-                                        ),
-                                        usage: wgpu::BufferUsages::UNIFORM
-                                            | wgpu::BufferUsages::COPY_DST,
-                                    })
-                                    .as_entire_buffer_binding(),
-                            ),
-                        }],
-                    }),
+            graphics.queue.write_buffer(
+                &self.buffer,
+                0,
+                bytemuck::cast_slice(self.model_matrix.as_byte_slice()),
             );
-
-            self.bind_group_dirty = false;
         }
 
-        self.bind_group.as_ref().unwrap()
+        &self.bind_group
     }
 }

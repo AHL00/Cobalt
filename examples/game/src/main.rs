@@ -15,7 +15,7 @@ use cobalt::{
         renderable::{mesh::Mesh, plane::Plane, Renderable},
     },
     resource::Resource,
-    script::Script,
+    script::{Script, ScriptComponent},
     transform::Transform,
 };
 use log::LevelFilter;
@@ -103,10 +103,10 @@ impl Application for App {
                     .scene
                     .world
                     .add_component(ent, Renderable::Plane(Plane::new(sprite_material.clone())));
-                // engine.scene.world.add_component(
-                //     ent,
-                //     ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
-                // );
+                engine.scene.world.add_component(
+                    ent,
+                    ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
+                );
             }
         }
 

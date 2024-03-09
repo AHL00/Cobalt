@@ -1,7 +1,7 @@
 mod unlit;
 pub use unlit::*;
 
-use crate::resource::ResourceTrait;
+use crate::{graphics::{self, Graphics}, resource::ResourceTrait};
 
 
 // NOTE: Every material should use the vertex type: UvNormalVertex
@@ -13,9 +13,9 @@ pub enum Material {
 }
 
 impl MaterialTrait for Material {
-    fn set_uniforms<'a>(&'a self, n: u32, render_pass: &mut wgpu::RenderPass<'a>) {
+    fn set_uniforms<'a>(&'a self, n: u32, render_pass: &mut wgpu::RenderPass<'a>, graphics: &Graphics) {
         match &self {
-            Material::Unlit(unlit) => unlit.set_uniforms(n, render_pass),
+            Material::Unlit(unlit) => unlit.set_uniforms(n, render_pass, graphics),
         }
     }
 
@@ -28,7 +28,7 @@ impl MaterialTrait for Material {
 
 pub(crate) trait MaterialTrait {
     /// Set the uniforms for the material
-    fn set_uniforms<'a>(&'a self, n: u32, render_pass: &mut wgpu::RenderPass<'a>);
+    fn set_uniforms<'a>(&'a self, n: u32, render_pass: &mut wgpu::RenderPass<'a>, graphics: &Graphics);
 
     /// Get the render pipeline for the material
     fn get_pipeline(&self) -> &'static wgpu::RenderPipeline;

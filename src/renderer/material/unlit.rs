@@ -4,7 +4,7 @@ use ultraviolet::Vec4;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::Asset, engine::graphics, graphics::{texture::TextureAsset, vertex::UvNormalVertex, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, renderer::ProjView, transform::Transform
+    assets::Asset, engine::graphics, graphics::{texture::TextureAsset, vertex::UvNormalVertex, Graphics, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout}, renderer::ProjView, transform::Transform
 };
 
 use super::MaterialTrait;
@@ -199,13 +199,13 @@ static UNLIT_RENDER_PIPELINE: LazyLock<wgpu::RenderPipeline> = LazyLock::new(|| 
 });
 
 impl MaterialTrait for Unlit {
-    fn set_uniforms<'a>(&'a self, n: u32, render_pass: &mut wgpu::RenderPass<'a>) {
+    fn set_uniforms<'a>(&'a self, n: u32, render_pass: &mut wgpu::RenderPass<'a>, graphics: &Graphics) {
         render_pass.set_bind_group(n + 1, &self.bind_group, &[]);
 
         if let Some(texture) = &self.texture {
             let texture = unsafe { texture.borrow_mut_unsafe() };
 
-            render_pass.set_bind_group(n + 2, texture.bind_group(), &[]);
+            render_pass.set_bind_group(n + 2, texture.bind_group(graphics), &[]);
         } else {
             // Set it to an empty texture
             render_pass.set_bind_group(n + 2, &TextureAsset::empty().bind_group, &[]);
