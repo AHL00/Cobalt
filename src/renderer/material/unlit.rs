@@ -9,6 +9,7 @@ use crate::{
 
 use super::MaterialTrait;
 
+// TODO: Material dirty flag
 pub struct Unlit {
     color: Vec4,
     texture: Option<Asset<TextureAsset>>,

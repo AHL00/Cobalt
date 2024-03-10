@@ -14,3 +14,7 @@
 - Index N + 2: (Texture asset bind group layout)
   - Binding 0: [`texture_2d<f32>`] Texture
   - Binding 1: [`sampler`] Sampler
+
+### Wireframe
+- Index N + 1: (Wireframe bind group layout)
+  - Binding 0: [`vec4<f32>`] Line color

@@ -177,7 +177,12 @@ impl Renderer for DefaultRenderer {
             for (ent, (transform, renderable)) in renderable_query {
                 // Frustum test
                 // TODO: Frustum culling, maybe expose this to the user?
-                
+                // If transform is dirty, AABB should be recalculated
+                // Until transform's model matrix is retrieved, the dirty flag should be set to true
+                if transform.model_dirty {
+                    renderable.update_aabb(transform);
+                }
+
                 let render_data = RenderData {
                     renderable,
                     transform: transform,

@@ -46,7 +46,48 @@ pub struct Transform {
     model_matrix: Mat4,
     bind_group: wgpu::BindGroup,
     buffer: wgpu::Buffer,
-    dirty: bool,
+    pub(crate) model_dirty: bool,
+    pub(crate) buffer_dirty: bool,
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Clone for Transform {
+    fn clone(&self) -> Self {
+        let buffer = graphics()
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(self.model_matrix.as_byte_slice()),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+        let bind_group = graphics()
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
+                }],
+            });
+
+        Self {
+            position: self.position,
+            rotation: self.rotation,
+            scale: self.scale,
+            model_matrix: self.model_matrix,
+            bind_group,
+            buffer,
+            model_dirty: self.model_dirty,
+            buffer_dirty: self.buffer_dirty,
+        }
+    }
 }
 
 impl Debug for Transform {
@@ -55,7 +96,7 @@ impl Debug for Transform {
             .field("position", &self.position)
             .field("rotation", &self.rotation)
             .field("scale", &self.scale)
-            .field("dirty", &self.dirty)
+            .field("dirty", &self.model_dirty)
             .finish()
     }
 }
@@ -90,7 +131,8 @@ impl Transform {
             model_matrix: Mat4::identity(),
             bind_group,
             buffer,
-            dirty: true,
+            model_dirty: true,
+            buffer_dirty: true,
         }
     }
 
@@ -132,7 +174,8 @@ impl Transform {
     /// Gets a mutable reference to the position.
     // Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn position_mut(&mut self) -> &mut Vec3 {
-        self.dirty = true;
+        self.model_dirty = true;
+        self.buffer_dirty = true;
         &mut self.position
     }
 
@@ -144,7 +187,8 @@ impl Transform {
     /// Gets a mutable reference to the rotation.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn rotation_mut(&mut self) -> &mut Rotor3 {
-        self.dirty = true;
+        self.model_dirty = true;
+        self.buffer_dirty = true;
         &mut self.rotation
     }
 
@@ -158,7 +202,8 @@ impl Transform {
         let rot = Rotor3::from_rotation_between(center - self.position, Vec3::unit_z()) * rot;
 
         self.rotation = rot * self.rotation;
-        self.dirty = true;
+        self.model_dirty = true;
+        self.buffer_dirty = true;
     }
 
     pub fn rotate_x(&mut self, angle: f32) {
@@ -166,7 +211,8 @@ impl Transform {
             Rotor3::from_rotation_between(Vec3::unit_x(), self.rotation * Vec3::unit_x())
                 * Rotor3::from_euler_angles(angle, 0.0, 0.0)
                 * self.rotation;
-        self.dirty = true;
+        self.model_dirty = true;
+        self.buffer_dirty = true;
     }
 
     pub fn rotate_y(&mut self, angle: f32) {
@@ -174,7 +220,8 @@ impl Transform {
             Rotor3::from_rotation_between(Vec3::unit_y(), self.rotation * Vec3::unit_y())
                 * Rotor3::from_euler_angles(0.0, angle, 0.0)
                 * self.rotation;
-        self.dirty = true;
+        self.model_dirty = true;
+        self.buffer_dirty = true;
     }
 
     pub fn rotate_z(&mut self, angle: f32) {
@@ -182,7 +229,8 @@ impl Transform {
             Rotor3::from_rotation_between(Vec3::unit_z(), self.rotation * Vec3::unit_z())
                 * Rotor3::from_euler_angles(0.0, 0.0, angle)
                 * self.rotation;
-        self.dirty = true;
+        self.model_dirty = true;
+        self.buffer_dirty = true;
     }
 
     /// Gets the scale.
@@ -193,7 +241,8 @@ impl Transform {
     /// Gets a mutable reference to the scale.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn scale_mut(&mut self) -> &mut Vec3 {
-        self.dirty = true;
+        self.model_dirty = true;
+        self.buffer_dirty = true;
         &mut self.scale
     }
 
@@ -204,13 +253,13 @@ impl Transform {
 
         self.model_matrix = translation_mat * scale_mat * rot_mat;
 
-        self.dirty = false;
+        self.model_dirty = false;
     }
 
     // Gets the model matrix.
     // If the transform is dirty, it will be recalculated on the fly.
     pub fn model_matrix(&mut self) -> &Mat4 {
-        if self.dirty {
+        if self.model_dirty {
             self.recalculate_model_matrix();
         }
 
@@ -238,14 +287,13 @@ impl HasBindGroupLayout for Transform {
 
 impl HasBindGroup for Transform {
     fn bind_group(&mut self, graphics: &Graphics) -> &wgpu::BindGroup {
-        if self.dirty {
+        if self.model_dirty {
             self.recalculate_model_matrix();
+        }
 
-            graphics.queue.write_buffer(
-                &self.buffer,
-                0,
-                bytemuck::cast_slice(self.model_matrix.as_byte_slice()),
-            );
+        if self.buffer_dirty {
+            graphics.queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(self.model_matrix.as_byte_slice()));
+            self.buffer_dirty = false;
         }
 
         &self.bind_group

@@ -154,7 +154,8 @@ impl Graphics {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    required_features: wgpu::Features::empty(),
+                    // TODO: Disable this feature when wireframe is not used, release builds
+                    required_features: wgpu::Features::POLYGON_MODE_LINE,
                     // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
                     required_limits: wgpu::Limits::downlevel_defaults()
                         .using_resolution(adapter.limits()),

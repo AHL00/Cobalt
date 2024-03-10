@@ -8,7 +8,7 @@ use wgpu::util::DeviceExt;
 use crate::{
     assets::{AssetLoadError, AssetTrait},
     engine::graphics,
-    graphics::vertex::UvNormalVertex,
+    graphics::vertex::UvNormalVertex, internal::aabb::AABB,
 };
 
 pub struct MeshAsset {
@@ -16,6 +16,7 @@ pub struct MeshAsset {
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: wgpu::Buffer,
     pub(crate) num_indices: u32,
+    pub(crate) local_aabb: AABB,
     pub(crate) has_uv: bool,
 }
 
@@ -44,6 +45,8 @@ impl AssetTrait for MeshAsset {
             &tobj::LoadOptions {
                 triangulate: true,
                 single_index: true,
+                ignore_points: true,
+                ignore_lines: true,
                 ..Default::default()
             },
             // TODO: Fix bug that happens when loading materials
@@ -111,31 +114,67 @@ impl AssetTrait for MeshAsset {
 
         let includes_texcoords = model.mesh.texcoords.len() > 0;
 
+        let mut min = (0.0, 0.0, 0.0);
+        let mut max = (0.0, 0.0, 0.0);
+
         let vertex_buffer = {
             let vertices = (0..model.mesh.positions.len() / 3)
-                .map(|i| UvNormalVertex {
-                    position: [
-                        model.mesh.positions[i * 3],
-                        model.mesh.positions[i * 3 + 1],
-                        model.mesh.positions[i * 3 + 2],
-                    ],
-                    uv: [
-                        if includes_texcoords {
-                            model.mesh.texcoords[i * 2]
-                        } else {
-                            0.0
-                        },
-                        if includes_texcoords {
-                            1.0 - model.mesh.texcoords[i * 2 + 1]
-                        } else {
-                            0.0
-                        },
-                    ],
-                    normal: [
-                        model.mesh.normals[i * 3],
-                        model.mesh.normals[i * 3 + 1],
-                        model.mesh.normals[i * 3 + 2],
-                    ],
+                .map(|i| {
+                    // Min and max checks
+                    let mut is_min = false;
+                    if model.mesh.positions[i * 3] < min.0 {
+                        min.0 = model.mesh.positions[i * 3];
+                        is_min = true;
+                    }
+
+                    if model.mesh.positions[i * 3 + 1] < min.1 {
+                        min.1 = model.mesh.positions[i * 3 + 1];
+                        is_min = true;
+                    }
+
+                    if model.mesh.positions[i * 3 + 2] < min.2 {
+                        min.2 = model.mesh.positions[i * 3 + 2];
+                        is_min = true;
+                    }
+
+                    if !is_min {
+                        if model.mesh.positions[i * 3] > max.0 {
+                            max.0 = model.mesh.positions[i * 3];
+                        }
+
+                        if model.mesh.positions[i * 3 + 1] > max.1 {
+                            max.1 = model.mesh.positions[i * 3 + 1];
+                        }
+
+                        if model.mesh.positions[i * 3 + 2] > max.2 {
+                            max.2 = model.mesh.positions[i * 3 + 2];
+                        }
+                    }
+
+                    UvNormalVertex {
+                        position: [
+                            model.mesh.positions[i * 3],
+                            model.mesh.positions[i * 3 + 1],
+                            model.mesh.positions[i * 3 + 2],
+                        ],
+                        uv: [
+                            if includes_texcoords {
+                                model.mesh.texcoords[i * 2]
+                            } else {
+                                0.0
+                            },
+                            if includes_texcoords {
+                                1.0 - model.mesh.texcoords[i * 2 + 1]
+                            } else {
+                                0.0
+                            },
+                        ],
+                        normal: [
+                            model.mesh.normals[i * 3],
+                            model.mesh.normals[i * 3 + 1],
+                            model.mesh.normals[i * 3 + 2],
+                        ],
+                    }
                 })
                 .collect::<Vec<_>>();
 
@@ -161,6 +200,7 @@ impl AssetTrait for MeshAsset {
             vertex_buffer,
             index_buffer,
             num_indices: model.mesh.indices.len() as u32,
+            local_aabb: AABB::from_min_max(min.into(), max.into()),
             has_uv: model.mesh.texcoords.len() > 0,
         })
     }

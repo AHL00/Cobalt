@@ -10,7 +10,7 @@ use cobalt::{
     maths::{Rotor3, Vec3, Vec4},
     renderer::{
         camera::{Camera, Projection},
-        material::{Material, Unlit},
+        material::{Material, Unlit, Wireframe},
         mesh::MeshAsset,
         renderable::{mesh::Mesh, plane::Plane, Renderable},
     },
@@ -75,11 +75,41 @@ impl Application for App {
             Some(model_texture),
         )));
 
-        engine.scene.world.add_component(model_ent, transform);
+        engine
+            .scene
+            .world
+            .add_component(model_ent, transform.clone());
         engine.scene.world.add_component(
             model_ent,
             Renderable::Mesh(Mesh::new(model_mesh.clone(), model_material.clone())),
         );
+        engine.scene.world.add_component(
+            model_ent,
+            ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
+        );
+
+        let cube_mesh = asset_server()
+            .write()
+            .load::<MeshAsset>(Path::new("cube.obj"))
+            .unwrap();
+        let wireframe_material = Resource::new(Material::Wireframe(Wireframe::new(
+            (0.4, 1.0, 0.3, 0.0).into(),
+        )));
+
+        let bounding_box_ent = engine.scene.world.create_entity();
+
+        engine.scene.world.add_component(
+            bounding_box_ent,
+            Renderable::Mesh(Mesh::new(cube_mesh.clone(), wireframe_material.clone())),
+        );
+        engine.scene.world.add_component(
+            bounding_box_ent,
+            ScriptComponent::with_scripts(vec![Box::new(ShowBoundingBoxScript::new(model_ent))]),
+        );
+        engine
+            .scene
+            .world
+            .add_component(bounding_box_ent, Transform::default());
 
         let h_count = 50;
         let v_count = h_count * 9 / 16;
@@ -161,14 +191,8 @@ impl Application for App {
                         .last()
                         .unwrap_or(Duration::from_secs(0))
                 ));
-                ui.label(format!(
-                    "Culled: {}",
-                    engine.stats.culled_entities
-                ));
-                ui.label(format!(
-                    "Rendered: {}",
-                    engine.stats.rendered_entities
-                ));
+                ui.label(format!("Culled: {}", engine.stats.culled_entities));
+                ui.label(format!("Rendered: {}", engine.stats.rendered_entities));
 
                 // Camera position
                 let app = app.as_any_mut().downcast_mut::<App>().unwrap();
@@ -289,6 +313,61 @@ impl App {
     }
 }
 
+struct ShowBoundingBoxScript {
+    /// Entity with the renderable component
+    renderable_entity: Entity,
+}
+
+impl ShowBoundingBoxScript {
+    pub fn new(entity: Entity) -> Self {
+        Self {
+            renderable_entity: entity,
+        }
+    }
+}
+
+impl Script for ShowBoundingBoxScript {
+    // TODO: Script delta time
+    fn update(&mut self, engine: &mut Engine, app: &mut DynApp, entity: cobalt::ecs::Entity) {
+        let renderable = engine
+            .scene
+            .world
+            .get_component::<Renderable>(self.renderable_entity)
+            .unwrap();
+
+        let follow_t = engine
+            .scene
+            .world
+            .get_component::<Transform>(self.renderable_entity)
+            .unwrap();
+
+        let follow_pos = follow_t.position();
+
+        let aabb = renderable.get_aabb().clone();
+        
+        // Assume entity has a cube mesh, scale according to AABB
+        let scale_x = (aabb.max.x - aabb.min.x) / 2.0;
+        let scale_y = (aabb.max.y - aabb.min.y) / 2.0;
+        let scale_z = (aabb.max.z - aabb.min.z) / 2.0;
+
+        let transform = engine
+            .scene
+            .world
+            .get_component_mut::<Transform>(entity)
+            .unwrap();
+
+        transform.scale_mut().x = scale_x;
+        transform.scale_mut().y = scale_y;
+        transform.scale_mut().z = scale_z;
+
+        *transform.position_mut() = aabb.get_center() + follow_pos;
+    }
+
+    fn on_load(&self, engine: &mut Engine, entity: cobalt::ecs::Entity) {
+        todo!()
+    }
+}
+
 struct SpritesScript {
     cam_pos: Vec3,
 }
@@ -310,7 +389,7 @@ impl Script for SpritesScript {
             .unwrap();
 
         // Rotate it with sin of time since start
-        let time_offset = engine.start_time.elapsed().as_secs_f32() / 50.0;
+        let time_offset = engine.start_time.elapsed().as_secs_f32() / 75.0;
 
         let sin = time_offset.sin() * 180.0;
         let cos = time_offset.cos() * 180.0;
