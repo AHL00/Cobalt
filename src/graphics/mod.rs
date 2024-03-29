@@ -112,6 +112,8 @@ pub(crate) trait HasVertexBufferLayout {
     fn vertex_buffer_layout() -> wgpu::VertexBufferLayout<'static>;
 }
 
+pub use wgpu::PresentMode;
+
 pub struct Graphics {
     pub(crate) instance: wgpu::Instance,
     pub(crate) adapter: wgpu::Adapter,
@@ -120,6 +122,7 @@ pub struct Graphics {
     pub(crate) surface: wgpu::Surface<'static>,
     pub(crate) output_color_format: wgpu::TextureFormat,
     pub(crate) output_depth_format: Option<wgpu::TextureFormat>,
+    pub(crate) current_present_mode: PresentMode,
 }
 
 impl Graphics {
@@ -180,7 +183,7 @@ impl Graphics {
 
         let output_depth_format = Some(wgpu::TextureFormat::Depth32Float);
 
-        let res = Self {
+        let mut res = Self {
             instance,
             adapter,
             device,
@@ -188,14 +191,25 @@ impl Graphics {
             queue,
             output_color_format,
             output_depth_format,
+            current_present_mode: PresentMode::AutoNoVsync,
         };
 
-        res.configure_surface(window.winit.inner_size().into());
+        res.configure_surface(window.winit.inner_size().into(), PresentMode::AutoNoVsync);
 
         Ok(res)
     }
 
-    pub(crate) fn configure_surface(&self, size: (u32, u32)) {
+    pub fn available_present_modes(&self) -> Vec<PresentMode> {
+        self.surface
+            .get_capabilities(&self.adapter)
+            .present_modes
+            .iter()
+            .copied()
+            .collect()
+    }
+
+    /// No validation of whether the present mode is available is done here.
+    pub(crate) fn configure_surface(&mut self, size: (u32, u32), present_mode: PresentMode) {
         self.surface.configure(
             &self.device,
             &wgpu::SurfaceConfiguration {
@@ -203,12 +217,14 @@ impl Graphics {
                 format: self.output_color_format,
                 width: size.0,
                 height: size.1,
-                present_mode: wgpu::PresentMode::Mailbox,
+                present_mode,
                 desired_maximum_frame_latency: 2,
                 alpha_mode: wgpu::CompositeAlphaMode::Auto,
                 view_formats: vec![self.output_color_format],
             },
         );
+
+        self.current_present_mode = present_mode;
     }
 
     pub fn begin_frame<'a>(&self) -> Result<Frame<'a>, Box<dyn std::error::Error>> {

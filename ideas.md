@@ -73,6 +73,8 @@
   safety is guaranteed while running. If the user deletes a material
   resource while the engine is rendering, there will be issues as it is
   assumed resources live longer than the renderpass.
+- Scripts can also be run in parallel, just have to give a warning that scripts are not guaranteed to be in any particular order
+
 ### Current finalised design
 - Not global, global is again stupid because it will 100% increase the latency of subsytems as
   they have to wait for other systems to finish. Or is that good??? If we have separate 
@@ -83,3 +85,12 @@
   So what is better in my opinion is restricting access to the Engine struct. Will asset_server
   be an issue? No because assets can't be dropped manually, they are dropped if their reference
   is dropped and that won't happen without the user accessing Engine.
+
+## Save system
+- Implementations of serde for every single cobalt type
+- Try downcasting to dyn Serialize + Deserialize to see whether to save that component type
+
+## Asset packing
+- Check cherno video
+- Asset system can search path for any .cpak files and load the file names present
+- If the game tries to load a file, it will check if it's in the cpak file and load it from there

@@ -159,7 +159,9 @@ pub fn run<A: Application + 'static>(mut app: A) -> Result<(), Box<dyn Error>> {
                         next_frame_prep_needed = true;
                     }
                     WindowEvent::Resized(size) => {
-                        graphics().configure_surface(size.into());
+                        let current_present_mode = graphics().current_present_mode;
+                        
+                        graphics_mut().configure_surface(size.into(), current_present_mode);
 
                         engine.renderer.resize_callback(size.into()).unwrap_or_else(|e| {
                             log::error!("Failed to resize renderer: {:?}", e);

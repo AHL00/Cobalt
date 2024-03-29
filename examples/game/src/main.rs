@@ -133,10 +133,10 @@ impl Application for App {
                     .scene
                     .world
                     .add_component(ent, Renderable::Plane(Plane::new(sprite_material.clone())));
-                engine.scene.world.add_component(
-                    ent,
-                    ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
-                );
+                // engine.scene.world.add_component(
+                //     ent,
+                //     ScriptComponent::with_scripts(vec![Box::new(SpritesScript::new())]),
+                // );
             }
         }
 
