@@ -1,19 +1,16 @@
-use std::error::Error;
-
-use ultraviolet::Mat4;
-
-use crate::{
-    ecs::{Entity, World}, engine::graphics, graphics::{CreateBindGroup, Frame, Graphics, HasBindGroup}, stats::Stats, transform::Transform
-};
-
-use self::{camera::Camera, material::MaterialTrait, renderable::Renderable, proj_view::ProjView};
-
 pub mod camera;
 pub mod material;
 pub mod mesh;
 pub mod renderable;
 
 mod proj_view;
+
+use std::error::Error;
+use ultraviolet::Mat4;
+use crate::{
+    ecs::{Entity, World}, engine::graphics, graphics::{CreateBindGroup, Frame, Graphics, HasBindGroup}, stats::Stats, transform::Transform
+};
+use self::{camera::Camera, material::MaterialTrait, renderable::Renderable, proj_view::ProjView};
 
 pub trait Renderer {
     fn render(&mut self, frame: &mut Frame, world: &mut World, stats: &mut Stats);
@@ -110,7 +107,7 @@ impl RenderPass for ForwardPass {
             // as the global RwLock graphics state is borrowed by renderer.
             unsafe { material_resource.borrow_unsafe().set_uniforms(1, &mut render_pass, graphics) };
 
-            render_data.renderable.draw(&mut render_pass);
+            render_data.renderable.render(&mut render_pass);
         }
 
         self.last_material_id = None;
@@ -175,14 +172,6 @@ impl Renderer for DefaultRenderer {
             let renderable_query = world.query_mut::<(Transform, Renderable)>().unwrap();
 
             for (ent, (transform, renderable)) in renderable_query {
-                // Frustum test
-                // TODO: Frustum culling, maybe expose this to the user?
-                // If transform is dirty, AABB should be recalculated
-                // Until transform's model matrix is retrieved, the dirty flag should be set to true
-                if transform.model_dirty {
-                    renderable.update_aabb(transform);
-                }
-
                 let render_data = RenderData {
                     renderable,
                     transform: transform,
@@ -193,6 +182,14 @@ impl Renderer for DefaultRenderer {
                 render_data_vec.push(render_data);
             }
 
+            let pre_cull_count = render_data_vec.len();
+            // TODO: Implement frustum culling
+
+
+            // NOTE: Shadow mapping should be done before culling
+            // Can the shadow map do its own culling?
+            // 
+
             // Sort by material
             // TODO: Instead of sorting, maybe just group
             render_data_vec.sort_unstable_by(|a, b| {
@@ -201,15 +198,6 @@ impl Renderer for DefaultRenderer {
                     .id
                     .cmp(&b.renderable.get_material().id)
             });
-
-            // NOTE: Shadow mapping should be done before culling
-            // Can the shadow map do its own culling?
-            // 
-
-            let pre_cull_count = render_data_vec.len();
-
-            // TODO: Implement frustum culling
-
 
             stats.culled_entities = pre_cull_count - render_data_vec.len();
             stats.rendered_entities = render_data_vec.len();

@@ -3,7 +3,6 @@ use crate::{
     internal::aabb::AABB,
     renderer::{material::Material, mesh::MeshAsset},
     resource::Resource,
-    transform::Transform,
 };
 
 use super::RenderableTrait;
@@ -11,16 +10,18 @@ use super::RenderableTrait;
 pub struct Mesh {
     pub material: Resource<Material>,
     pub mesh: Asset<MeshAsset>,
-    /// The axis-aligned bounding box for the mesh
-    /// It is updated every time the mesh is transformed
-    /// This update should be triggered by the renderer,
-    /// before the mesh is drawn
-    world_space_aabb: AABB,
+    pub(crate) local_space_aabb: AABB,
 }
 
 impl Mesh {
     pub fn new(mesh: Asset<MeshAsset>, material: Resource<Material>) -> Self {
-        Self { mesh, material, world_space_aabb: AABB::zero() }
+        let local_space_aabb = mesh.borrow().local_aabb.clone();
+
+        Self {
+            mesh,
+            material,
+            local_space_aabb,
+        }
     }
 }
 
@@ -33,11 +34,9 @@ impl RenderableTrait for Mesh {
         render_pass.draw_indexed(0..mesh_asset.num_indices, 0, 0..1);
     }
 
-    fn get_aabb(&self) -> &AABB {
-        &self.world_space_aabb
-    }
-
-    fn update_aabb(&mut self, transform: &mut Transform) {
-        self.world_space_aabb = self.mesh.borrow().local_aabb.transform(transform.model_matrix());
+    fn get_material<'a>(
+        &'a self,
+    ) -> &'a crate::resource::Resource<crate::renderer::material::Material> {
+        &self.material
     }
 }

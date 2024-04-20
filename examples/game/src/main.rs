@@ -329,22 +329,16 @@ impl ShowBoundingBoxScript {
 impl Script for ShowBoundingBoxScript {
     // TODO: Script delta time
     fn update(&mut self, engine: &mut Engine, app: &mut DynApp, entity: cobalt::ecs::Entity) {
-        let renderable = engine
+        let (renderable, follow_t) = engine
             .scene
             .world
-            .get_component::<Renderable>(self.renderable_entity)
-            .unwrap();
-
-        let follow_t = engine
-            .scene
-            .world
-            .get_component::<Transform>(self.renderable_entity)
+            .query_entity_mut::<(Renderable, Transform)>(self.renderable_entity)
             .unwrap();
 
         let follow_pos = follow_t.position();
 
-        let aabb = renderable.get_aabb().clone();
-        
+        let aabb = renderable.world_space_aabb(follow_t);
+
         // Assume entity has a cube mesh, scale according to AABB
         let scale_x = (aabb.max.x - aabb.min.x) / 2.0;
         let scale_y = (aabb.max.y - aabb.min.y) / 2.0;

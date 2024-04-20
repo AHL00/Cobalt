@@ -36,9 +36,9 @@ serde_traitobject = "0.2.8"
 serde_closure = "0.3.3"
 
 # Dev GUI
-egui = {version = "0.26.2", optional = true}
-egui-winit = {version = "0.26.2", optional = true}
-egui-wgpu = {version = "0.26.2", optional = true}
+egui = {version = "0.27.2", optional = true}
+egui-winit = {version = "0.27.2", optional = true}
+egui-wgpu = {version = "0.27.2", optional = true}
 tobj = "4.0.1"
 
 [dev-dependencies]
@@ -52,4 +52,4 @@ inherits = "release"
 debug = true
 
 [workspace]
-members = ["examples/game"]
+members = ["examples/game", "./"]

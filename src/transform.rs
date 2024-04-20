@@ -46,7 +46,10 @@ pub struct Transform {
     model_matrix: Mat4,
     bind_group: wgpu::BindGroup,
     buffer: wgpu::Buffer,
+    /// Whether the model matrix is dirty and needs to be recalculated.
     pub(crate) model_dirty: bool,
+    /// This is only processed when actually rendering at the final stage, after all
+    /// culling and updating has been done. Only called when it is actually drawn.
     pub(crate) buffer_dirty: bool,
 }
 
@@ -174,8 +177,7 @@ impl Transform {
     /// Gets a mutable reference to the position.
     // Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn position_mut(&mut self) -> &mut Vec3 {
-        self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.set_dirty();
         &mut self.position
     }
 
@@ -187,8 +189,7 @@ impl Transform {
     /// Gets a mutable reference to the rotation.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn rotation_mut(&mut self) -> &mut Rotor3 {
-        self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.set_dirty();
         &mut self.rotation
     }
 
@@ -202,8 +203,7 @@ impl Transform {
         let rot = Rotor3::from_rotation_between(center - self.position, Vec3::unit_z()) * rot;
 
         self.rotation = rot * self.rotation;
-        self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.set_dirty();
     }
 
     pub fn rotate_x(&mut self, angle: f32) {
@@ -211,8 +211,7 @@ impl Transform {
             Rotor3::from_rotation_between(Vec3::unit_x(), self.rotation * Vec3::unit_x())
                 * Rotor3::from_euler_angles(angle, 0.0, 0.0)
                 * self.rotation;
-        self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.set_dirty();
     }
 
     pub fn rotate_y(&mut self, angle: f32) {
@@ -220,8 +219,7 @@ impl Transform {
             Rotor3::from_rotation_between(Vec3::unit_y(), self.rotation * Vec3::unit_y())
                 * Rotor3::from_euler_angles(0.0, angle, 0.0)
                 * self.rotation;
-        self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.set_dirty();
     }
 
     pub fn rotate_z(&mut self, angle: f32) {
@@ -229,8 +227,7 @@ impl Transform {
             Rotor3::from_rotation_between(Vec3::unit_z(), self.rotation * Vec3::unit_z())
                 * Rotor3::from_euler_angles(0.0, 0.0, angle)
                 * self.rotation;
-        self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.set_dirty();
     }
 
     /// Gets the scale.
@@ -241,8 +238,7 @@ impl Transform {
     /// Gets a mutable reference to the scale.
     /// Marks the transform as dirty, which means the model matrix will be recalculated.
     pub fn scale_mut(&mut self) -> &mut Vec3 {
-        self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.set_dirty();
         &mut self.scale
     }
 
@@ -276,6 +272,11 @@ impl Transform {
 
     pub fn up(&self) -> Vec3 {
         self.rotation * Vec3::unit_y()
+    }
+
+    fn set_dirty(&mut self) {
+        self.model_dirty = true;
+        self.buffer_dirty = true;
     }
 }
 

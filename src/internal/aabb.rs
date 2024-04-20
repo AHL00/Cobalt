@@ -1,8 +1,5 @@
 use ultraviolet::{Mat4, Vec4};
 
-use crate::transform::Transform;
-
-
 /// An axis-aligned bounding box.
 /// The points are stored as Vec4 to reduce the amount of conversions between Vec3 and Vec4 when multiplying with matrices.
 /// TODO: Move out of internal
@@ -24,7 +21,7 @@ impl AABB {
     }
 
     /// Multiplies the AABB by a matrix.
-    pub fn transform(&self, matrix: &Mat4) -> Self {
+    pub fn transform_by_mat(&self, matrix: &Mat4) -> Self {
         let mut min = Vec4::broadcast(f32::INFINITY);
         let mut max = Vec4::broadcast(f32::NEG_INFINITY);
         

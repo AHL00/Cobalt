@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{
     engine::graphics, graphics::vertex::UvNormalVertex, internal::aabb::AABB,
-    renderer::material::Material, resource::Resource, transform::Transform,
+    renderer::material::Material, resource::Resource,
 };
 
 use super::RenderableTrait;
@@ -13,7 +13,7 @@ pub struct Plane {
     pub material: Resource<Material>,
     pub(crate) vertex_buffer: &'static wgpu::Buffer,
     pub(crate) index_buffer: &'static wgpu::Buffer,
-    pub(crate) world_space_aabb: AABB,
+    pub(crate) local_space_aabb: AABB,
 }
 
 impl Plane {
@@ -22,7 +22,7 @@ impl Plane {
             material,
             vertex_buffer: &SPRITE_VERTEX_BUFFER,
             index_buffer: &SPRITE_INDEX_BUFFER,
-            world_space_aabb: AABB::zero(),
+            local_space_aabb: SPRITE_LOCAL_AABB.clone(),
         }
     }
 }
@@ -78,11 +78,7 @@ impl RenderableTrait for Plane {
         render_pass.draw_indexed(0..6, 0, 0..1);
     }
 
-    fn get_aabb(&self) -> &AABB {
-        &self.world_space_aabb
-    }
-
-    fn update_aabb(&mut self, transform: &mut Transform) {
-        self.world_space_aabb = (&*SPRITE_LOCAL_AABB).transform(transform.model_matrix());
+    fn get_material<'a>(&'a self) -> &'a Resource<Material> {
+        &self.material
     }
 }
