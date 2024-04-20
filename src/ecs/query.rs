@@ -506,7 +506,7 @@ impl<'a> World {
     /// Get components from one entity that meet the query requirements.
     /// Returns a tuple of the components.
     /// If the entity does not meet the query requirements, then None is returned.
-    fn query_entity<Q: Query<'a>>(&'a self, entity: Entity) -> Option<Q::Item> {
+    pub fn query_entity<Q: Query<'a>>(&'a self, entity: Entity) -> Option<Q::Item> {
         let entity_data = self.entities.get(entity.id as usize)?;
 
         // This means that the entity was deleted.
@@ -541,7 +541,7 @@ impl<'a> World {
         }
     }
 
-    fn query_entity_mut<Q: QueryMut<'a> + 'a>(&'a mut self, entity: Entity) -> Option<Q::Item> {
+    pub fn query_entity_mut<Q: QueryMut<'a> + 'a>(&'a mut self, entity: Entity) -> Option<Q::Item> {
         let entity_data = self.entities.get(entity.id as usize)?;
 
         // This means that the entity was deleted.
