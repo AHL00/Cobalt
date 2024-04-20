@@ -7,7 +7,6 @@ use crate::internal::bit_array::SimdBitArray;
 
 pub mod component;
 pub mod query;
-pub mod serialize;
 mod storage;
 mod typeid_map;
 
@@ -273,7 +272,7 @@ impl World {
         // Get the component from the storage.
         // The type is guaranteed to match because of the type ID.
         Some(storage.get_unchecked_mut(entity))
-    }
+    }    
 }
 
 #[cfg(test)]

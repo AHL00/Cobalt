@@ -40,6 +40,8 @@ mod internal {
     }
 }
 
+// TODO: Optionals and excludes in queries.
+
 impl<'a> QueryMut<'a> for () {}
 impl<'a> QueryMutInternal<'a> for () {
     type Item = ();
@@ -500,6 +502,83 @@ impl<
     }
 }
 
+impl<'a> World {
+    /// Get components from one entity that meet the query requirements.
+    /// Returns a tuple of the components.
+    /// If the entity does not meet the query requirements, then None is returned.
+    fn query_entity<Q: Query<'a>>(&'a self, entity: Entity) -> Option<Q::Item> {
+        let entity_data = self.entities.get(entity.id as usize)?;
+
+        // This means that the entity was deleted.
+        if entity_data.version != entity.version {
+            return None;
+        }
+
+        let mut components_found = true;
+
+        for type_id in Q::type_ids() {
+            let comp_data = self.components.get(&SerdeTypeId::from(type_id));
+
+            // Component not registered.
+            if comp_data.is_none() {
+                components_found = false;
+                break;
+            }
+
+            let comp_id = comp_data.unwrap().1;
+
+            // Check if the entity has the component. If even one component is missing, then return false;
+            if !entity_data.components.get(comp_id.0 as usize) {
+                components_found = false;
+                break;
+            }
+        }
+
+        if components_found {
+            Some(Q::get_unchecked(entity, &Q::get_storage_ref(self)))
+        } else {
+            None
+        }
+    }
+
+    fn query_entity_mut<Q: QueryMut<'a> + 'a>(&'a mut self, entity: Entity) -> Option<Q::Item> {
+        let entity_data = self.entities.get(entity.id as usize)?;
+
+        // This means that the entity was deleted.
+        if entity_data.version != entity.version {
+            return None;
+        }
+
+        let mut components_found = true;
+
+        for type_id in Q::type_ids() {
+            let comp_data = self.components.get(&SerdeTypeId::from(type_id));
+
+            // Component not registered.
+            if comp_data.is_none() {
+                components_found = false;
+                break;
+            }
+
+            let comp_id = comp_data.unwrap().1;
+
+            // Check if the entity has the component. If even one component is missing, then return false;
+            if !entity_data.components.get(comp_id.0 as usize) {
+                components_found = false;
+                break;
+            }
+        }
+
+        let storage_ptr = &mut Q::get_storage_ref(self) as *mut Q::StorageRef;
+
+        if components_found {
+            Some(Q::get_unchecked_mut(entity, unsafe { &mut *storage_ptr }))
+        } else {
+            None
+        }
+    }
+}
+
 pub struct QueryIter<'a, Q: Query<'a>> {
     world: &'a World,
     entity_iter: std::slice::Iter<'a, EntityData>,
@@ -518,10 +597,10 @@ impl<'a> World {
 
 impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
     pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut query_mask = SimdBitArray::new();
         let mut smallest_storage_count = 0;
-
         let mut component_not_found = false;
+
+        let mut query_mask = SimdBitArray::new();
 
         // Set the bits for each component in the query.
         for type_id in Q::type_ids() {
@@ -892,5 +971,70 @@ mod tests {
         }
 
         assert_eq!(count, 500);
+    }
+
+    #[test]
+    fn query_entity() {
+        let mut world = World::with_capacity(10000);
+
+        let entities = (0..1000).map(|_| world.create_entity()).collect::<Vec<_>>();
+
+        for i in 0..1000 {
+            let entity = entities[i];
+
+            world.add_component(entity, 0);
+
+            world.add_component(entity, i as f64);
+        }
+
+        for i in 0..1000 {
+            let entity = entities[i];
+
+            let components = world.query_entity::<(i32, f64)>(entity).unwrap();
+
+            if entity.id % 2 == 0 {
+                assert_eq!(components, (&0, &(i as f64)));
+            } else {
+                assert_eq!(components, (&0, &(i as f64)));
+            }
+        }
+    }
+
+    #[test]
+    fn query_entity_mut() {
+        let mut world = World::with_capacity(10000);
+
+        let entities = (0..1000).map(|_| world.create_entity()).collect::<Vec<_>>();
+
+        for i in 0..1000 {
+            let entity = entities[i];
+
+            world.add_component(entity, 0);
+
+            world.add_component(entity, i as f64);
+        }
+
+        for i in 0..1000 {
+            let entity = entities[i];
+
+            let components = world.query_entity_mut::<(i32, f64)>(entity).unwrap();
+
+            if entity.id % 2 == 0 {
+                assert_eq!(components, (&mut 0, &mut (i as f64)));
+            } else {
+                assert_eq!(components, (&mut 0, &mut (i as f64)));
+            }
+
+            *components.0 = 1;
+            *components.1 = 1.0;
+        }
+
+        for i in 0..1000 {
+            let entity = entities[i];
+
+            let components = world.query_entity::<(i32, f64)>(entity).unwrap();
+
+            assert_eq!(components, (&1, &1.0));
+        }
     }
 }
