@@ -4,7 +4,7 @@ pub use unlit::*;
 pub use wireframe::*;
 
 use crate::{
-    graphics::{self, Graphics},
+    graphics::Graphics,
     resource::ResourceTrait,
 };
 

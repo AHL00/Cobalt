@@ -1,8 +1,5 @@
 use ultraviolet::{Mat4, Vec4};
 
-use crate::transform::Transform;
-
-
 /// An axis-aligned bounding box.
 /// The points are stored as Vec4 to reduce the amount of conversions between Vec3 and Vec4 when multiplying with matrices.
 /// TODO: Move out of internal

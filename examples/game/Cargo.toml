@@ -14,3 +14,6 @@ serde_yaml = "0.9.30"
 [dependencies.cobalt]
 path = "../../"
 # default-features = false
+
+[build-dependencies.cobalt]
+path = "../../"

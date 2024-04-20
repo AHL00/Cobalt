@@ -6,6 +6,9 @@
 // If on the next load the asset is not found, it can handle the error
 // gracefully.
 
+pub mod build;
+mod cpak;
+
 use hashbrown::HashMap;
 use imstr::ImString;
 use parking_lot::{
@@ -143,6 +146,7 @@ pub struct AssetServer {
     /// Will only contain Weak<RwLock<dyn Any + Send + Sync + 'static>>.
     /// Not stored as such because of the dynamic size of the type.
     assets: HashMap<ImString, (Weak<dyn Any + Send + Sync + 'static>, usize)>,
+    /// Canonicalized path to the assets directory
     assets_dir: PathBuf,
 }
 
@@ -168,7 +172,7 @@ impl AssetServer {
             std::env::current_dir().unwrap().join(assets_dir_path)
         };
 
-        self.assets_dir = absolute_assets_dir_path;
+        self.assets_dir = absolute_assets_dir_path.canonicalize().expect("Failed to canonicalize assets directory");
     }
 
     /// Load an asset from disk.
@@ -178,27 +182,24 @@ impl AssetServer {
         &mut self,
         path: &Path,
     ) -> Result<Asset<T>, AssetLoadError> {
-        let path_str = path
-            .as_os_str()
-            .to_str()
-            .expect("Failed to convert path to string");
+        let absolute_path = self.assets_dir.join(path);
+
+        let relative_path_string = extract_relative_path(&absolute_path, &self.assets_dir);
 
         // Check if the asset is already loaded
-        if let Some((asset, count)) = self.assets.get_mut(path_str) {
+        if let Some((asset, count)) = self.assets.get_mut(relative_path_string.as_str()) {
             // If the asset is loaded, increment the count
             *count += 1;
 
             if let Some(asset) = asset.upgrade() {
                 return Ok(Asset::new(
-                    ImString::from_str(path_str).unwrap(),
+                    ImString::from_str(relative_path_string.as_str()).unwrap(),
                     asset,
                 ));
             }
         }
 
-        let asset_handle_path = ImString::from_str(path_str).unwrap();
-
-        let absolute_path = self.assets_dir.join(path);
+        let asset_handle_path = ImString::from_str(relative_path_string.as_str()).unwrap();
 
         let file = std::fs::File::open(&absolute_path)?;
 
@@ -220,6 +221,19 @@ impl AssetServer {
             asset_any,
         ))
     }
+}
+
+fn extract_relative_path(absolute_path: &Path, assets_dir: &Path) -> String {
+    let relative_path = absolute_path.strip_prefix(assets_dir).unwrap();
+
+    // Make sure the relative path is using unix style path separators
+    let mut relative_path_string = relative_path.to_str().unwrap().replace("\\", "/");
+
+    if relative_path_string.starts_with('/') {
+        relative_path_string = relative_path_string[1..].to_string();
+    }
+
+    relative_path_string
 }
 
 /// Assets are anything that can be loaded from disk.

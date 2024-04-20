@@ -62,13 +62,15 @@ impl Application for App {
 
         let model_mesh = asset_server()
             .write()
-            .load::<MeshAsset>(Path::new("jet.obj"))
+            .load::<MeshAsset>(Path::new("./models\\jet.obj/"))
             .unwrap();
 
         let model_texture = asset_server()
             .write()
             .load::<TextureAsset>(Path::new("jet.png"))
             .unwrap();
+
+        println!("{:?}", model_mesh);
 
         let model_material = Resource::new(Material::Unlit(Unlit::new(
             Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -328,7 +330,7 @@ impl ShowBoundingBoxScript {
 
 impl Script for ShowBoundingBoxScript {
     // TODO: Script delta time
-    fn update(&mut self, engine: &mut Engine, app: &mut DynApp, entity: cobalt::ecs::Entity) {
+    fn update(&mut self, engine: &mut Engine, _app: &mut DynApp, entity: cobalt::ecs::Entity) {
         let renderable = engine
             .scene
             .world
@@ -363,25 +365,25 @@ impl Script for ShowBoundingBoxScript {
         *transform.position_mut() = aabb.get_center() + follow_pos;
     }
 
-    fn on_load(&self, engine: &mut Engine, entity: cobalt::ecs::Entity) {
+    fn on_load(&self, _engine: &mut Engine, _entity: cobalt::ecs::Entity) {
         todo!()
     }
 }
 
 struct SpritesScript {
-    cam_pos: Vec3,
+    _cam_pos: Vec3,
 }
 
 impl SpritesScript {
     pub fn new() -> Self {
         Self {
-            cam_pos: Vec3::zero(),
+            _cam_pos: Vec3::zero(),
         }
     }
 }
 
 impl Script for SpritesScript {
-    fn update(&mut self, engine: &mut Engine, app: &mut DynApp, entity: cobalt::ecs::Entity) {
+    fn update(&mut self, engine: &mut Engine, _app: &mut DynApp, entity: cobalt::ecs::Entity) {
         let sprite_trans = engine
             .scene
             .world
@@ -399,7 +401,7 @@ impl Script for SpritesScript {
         *sprite_trans.rotation_mut() = rot;
     }
 
-    fn on_load(&self, engine: &mut Engine, entity: cobalt::ecs::Entity) {
+    fn on_load(&self, _engine: &mut Engine, _entity: cobalt::ecs::Entity) {
         todo!()
     }
 }
