@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+default = []
+debug_perf_stats = ["cobalt_core/debug_perf_stats"]
+
 
 [dependencies]
 cobalt_core = { path = "cobalt_core" }

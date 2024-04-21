@@ -86,10 +86,10 @@ impl Stats {
         self.data.get_mut(label)
     }
 
-    pub fn get_mut_else_default(&mut self, label: &str, default: Stat) -> &mut (Stat, bool) {
+    pub fn get_mut_else_default(&mut self, label: &str, default: (Stat, bool)) -> &mut (Stat, bool) {
         self.data
             .entry(label.to_string())
-            .or_insert((default, false))
+            .or_insert(default)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&String, &Stat)> {

@@ -14,7 +14,6 @@ use wgpu::util::DeviceExt;
 use crate::{
     ecs::component::Component,
     graphics::{context::Graphics, HasBindGroup, HasBindGroupLayout},
-    stats::{Stat, Stats},
 };
 
 static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
@@ -309,12 +308,14 @@ impl HasBindGroup for Transform {
 
             #[cfg(feature = "debug_perf_stats")]
             {
+                use crate::stats::{Stat, Stats};
+
                 let end = std::time::Instant::now();
                 let mut stats = Stats::global();
 
                 let (record, _) = stats.get_mut_else_default(
                     "Transform::bind_group::write_buffer::Duration",
-                    Stat::Duration(std::time::Duration::new(0, 0)),
+                    (Stat::Duration(std::time::Duration::new(0, 0)), true),
                 );
 
                 match record {

@@ -16,6 +16,7 @@ use cobalt_core::{
 };
 
 pub mod exports {
+    pub use super::App;
     pub use super::Engine;
 }
 
@@ -61,8 +62,12 @@ impl Engine {
         })
     }
 
-    pub fn run(mut self) -> Result<(), Box<dyn Error>> {
+    pub fn run(mut self, mut app: Box<dyn App>) -> Result<(), Box<dyn Error>> {
         log::info!("Running engine...");
+
+        let mut last_app_update = std::time::Instant::now();
+
+        app.on_start(&mut self);
 
         self.event_loop.take().unwrap().run(move |event, elwt| {
             elwt.set_control_flow(winit::event_loop::ControlFlow::Poll);
@@ -79,11 +84,21 @@ impl Engine {
                     }
 
                     match event {
-                        WindowEvent::CloseRequested => elwt.exit(),
+                        WindowEvent::CloseRequested => {
+                            app.on_stop(&mut self);
+
+                            elwt.exit()
+                        }
                         WindowEvent::RedrawRequested => {
-                            let graphics = Graphics::global_read();
+                            {
+                                let delta_time = last_app_update.elapsed().as_secs_f32();
+                                app.on_update(&mut self, delta_time);
+                                last_app_update = std::time::Instant::now();
+                            }
 
                             let cpu_render_start = std::time::Instant::now();
+                            
+                            let graphics = Graphics::global_read();
 
                             let mut frame = graphics.begin_frame().unwrap();
 
@@ -138,4 +153,11 @@ impl Engine {
 
         Ok(())
     }
+}
+
+// TODO: Reorganize this
+pub trait App {
+    fn on_start(&mut self, _engine: &mut Engine) {}
+    fn on_update(&mut self, _engine: &mut Engine, _delta_time: f32) {}
+    fn on_stop(&mut self, _engine: &mut Engine) {}
 }

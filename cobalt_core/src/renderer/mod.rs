@@ -7,7 +7,9 @@ mod proj_view;
 
 use self::{camera::Camera, material::MaterialTrait, proj_view::ProjView, renderable::Renderable};
 use crate::{
-    components::transform::Transform, ecs::{entity::Entity, world::World}, graphics::{context::Graphics, frame::Frame, CreateBindGroup, HasBindGroup}, stats::{Stat, Stats}
+    components::transform::Transform,
+    ecs::{entity::Entity, world::World},
+    graphics::{context::Graphics, frame::Frame, CreateBindGroup, HasBindGroup},
 };
 use std::error::Error;
 use ultraviolet::Mat4;
@@ -16,6 +18,17 @@ pub mod exports {
     pub mod renderables {
         pub use super::super::renderable::mesh::Mesh;
         pub use super::super::renderable::plane::Plane;
+    }
+
+    pub use super::material::Material;
+
+    pub mod materials {
+        pub use super::super::material::Unlit;
+        pub use super::super::material::Wireframe;
+    }
+
+    pub mod camera {
+        pub use super::super::camera::Projection;
     }
 }
 
