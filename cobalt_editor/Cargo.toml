@@ -1,0 +1,16 @@
+[package]
+name = "cobalt_editor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.27.0"
+eframe = { version = "0.27.0", default-features = false, features = [
+    # "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+] }
+simple_logger = "4.3.3"
+serde = { version = "1.0.198", features = ["derive"] }
+log = "0.4.21"

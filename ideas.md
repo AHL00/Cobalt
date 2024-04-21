@@ -94,3 +94,9 @@
 - Check cherno video
 - Asset system can search path for any .cpak files and load the file names present
 - If the game tries to load a file, it will check if it's in the cpak file and load it from there
+
+## Crate splitting
+- Split the engine into multiple crates:
+- cobalt_core: Contains the core engine functionality, like the ECS, renderer, etc.
+- cobalt_runtime: Contains the runtime functionality, like asset loading, actual main thread stuff, etc.
+- cobalt_editor: Contains the editor functionality, like the editor UI, building asset packs.
