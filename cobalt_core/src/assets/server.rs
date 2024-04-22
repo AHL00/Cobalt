@@ -10,7 +10,7 @@ use super::exports::{AssetHandle, AssetLoadError, Asset};
 
 /// Global asset server.
 /// This is in a RwLock to allow for multiple threads to access the asset server.
-static mut ASSET_SERVER: Option<Arc<RwLock<AssetServer>>> = None;
+pub(super) static mut ASSET_SERVER: Option<Arc<RwLock<AssetServer>>> = None;
 
 pub struct AssetServer {
     /// This is a map of the assets that are currently loaded.
@@ -39,7 +39,7 @@ impl AssetServer {
         unsafe {
             ASSET_SERVER
                 .as_ref()
-                .expect("Graphics context requested before initialization")
+                .expect("Asset server requested before initialization")
                 .read()
         }
     }
@@ -49,7 +49,7 @@ impl AssetServer {
         unsafe {
             ASSET_SERVER
                 .as_ref()
-                .expect("Graphics context requested before initialization")
+                .expect("Asset server requested before initialization")
                 .write()
         }
     }
@@ -59,14 +59,13 @@ impl AssetServer {
     /// This will create a new asset server with no assets.
     /// To load assets, use the load method.
     /// The default assets directory is the current directory.
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             assets: HashMap::new(),
             assets_dir: PathBuf::from("./"),
         }
     }
 
-    // TODO: Better handling of different path formats, like adding a ./ or something
     pub fn set_assets_dir(&mut self, assets_dir: &str) {
         let assets_dir_path = PathBuf::from(assets_dir);
 
@@ -76,56 +75,66 @@ impl AssetServer {
             std::env::current_dir().unwrap().join(assets_dir_path)
         };
 
-        self.assets_dir = absolute_assets_dir_path;
+        self.assets_dir = absolute_assets_dir_path.canonicalize().expect("Failed to canonicalize assets directory");
     }
 
     /// Load an asset from disk.
     /// If the asset is already loaded, it will not load it again.
     /// The path is relative to the assets directory.
-    pub fn load<T: Asset>(&mut self, path: &Path) -> Result<AssetHandle<T>, AssetLoadError> {
-        let path_str = path
-            .as_os_str()
-            .to_str()
-            .expect("Failed to convert path to string");
+    pub fn load<T: Asset>(
+        &mut self,
+        path: &Path,
+    ) -> Result<AssetHandle<T>, AssetLoadError> {
+        let absolute_path = self.assets_dir.join(path);
+
+        let relative_path_string = extract_relative_path(&absolute_path, &self.assets_dir);
 
         // Check if the asset is already loaded
-        if let Some((asset, count)) = self.assets.get_mut(path_str) {
+        if let Some((asset, count)) = self.assets.get_mut(relative_path_string.as_str()) {
             // If the asset is loaded, increment the count
             *count += 1;
 
             if let Some(asset) = asset.upgrade() {
-                return Ok(AssetHandle::new(ImString::from_str(path_str).unwrap(), asset));
+                return Ok(AssetHandle::new(
+                    ImString::from_str(relative_path_string.as_str()).unwrap(),
+                    asset,
+                ));
             }
         }
 
-        let asset_handle_path = ImString::from_str(path_str).unwrap();
-
-        let absolute_path = self.assets_dir.join(path);
+        let asset_handle_path = ImString::from_str(relative_path_string.as_str()).unwrap();
 
         let file = std::fs::File::open(&absolute_path)?;
 
         let buf_reader = BufReader::new(file);
 
-        let asset = Arc::new(RwLock::new(T::load_from_file(
-            buf_reader,
-            &asset_handle_path,
-            &absolute_path,
-        )?));
+        let asset = Arc::new(RwLock::new(T::load_from_file(buf_reader, &asset_handle_path, &absolute_path)?));
 
         let asset_any = unsafe {
             Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
         };
 
-        self.assets
-            .insert(asset_handle_path.clone(), (Arc::downgrade(&asset_any), 1));
+        self.assets.insert(
+            asset_handle_path.clone(),
+            (Arc::downgrade(&asset_any), 1),
+        );
 
-        Ok(AssetHandle::new(asset_handle_path, asset_any))
-    }
-
-    /// For use in tests only
-    #[allow(dead_code)]
-    pub(super) fn clear(&mut self) {
-        self.assets.clear();
+        Ok(AssetHandle::new(
+            asset_handle_path,
+            asset_any,
+        ))
     }
 }
 
+fn extract_relative_path(absolute_path: &Path, assets_dir: &Path) -> String {
+    let relative_path = absolute_path.strip_prefix(assets_dir).unwrap();
+
+    // Make sure the relative path is using unix style path separators
+    let mut relative_path_string = relative_path.to_str().unwrap().replace("\\", "/");
+
+    if relative_path_string.starts_with('/') {
+        relative_path_string = relative_path_string[1..].to_string();
+    }
+
+    relative_path_string
+}

@@ -19,8 +19,8 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Run core tests
-      run: cd cobalt_core && cargo test --verbose
+      run: cd cobalt_core && cargo test --verbose -- --test-threads=1
     - name: Run runtime tests
-      run: cd cobalt_runtime && cargo test --verbose
+      run: cd cobalt_runtime && cargo test --verbose -- --test-threads=1
     - name: Run editor tests
-      run: cd cobalt_editor && cargo test --verbose
+      run: cd cobalt_editor && cargo test --verbose -- --test-threads=1

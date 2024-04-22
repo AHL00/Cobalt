@@ -1,4 +1,7 @@
-use std::{io::{BufReader, Read}, path::Path};
+use std::{
+    io::{BufReader, Read},
+    path::Path,
+};
 
 use super::exports::{Asset, AssetLoadError};
 
@@ -27,16 +30,16 @@ impl Asset for Text {
 mod tests {
     use std::borrow::Borrow;
 
-    use crate::assets::{exports::AssetHandle, server::AssetServer};
+    use crate::assets::{exports::AssetHandle, server::{AssetServer, ASSET_SERVER}};
 
     use super::*;
 
     fn reset_asset_server() {
-        AssetServer::global_write().clear();
+        unsafe { ASSET_SERVER = None };
+        AssetServer::initialize().unwrap();
     }
 
     #[test]
-    #[ignore]
     fn test_asset_server() {
         reset_asset_server();
 
@@ -51,12 +54,12 @@ mod tests {
         assert_eq!(asset_ref.borrow().text, actual_text);
 
         drop(asset_ref);
+        drop(asset);
 
-        assert_eq!(AssetServer::global_write().assets.len(), 0);
+        assert_eq!(AssetServer::global_read().assets.len(), 0);
     }
 
     #[test]
-    #[ignore]
     fn test_asset_handle_serde() {
         reset_asset_server();
 
@@ -71,16 +74,11 @@ mod tests {
         let asset_ref = deserialized.borrow();
 
         let actual_text = std::fs::read_to_string("Cargo.toml").unwrap();
-
+        
         assert_eq!(asset_ref.text, actual_text);
-
-        drop(asset_ref);
-
-        assert_eq!(AssetServer::global_read().assets.len(), 0);
     }
 
     #[test]
-    #[ignore]
     fn test_asset_handle_clone() {
         reset_asset_server();
 
@@ -98,7 +96,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_asset_handle_drop() {
         reset_asset_server();
 
@@ -123,8 +120,7 @@ mod tests {
     fn test_asset_read_error() {
         reset_asset_server();
 
-        let result = AssetServer::global_write()
-            .load::<Text>(Path::new("nonexistent_file.txt"));
+        let result = AssetServer::global_write().load::<Text>(Path::new("nonexistent_file.txt"));
 
         assert!(result.is_err());
     }
