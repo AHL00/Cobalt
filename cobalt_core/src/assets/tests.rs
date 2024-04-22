@@ -30,7 +30,7 @@ impl Asset for Text {
 mod tests {
     use std::borrow::Borrow;
 
-    use crate::assets::{exports::AssetHandle, server::{AssetServer, ASSET_SERVER}};
+    use crate::assets::{exports::AssetHandle, server::{AssetServer, AssetServerInternal, ASSET_SERVER}};
 
     use super::*;
 

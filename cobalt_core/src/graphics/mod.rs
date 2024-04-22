@@ -10,8 +10,8 @@ pub mod window;
 pub use winit;
 
 pub mod exports {
-    pub use wgpu as wgpu;
-    pub use super::window as window;
+    pub use wgpu;
+    pub use super::window;
 }
 
 /// Capable of creating a wgpu::BindGroupLayout.

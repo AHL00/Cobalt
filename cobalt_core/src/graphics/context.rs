@@ -11,6 +11,7 @@ use super::{frame::Frame, window::Window};
 static mut GRAPHICS: Option<Arc<RwLock<Graphics>>> = None;
 
 /// A global graphics context that manages the window, device, and other wgpu resources.
+/// This is marked as public but not exported to the user, it should not be necessary to access this outside of the renderer.
 pub struct Graphics {
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,

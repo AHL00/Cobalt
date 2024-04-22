@@ -3,9 +3,19 @@ pub struct Window {
     pub winit: winit::window::Window,
 }
 
+#[derive(Debug, Clone)]
 pub struct WindowConfig {
     pub title: String,
     pub size: (u32, u32),
+}
+
+impl Default for WindowConfig {
+    fn default() -> Self {
+        WindowConfig {
+            title: "Cobalt Engine".to_string(),
+            size: (800, 600),
+        }
+    }
 }
 
 pub trait WindowInternal {

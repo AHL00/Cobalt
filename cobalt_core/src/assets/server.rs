@@ -2,11 +2,15 @@ use hashbrown::HashMap;
 use imstr::ImString;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{
-    any::Any, error::Error, io::BufReader, path::{Path, PathBuf}, str::FromStr, sync::{Arc, Weak}
+    any::Any,
+    error::Error,
+    io::BufReader,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::{Arc, Weak},
 };
 
-use super::exports::{AssetHandle, AssetLoadError, Asset};
-
+use super::exports::{Asset, AssetHandle, AssetLoadError};
 
 /// Global asset server.
 /// This is in a RwLock to allow for multiple threads to access the asset server.
@@ -22,9 +26,14 @@ pub struct AssetServer {
     pub(crate) assets_dir: PathBuf,
 }
 
-impl AssetServer {
+pub trait AssetServerInternal {
     /// Initializes the global asset server.
-    pub fn initialize() -> Result<(), Box<dyn Error>> {
+    fn initialize() -> Result<(), Box<dyn Error>>;
+}
+
+impl AssetServerInternal for AssetServer {
+    /// Initializes the global asset server.
+    fn initialize() -> Result<(), Box<dyn Error>> {
         unsafe {
             ASSET_SERVER = Some(Arc::new(RwLock::new(Self::new())));
         }
@@ -33,7 +42,9 @@ impl AssetServer {
 
         Ok(())
     }
+}
 
+impl AssetServer {
     #[inline]
     pub fn global_read() -> RwLockReadGuard<'static, Self> {
         unsafe {
@@ -43,7 +54,7 @@ impl AssetServer {
                 .read()
         }
     }
-    
+
     #[inline]
     pub fn global_write() -> RwLockWriteGuard<'static, Self> {
         unsafe {
@@ -53,7 +64,6 @@ impl AssetServer {
                 .write()
         }
     }
-
 
     /// Create a new asset server
     /// This will create a new asset server with no assets.
@@ -75,16 +85,15 @@ impl AssetServer {
             std::env::current_dir().unwrap().join(assets_dir_path)
         };
 
-        self.assets_dir = absolute_assets_dir_path.canonicalize().expect("Failed to canonicalize assets directory");
+        self.assets_dir = absolute_assets_dir_path
+            .canonicalize()
+            .expect("Failed to canonicalize assets directory");
     }
 
     /// Load an asset from disk.
     /// If the asset is already loaded, it will not load it again.
     /// The path is relative to the assets directory.
-    pub fn load<T: Asset>(
-        &mut self,
-        path: &Path,
-    ) -> Result<AssetHandle<T>, AssetLoadError> {
+    pub fn load<T: Asset>(&mut self, path: &Path) -> Result<AssetHandle<T>, AssetLoadError> {
         let absolute_path = self.assets_dir.join(path);
 
         let relative_path_string = extract_relative_path(&absolute_path, &self.assets_dir);
@@ -108,21 +117,20 @@ impl AssetServer {
 
         let buf_reader = BufReader::new(file);
 
-        let asset = Arc::new(RwLock::new(T::load_from_file(buf_reader, &asset_handle_path, &absolute_path)?));
+        let asset = Arc::new(RwLock::new(T::load_from_file(
+            buf_reader,
+            &asset_handle_path,
+            &absolute_path,
+        )?));
 
         let asset_any = unsafe {
             Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
         };
 
-        self.assets.insert(
-            asset_handle_path.clone(),
-            (Arc::downgrade(&asset_any), 1),
-        );
+        self.assets
+            .insert(asset_handle_path.clone(), (Arc::downgrade(&asset_any), 1));
 
-        Ok(AssetHandle::new(
-            asset_handle_path,
-            asset_any,
-        ))
+        Ok(AssetHandle::new(asset_handle_path, asset_any))
     }
 }
 
