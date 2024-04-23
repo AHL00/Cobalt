@@ -1,3 +1,5 @@
+use super::context::Graphics;
+
 
 pub struct Frame<'a> {
     pub(super) encoder: wgpu::CommandEncoder,

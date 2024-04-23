@@ -5,8 +5,8 @@
 #![feature(fn_traits)]
 #![feature(lazy_cell)]
 
-mod internal;
 
+pub mod utils;
 /// A global asset system.
 pub mod assets;
 pub mod components;

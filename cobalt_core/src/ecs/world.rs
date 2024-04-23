@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use crate::internal::bit_array::SimdBitArray;
+use crate::utils::bit_array::SimdBitArray;
 
 use super::{
     component::Component, component::ComponentId, entity::Entity, entity::EntityData,

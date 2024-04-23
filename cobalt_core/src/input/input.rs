@@ -3,15 +3,49 @@ use winit::event::WindowEvent;
 pub use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 
+// TODO: Clean up and re-organise into multiple files
+
 pub struct Input {
     keyboard: Keyboard,
     mouse: Mouse,
 }
 
+/// Represents changes in input state.
+#[derive(Debug, Clone)]
+pub enum InputEvent {
+    KeyboardEvent(KeyboardEvent),
+    MouseEvent(MouseEvent),
+}
+
+/// Represents changes in keyboard state.
+#[derive(Debug, Clone)]
+pub enum KeyboardEvent {
+    /// The key was pressed. Only triggers once even if the key is held.
+    Pressed(KeyCode),
+    /// The key was released.
+    Released(KeyCode),
+}
+
+/// Represents changes in mouse state.
+#[derive(Debug, Clone)]
+pub enum MouseEvent {
+    /// The mouse button was pressed. Only triggers once even if the button is held.
+    Pressed(MouseButton),
+    /// The mouse button was released.
+    Released(MouseButton),
+    /// The mouse was moved by the given delta.
+    Moved(f32, f32),
+    /// The mouse wheel was scrolled by the given delta.
+    Scrolled(f32, f32),
+}
+
 pub trait InputInternal {
     /// Called on every new event.
-    /// Returns whether the event was consumed.
-    fn update(&mut self, event: &WindowEvent) -> bool;
+    /// Returns an `InputEvent` if the input state was changed.
+    /// This also means that the event was consumed.
+    /// Returns: (Event / State change, Consumed).
+    /// Sometimes, the event is consumed but the input state wasn't changed.
+    fn update(&mut self, event: &WindowEvent) -> (Option<InputEvent>, bool);
 
     /// Called between frames.
     /// This should be called after functions that use the input state.
@@ -22,12 +56,20 @@ pub trait InputInternal {
 
 /// To be used by other engine crates.
 impl InputInternal for Input {
-    fn update(&mut self, event: &WindowEvent) -> bool {
-        if self.keyboard.update(event) || self.mouse.update(event) {
-            true
-        } else {
-            false
-        }
+    fn update(&mut self, event: &WindowEvent) -> (Option<InputEvent>, bool) {
+        let (keyboard_event, keyboard_consumed) = self.keyboard.update(event); 
+
+        let (mouse_event, mouse_consumed) = self.mouse.update(event);
+
+        let consumed = keyboard_consumed || mouse_consumed;
+
+        let input_event = match (keyboard_event, mouse_event) {
+            (Some(keyboard_event), None) => Some(InputEvent::KeyboardEvent(keyboard_event)),
+            (None, Some(mouse_event)) => Some(InputEvent::MouseEvent(mouse_event)),
+            _ => None,
+        };
+
+        (input_event, consumed)
     }
 
     fn prepare(&mut self) {
@@ -129,7 +171,8 @@ impl Keyboard {
 
     /// Updates the keyboard state.
     /// Called on every new event.
-    pub(crate) fn update(&mut self, event: &WindowEvent) -> bool {
+    /// (Event, Consumed)
+    pub(crate) fn update(&mut self, event: &WindowEvent) -> (Option<KeyboardEvent>, bool) {
         let key_event = match event {
             WindowEvent::KeyboardInput { event, .. } => Some(event),
             _ => None,
@@ -139,46 +182,53 @@ impl Keyboard {
 
         if let Some(key_event) = key_event {
             if key_event.repeat {
-                return true;
+                return (None, true);
             }
 
             let physical_key = key_event.physical_key;
 
-            match physical_key {
-                PhysicalKey::Code(current_key) => {
-                    for (key, state) in self.keys.iter_mut() {
-                        if *key == current_key {
-                            key_found_in_vec = true;
+            // TODO: Fix, for now if the key is not a recognized key, it is ignored
+            if let PhysicalKey::Code(key_code) = physical_key {
+                let keyboard_event = match key_event.state {
+                    winit::event::ElementState::Pressed => KeyboardEvent::Pressed(key_code),
+                    winit::event::ElementState::Released => KeyboardEvent::Released(key_code),
+                };
 
-                            match key_event.state {
-                                winit::event::ElementState::Pressed => {
-                                    *state = ButtonState::Pressed;
-                                }
-                                winit::event::ElementState::Released => {
-                                    *state = ButtonState::Released;
-                                }
+                for (key, state) in self.keys.iter_mut() {
+                    if *key == key_code {
+                        key_found_in_vec = true;
+
+                        match key_event.state {
+                            winit::event::ElementState::Pressed => {
+                                *state = ButtonState::Pressed;
+                            }
+                            winit::event::ElementState::Released => {
+                                *state = ButtonState::Released;
                             }
                         }
                     }
-
-                    // New key, which means it can't be held or released
-                    if !key_found_in_vec {
-                        let button_state = match key_event.state {
-                            winit::event::ElementState::Pressed => ButtonState::Pressed,
-                            winit::event::ElementState::Released => ButtonState::Released,
-                        };
-
-                        self.keys.push((current_key, button_state));
-                    }
                 }
-                _ => (),
-            }
 
-            // Consumed
-            true
+                // New key, which means it can't be held. It could be released if mouse
+                // was held before start of app.
+                if !key_found_in_vec {
+                    let button_state = match key_event.state {
+                        winit::event::ElementState::Pressed => ButtonState::Pressed,
+                        winit::event::ElementState::Released => ButtonState::Released,
+                    };
+
+                    self.keys.push((key_code, button_state));
+                }
+
+                // Consumed and state changed
+                (Some(keyboard_event), true)
+            } else {
+                // Consumed but state not changed as the key is not recognized
+                (None, true)
+            }
         } else {
             // Not consumed
-            false
+            (None, false)
         }
     }
 
@@ -235,8 +285,10 @@ impl Mouse {
 
         self.last_prep = std::time::Instant::now();
     }
-
-    pub(crate) fn update(&mut self, event: &WindowEvent) -> bool {
+    /// Updates the keyboard state. 
+    /// Called on every new event. 
+    /// (Event, Consumed)
+    pub(crate) fn update(&mut self, event: &WindowEvent) -> (Option<MouseEvent>, bool) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 self.delta = (
@@ -246,16 +298,21 @@ impl Mouse {
 
                 self.position = (position.x as f32, position.y as f32);
 
-                true
+                (Some(MouseEvent::Moved(self.delta.0, self.delta.1)), true)
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                // TODO: Mouse wheel
+                // TODO: Mouse wheel input
                 let _ = delta;
 
-                true
+                (Some(MouseEvent::Scrolled(0.0, 0.0)), true)
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let mut button_found_in_vec = false;
+
+                let mouse_event = match state {
+                    winit::event::ElementState::Pressed => MouseEvent::Pressed(*button),
+                    winit::event::ElementState::Released => MouseEvent::Released(*button),
+                };
 
                 for (b, s) in self.buttons.iter_mut() {
                     if *b == *button {
@@ -281,9 +338,9 @@ impl Mouse {
                     self.buttons.push((*button, button_state));
                 }
 
-                true
+                (Some(mouse_event), true)
             }
-            _ => false,
+            _ => (None, false),
         }
     }
 

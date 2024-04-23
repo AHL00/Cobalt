@@ -4,7 +4,7 @@ use self::sealed::{QuerySealed, SealedQueryMut};
 use super::{
     component::Component, storage::ComponentStorage, entity::{Entity, EntityData}, world::World,
 };
-use crate::internal::bit_array::SimdBitArray;
+use crate::utils::bit_array::SimdBitArray;
 use std::any::TypeId;
 
 pub trait Query<'a>: QuerySealed<'a> {}

@@ -19,6 +19,42 @@ pub enum Stat {
     Duration(std::time::Duration),
 }
 
+impl From<f32> for Stat {
+    fn from(value: f32) -> Self {
+        Self::f32(value)
+    }
+}
+
+impl From<i32> for Stat {
+    fn from(value: i32) -> Self {
+        Self::i32(value)
+    }
+}
+
+impl From<u32> for Stat {
+    fn from(value: u32) -> Self {
+        Self::u32(value)
+    }
+}
+
+impl From<usize> for Stat {
+    fn from(value: usize) -> Self {
+        Self::usize(value)
+    }
+}
+
+impl From<String> for Stat {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<std::time::Duration> for Stat {
+    fn from(value: std::time::Duration) -> Self {
+        Self::Duration(value)
+    }
+}
+
 impl Stat {
     pub(crate) fn reset(&mut self) {
         match self {

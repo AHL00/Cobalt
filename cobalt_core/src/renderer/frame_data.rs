@@ -1,0 +1,69 @@
+#![allow(dead_code)]
+
+use wgpu::TextureView;
+
+use super::renderable::Renderable;
+use crate::{
+    components::transform::Transform, ecs::entity::Entity, exports::ecs::World, stats::Stats,
+};
+
+/// Holds the data required to render a renderable.
+pub struct RenderData<'a> {
+    pub renderable: &'a Renderable,
+    pub transform: &'a mut Transform,
+    pub entity: Entity,
+    pub in_frustum: bool,
+}
+
+/// Holds the data required to render a frame.
+/// It also helps generate that data from a few inputs using the `generate` method.
+pub struct FrameData<'a> {
+    pub depth_view: Option<wgpu::TextureView>,
+    pub render_data_vec: Vec<RenderData<'a>>,
+}
+
+impl<'a> FrameData<'a> {
+    /// Generates a list of `RenderData` from the world. It also performs other processing
+    /// such as frustum culling and sorting by material.
+    pub fn generate(world: &'a mut World, depth_view: Option<TextureView>) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut render_data_vec = Vec::new();
+
+        let renderable_query = world.query_mut::<(Transform, Renderable)>()?;
+
+        for (ent, (transform, renderable)) in renderable_query {
+            let render_data = RenderData {
+                renderable,
+                transform,
+                entity: ent,
+                in_frustum: true,
+            };
+
+            render_data_vec.push(render_data);
+        }
+
+        let pre_cull_count = render_data_vec.len();
+        // TODO: Implement frustum culling
+
+        // NOTE: Shadow mapping should be done before culling
+        // Can the shadow map do its own culling?
+        //
+
+        // Sort by material
+        // TODO: Instead of sorting, maybe just group
+        render_data_vec.sort_unstable_by(|a, b| {
+            a.renderable
+                .get_material()
+                .id
+                .cmp(&b.renderable.get_material().id)
+        });
+
+        let culled_count = pre_cull_count - render_data_vec.len();
+        Stats::global().set("culled_entities", culled_count.into(), false);
+        Stats::global().set("rendered_entities", render_data_vec.len().into(), false);
+
+        Ok(Self {
+            depth_view,
+            render_data_vec,
+        })
+    }
+}

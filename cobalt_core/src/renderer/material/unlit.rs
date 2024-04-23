@@ -7,7 +7,7 @@ use crate::{
     assets::asset::AssetHandle, exports::components::Transform, graphics::{
         context::Graphics, texture::TextureAsset, vertex::UvNormalVertex, HasBindGroup,
         HasBindGroupLayout, HasVertexBufferLayout,
-    }, renderer::ProjView
+    }, renderer::proj_view::ProjView
 };
 
 use super::MaterialTrait;

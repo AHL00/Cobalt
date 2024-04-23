@@ -1,7 +1,15 @@
 use std::error::Error;
 
-use cobalt_core::{assets::server::{AssetServer, AssetServerInternal}, graphics::{context::Graphics, window::{WindowConfig, WindowInternal}, winit}, input::InputInternal, stats::{Stats, StatsInternal}};
-
+use cobalt_core::{
+    assets::server::{AssetServer, AssetServerInternal},
+    graphics::{
+        context::Graphics,
+        window::{WindowConfig, WindowInternal},
+        winit,
+    },
+    input::InputInternal,
+    stats::{Stats, StatsInternal},
+};
 
 pub struct Engine {
     /// TODO: Replace with a SceneManager with its own SceneSerializer in which
@@ -21,20 +29,24 @@ impl Engine {
 
         let event_loop = winit::event_loop::EventLoop::new()?;
 
-        let window = cobalt_core::graphics::window::Window::new(
-            &event_loop,
-            window_cfg,
-        )?;
+        let window = cobalt_core::graphics::window::Window::new(&event_loop, window_cfg)?;
 
         // Initialize globals
         Graphics::initialize(&window)?;
         AssetServer::initialize()?;
         Stats::initialize();
 
+        let output_size = window.winit.inner_size();
+
         Ok(Engine {
             scene: cobalt_core::scenes::scene::Scene::new("Main Scene"),
             window,
-            renderer: Box::new(cobalt_core::renderer::DefaultRenderer::new()),
+            renderer: Box::new(
+                cobalt_core::renderer::exports::renderers::DeferredRenderer::new((
+                    output_size.width,
+                    output_size.height,
+                )),
+            ),
             input: cobalt_core::input::Input::new(),
 
             event_loop: Some(event_loop),

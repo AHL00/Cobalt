@@ -17,7 +17,7 @@ use crate::{
     app::App,
     plugins::{
         manager::PluginInternal,
-        plugin::{self, PluginError},
+        plugin::PluginError,
         PluginManager,
     },
 };
@@ -98,10 +98,19 @@ pub fn run(
             }
         }
 
+        // TODO: If close is requested, maybe ignore every other event?
+
         match event {
             Event::WindowEvent { event, window_id } if window_id == engine.window.winit.id() => {
                 // If event was consumed, no need to keep matching.
-                if engine.input.update(&event) {
+                let (input_new_event, input_consumed_event) =  engine.input.update(&event);
+                
+                if let Some(event) = input_new_event {
+                    // There are changes in the input
+                    app.on_input(&mut engine, event);
+                }
+
+                if input_consumed_event {
                     return;
                 }
 
@@ -176,7 +185,10 @@ pub fn run(
 
                         frame.clear(wgpu::Color::BLACK);
 
-                        engine.renderer.render(&mut frame, &mut engine.scene.world);
+                        engine.renderer.render(&mut frame, &mut engine.scene.world).unwrap_or_else(|e| {
+                            log::error!("Failed to render frame: {:?}", e);
+                            engine.exit();
+                        });
 
                         Stats::global().set(
                             "cpu_render_time",
@@ -232,6 +244,8 @@ pub fn run(
                             .unwrap_or_else(|e| {
                                 log::error!("Failed to resize renderer: {:?}", e);
                             });
+
+                        app.on_resize(&mut engine, size.width, size.height);
 
                         engine.window.winit.request_redraw();
                     }

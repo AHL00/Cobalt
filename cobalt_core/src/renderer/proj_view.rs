@@ -4,8 +4,8 @@ use wgpu::util::DeviceExt;
 
 use crate::graphics::{context::Graphics, CreateBindGroup, HasBindGroupLayout};
 
-pub(crate) struct ProjView {
-    multiplied: ultraviolet::Mat4,
+pub struct ProjView {
+    pub multiplied: ultraviolet::Mat4,
 }
 
 impl ProjView {
