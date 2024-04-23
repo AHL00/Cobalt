@@ -13,4 +13,4 @@ serde_yaml = "0.9.30"
 
 [dependencies.cobalt]
 path = "../../"
-features = ["debug_stats"]
+features = ["debug_stats", "debug_gui"]

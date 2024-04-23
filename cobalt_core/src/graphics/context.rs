@@ -6,7 +6,7 @@ use wgpu::{PresentMode, SurfaceTargetUnsafe};
 
 use crate::graphics::GraphicsError;
 
-use super::{frame::Frame, window::Window};
+use super::{exports::window::WindowInternal, frame::Frame, window::Window};
 
 static mut GRAPHICS: Option<Arc<RwLock<Graphics>>> = None;
 
@@ -68,7 +68,7 @@ impl Graphics {
         });
 
         let surface = unsafe {
-            instance.create_surface_unsafe(SurfaceTargetUnsafe::from_window(&window.winit)?)
+            instance.create_surface_unsafe(SurfaceTargetUnsafe::from_window(&window.winit())?)
         }
         .map_err(|e| {
             log::error!("Failed to create surface: {}", e);
@@ -125,7 +125,7 @@ impl Graphics {
             current_present_mode: PresentMode::AutoNoVsync,
         };
 
-        res.configure_surface(window.winit.inner_size().into(), PresentMode::AutoNoVsync);
+        res.configure_surface(window.winit().inner_size().into(), PresentMode::AutoNoVsync);
 
         Ok(res)
     }

@@ -1,22 +1,15 @@
 #![feature(downcast_unchecked)]
 
-mod test_plugin;
-
 use std::{any::Any, path::Path};
 
 use cobalt::{
-    assets::{AssetServer, MeshAsset, TextureAsset},
-    components::{Camera, Renderable, Transform},
-    ecs::Entity,
-    input::{InputEvent, KeyCode, KeyboardEvent},
-    maths::Vec4,
-    renderer::{
-        camera::Projection, materials::Unlit, renderables::Mesh,
-        renderers::{DeferredRenderer, DeferredRendererDebugMode}, Material,
-    },
-    runtime::App,
-    stats::Stats,
-    types::resource::Resource,
+    assets::{AssetServer, MeshAsset, TextureAsset}, components::{Camera, Renderable, Transform}, ecs::Entity, input::{InputEvent, KeyCode, KeyboardEvent}, maths::Vec4, plugins::debug_gui::DebugGUIPlugin, renderer::{
+        camera::Projection,
+        materials::Unlit,
+        renderables::Mesh,
+        renderers::{DeferredRenderer, DeferredRendererDebugMode},
+        Material,
+    }, runtime::{engine::Engine, plugins::PluginManager, App}, stats::Stats, types::resource::Resource
 };
 
 use cobalt::core::utils::as_any::AsAny;
@@ -28,7 +21,7 @@ struct Game {
 }
 
 impl App for Game {
-    fn on_start(&mut self, engine: &mut cobalt::runtime::engine::Engine) {
+    fn on_start(&mut self, engine: &mut Engine, _plugins: &mut PluginManager) {
         log::info!("Game started!");
 
         AssetServer::global_write().set_assets_dir("./assets/");
@@ -76,9 +69,18 @@ impl App for Game {
         engine.scene.world.add_component(cam_ent, cam_transform);
 
         self.main_camera = Some(cam_ent);
+
+        // Add debug gui
+        let debug_gui = _plugins.try_get_plugin::<DebugGUIPlugin>();
+
+        if let Some(debug_gui) = debug_gui {
+            log::info!("Debug GUI plugin found.");
+        } else {
+            log::error!("Debug GUI plugin not found.");
+        }
     }
 
-    fn on_update(&mut self, _engine: &mut cobalt::runtime::engine::Engine, _delta_time: f32) {
+    fn on_update(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, _delta_time: f32) {
         if self.last_log_time.elapsed().as_secs() >= 1 {
             log::info!("> Stats:");
             for (name, stat) in Stats::global().iter() {
@@ -90,7 +92,7 @@ impl App for Game {
         }
     }
 
-    fn on_input(&mut self, _engine: &mut cobalt::runtime::engine::Engine, event: InputEvent) {
+    fn on_input(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, event: InputEvent) {
         match event {
             InputEvent::KeyboardEvent(event) => {
                 match event {
@@ -116,7 +118,8 @@ impl App for Game {
                     // Filter through deferred rending G-Buffers
                     KeyboardEvent::Pressed(KeyCode::F10) => {
                         // Cast trait object renderer to DeferredRenderer
-                        let renderer: &mut DeferredRenderer = unsafe { _engine.renderer.as_any_mut().downcast_mut_unchecked() };
+                        let renderer: &mut DeferredRenderer =
+                            unsafe { _engine.renderer.as_any_mut().downcast_mut_unchecked() };
 
                         match self.current_renderer_debug_mode {
                             DeferredRendererDebugMode::None => {
@@ -172,8 +175,10 @@ fn main() {
             size: (1280, 720),
         })
         // Will be implemented later
-        // .with_plugin(Box::new(cobalt::plugins::dev_gui::Plugin), 0)
-        // .with_plugin(Box::new(TestPlugin::new()), 0)
+        .with_plugin(
+            Box::new(cobalt::plugins::debug_gui::DebugGUIPlugin::new()),
+            0,
+        )
         .run(&mut game_app)
         .unwrap_or_else(|e| {
             log::error!("Runtime error: {:?}", e);

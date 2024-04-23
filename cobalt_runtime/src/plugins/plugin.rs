@@ -1,11 +1,12 @@
 use std::error::Error;
 
-use cobalt_core::graphics::frame::Frame;
+use cobalt_core::graphics::{frame::Frame, winit};
 
 use crate::engine::Engine;
 
-/// Structs that allows more functionality to be implemented into the `Engine`. 
+/// Structs that allows more functionality to be implemented into the `Engine`.
 /// Returning an error in any of the functions will stop the engine, unless the error is specified as non-fatal.
+/// Warning: Do not call any of these functions directly, they are called by the engine.
 pub trait Plugin {
     /// Called once at the start of the engine.
     fn startup(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
@@ -23,9 +24,24 @@ pub trait Plugin {
         Ok(())
     }
 
+    /// Called when an event is received. Plugins get access to events before the engine does.
+    /// If the function returns `true`, the event will be consumed and not processed by the engine.
+    fn event(
+        &mut self,
+        _engine: &mut Engine,
+        _event: winit::event::Event<()>,
+    ) -> Result<bool, PluginError> {
+        Ok(false)
+    }
+
+    /// Called on window resize.
+    fn on_resize(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
+        Ok(())
+    }
+
     /// Called in the main event loop. Should be very fast, ideally this should not be
     /// used.
-    fn update(&mut self, _engine: &mut Engine)  -> Result<(), PluginError> {
+    fn update(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
         Ok(())
     }
 
@@ -37,6 +53,7 @@ pub trait Plugin {
     fn name(&self) -> &'static str;
 }
 
+#[derive(Debug)]
 pub enum PluginError {
     /// A fatal error will stop the engine.
     Fatal(Box<dyn Error>),

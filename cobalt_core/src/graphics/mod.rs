@@ -8,9 +8,10 @@ pub mod vertex;
 pub mod window;
 
 pub use winit;
+pub use wgpu;
 
 pub mod exports {
-    pub use wgpu;
+    pub use super::wgpu;
     pub use super::window;
 }
 

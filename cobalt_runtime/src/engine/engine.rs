@@ -36,7 +36,7 @@ impl Engine {
         AssetServer::initialize()?;
         Stats::initialize();
 
-        let output_size = window.winit.inner_size();
+        let output_size = window.winit().inner_size();
 
         Ok(Engine {
             scene: cobalt_core::scenes::scene::Scene::new("Main Scene"),

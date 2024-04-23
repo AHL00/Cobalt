@@ -6,11 +6,17 @@ edition = "2021"
 [features]
 default = []
 debug_stats = ["cobalt_core/debug_stats"]
-
+debug_gui = ["egui", "egui-winit", "egui-wgpu"]
 
 [dependencies]
 cobalt_core = { path = "cobalt_core" }
 cobalt_runtime = { path = "cobalt_runtime" }
+
+# Dev GUI
+egui = {version = "0.27.2", optional = true}
+egui-winit = {version = "0.27.2", optional = true}
+egui-wgpu = {version = "0.27.2", optional = true}
+log = "0.4.21"
 
 [dev-dependencies]
 simple_logger = "4.3.3"

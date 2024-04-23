@@ -5,7 +5,7 @@ use plugins::exports::Plugin;
 
 use crate::{
     app::App,
-    plugins::{self, PluginManager},
+    plugins::{self, manager::PluginManagerInternal, PluginManager},
 };
 
 use super::{exports::Engine, run::run as main_loop};
@@ -25,7 +25,7 @@ impl EngineBuilder {
 
     /// Adds a plugin to the engine.
     /// Lower `run_priority`` values will be run earlier, in case of overlap, the plugin added first will be run first but the order is not guaranteed.
-    pub fn with_plugin(mut self, plugin: Box<dyn Plugin>, run_priority: u32) -> Self
+    pub fn with_plugin<T: Plugin + 'static>(mut self, plugin: Box<T>, run_priority: u32) -> Self
     {
         self.plugins.add_plugin(plugin, run_priority);
         self

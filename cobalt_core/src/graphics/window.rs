@@ -1,8 +1,7 @@
 use winit::{dpi::PhysicalSize, monitor::VideoMode};
 
 pub struct Window {
-    // TODO: Implement own methods and make winit window private.
-    pub winit: winit::window::Window,
+    winit: winit::window::Window,
 }
 
 #[derive(Debug, Clone)]

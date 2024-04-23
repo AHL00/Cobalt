@@ -2,12 +2,10 @@ use std::error::Error;
 
 use cobalt_core::{
     graphics::{
-        context::Graphics,
-        exports::wgpu,
-        winit::{
+        context::Graphics, exports::wgpu, window::WindowInternal, winit::{
             self,
             event::{Event, WindowEvent},
-        },
+        }
     },
     input::InputInternal,
     stats::{Stat, Stats, StatsInternal},
@@ -34,7 +32,7 @@ pub fn run(
 
     let mut last_app_update = std::time::Instant::now();
 
-    app.on_start(&mut engine);
+    app.on_start(&mut engine, &mut plugins);
 
     for (plugin, _, _) in plugins.get_plugins_in_order() {
         let res = plugin.startup(&mut engine);
@@ -100,14 +98,51 @@ pub fn run(
 
         // TODO: If close is requested, maybe ignore every other event?
 
+        // Let plugins process events before the engine.
+        let mut plugin_consumed_event = false;
+
+        for (plugin, _, _) in plugins.get_plugins_in_order() {
+            let res = plugin.event(&mut engine, event.clone());
+
+            if let Err(e) = res {
+                match e {
+                    PluginError::Fatal(e) => {
+                        log::error!(
+                            "Plugin '{}' failed in event: {:?}. Fatal error, stopping...",
+                            plugin.name(),
+                            e
+                        );
+                        engine.exit();
+                    }
+                    PluginError::NonFatal(e) => {
+                        log::error!(
+                            "Plugin '{}' failed in event: {:?}. Non-fatal error, continuing...",
+                            plugin.name(),
+                            e
+                        );
+                        continue;
+                    }
+                }
+            } else {
+                if res.unwrap() {
+                    plugin_consumed_event = true;
+                    break;
+                }
+            }
+        }
+
+        if plugin_consumed_event {
+            return;
+        }
+
         match event {
-            Event::WindowEvent { event, window_id } if window_id == engine.window.winit.id() => {
+            Event::WindowEvent { event, window_id } if window_id == engine.window.winit().id() => {
                 // If event was consumed, no need to keep matching.
                 let (input_new_event, input_consumed_event) =  engine.input.update(&event);
-                
+
                 if let Some(event) = input_new_event {
                     // There are changes in the input
-                    app.on_input(&mut engine, event);
+                    app.on_input(&mut engine, &mut plugins, event);
                 }
 
                 if input_consumed_event {
@@ -116,7 +151,7 @@ pub fn run(
 
                 match event {
                     WindowEvent::CloseRequested => {
-                        app.on_stop(&mut engine);
+                        app.on_stop(&mut engine, &mut plugins);
 
                         for (plugin, _, _) in plugins.get_plugins_in_order() {
                             let res = plugin.shutdown(&mut engine);
@@ -173,7 +208,7 @@ pub fn run(
 
                         {
                             let delta_time = last_app_update.elapsed().as_secs_f32();
-                            app.on_update(&mut engine, delta_time);
+                            app.on_update(&mut engine, &mut plugins, delta_time);
                             last_app_update = std::time::Instant::now();
                         }
 
@@ -224,7 +259,7 @@ pub fn run(
                         let gpu_render_start = std::time::Instant::now();
 
                         graphics
-                            .end_frame(frame, Some(|| engine.window.winit.pre_present_notify()));
+                            .end_frame(frame, Some(|| engine.window.winit().pre_present_notify()));
 
                         Stats::global().set(
                             "gpu_render_time",
@@ -245,15 +280,40 @@ pub fn run(
                                 log::error!("Failed to resize renderer: {:?}", e);
                             });
 
-                        app.on_resize(&mut engine, size.width, size.height);
+                        app.on_resize(&mut engine, &mut plugins, size.width, size.height);
 
-                        engine.window.winit.request_redraw();
+                        for (plugin, _, _) in plugins.get_plugins_in_order() {
+                            let res = plugin.on_resize(&mut engine);
+
+                            if let Err(e) = res {
+                                match e {
+                                    PluginError::Fatal(e) => {
+                                        log::error!(
+                                            "Plugin '{}' failed in on_resize: {:?}. Fatal error, stopping...",
+                                            plugin.name(),
+                                            e
+                                        );
+                                        engine.exit();
+                                    }
+                                    PluginError::NonFatal(e) => {
+                                        log::error!(
+                                            "Plugin '{}' failed in on_resize: {:?}. Non-fatal error, continuing...",
+                                            plugin.name(),
+                                            e
+                                        );
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+
+                        engine.window.winit().request_redraw();
                     }
                     _ => (),
                 }
             }
             Event::AboutToWait => {
-                engine.window.winit.request_redraw();
+                engine.window.winit().request_redraw();
             }
             _ => (),
         };
