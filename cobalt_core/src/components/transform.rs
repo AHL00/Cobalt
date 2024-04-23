@@ -296,7 +296,7 @@ impl HasBindGroup for Transform {
         }
 
         if self.buffer_dirty {
-            #[cfg(feature = "debug_perf_stats")]
+            #[cfg(feature = "debug_stats")]
             let start = std::time::Instant::now();
 
             graphics.queue.write_buffer(
@@ -306,7 +306,7 @@ impl HasBindGroup for Transform {
             );
             self.buffer_dirty = false;
 
-            #[cfg(feature = "debug_perf_stats")]
+            #[cfg(feature = "debug_stats")]
             {
                 use crate::stats::{Stat, Stats};
 

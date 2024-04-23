@@ -3,6 +3,8 @@ use winit::event::WindowEvent;
 pub use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 
+use crate::stats::Stats;
+
 // TODO: Clean up and re-organise into multiple files
 
 pub struct Input {
@@ -57,7 +59,7 @@ pub trait InputInternal {
 /// To be used by other engine crates.
 impl InputInternal for Input {
     fn update(&mut self, event: &WindowEvent) -> (Option<InputEvent>, bool) {
-        let (keyboard_event, keyboard_consumed) = self.keyboard.update(event); 
+        let (keyboard_event, keyboard_consumed) = self.keyboard.update(event);
 
         let (mouse_event, mouse_consumed) = self.mouse.update(event);
 
@@ -68,6 +70,17 @@ impl InputInternal for Input {
             (None, Some(mouse_event)) => Some(InputEvent::MouseEvent(mouse_event)),
             _ => None,
         };
+
+        #[cfg(feature = "debug_stats")]
+        {
+            if let Some(input_event) = &input_event {
+                Stats::global().set(
+                    "last_input_event",
+                    format!("{:?}", input_event).into(),
+                    false,
+                );
+            }
+        }
 
         (input_event, consumed)
     }
@@ -285,8 +298,8 @@ impl Mouse {
 
         self.last_prep = std::time::Instant::now();
     }
-    /// Updates the keyboard state. 
-    /// Called on every new event. 
+    /// Updates the keyboard state.
+    /// Called on every new event.
     /// (Event, Consumed)
     pub(crate) fn update(&mut self, event: &WindowEvent) -> (Option<MouseEvent>, bool) {
         match event {

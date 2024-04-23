@@ -6,7 +6,7 @@ edition = "2021"
 [features]
 default = []
 # Enables more detailed performance statistics
-debug_perf_stats = []
+debug_stats = []
 dev_gui = ["egui", "egui-winit", "egui-wgpu"]
 
 [dependencies]

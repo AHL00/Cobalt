@@ -82,7 +82,7 @@ impl App for Game {
         if self.last_log_time.elapsed().as_secs() >= 1 {
             log::info!("> Stats:");
             for (name, stat) in Stats::global().iter() {
-                log::info!("{}: {:?}", name, stat);
+                log::info!("{}: {}", name, stat);
             }
             log::info!(">-----<");
 

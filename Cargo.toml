@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = []
-debug_perf_stats = ["cobalt_core/debug_perf_stats"]
+debug_stats = ["cobalt_core/debug_stats"]
 
 
 [dependencies]
