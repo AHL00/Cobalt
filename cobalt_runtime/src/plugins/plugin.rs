@@ -2,7 +2,7 @@ use std::error::Error;
 
 use cobalt_core::graphics::{frame::Frame, winit};
 
-use crate::engine::Engine;
+use crate::{app::App, engine::Engine};
 
 use downcast::{downcast, Any};
 
@@ -11,18 +11,18 @@ use downcast::{downcast, Any};
 /// Warning: Do not call any of these functions directly, they are called by the engine.
 pub trait Plugin: Any {
     /// Called once at the start of the engine.
-    fn startup(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
+    fn startup(&mut self, _engine: &mut Engine, _app: &mut dyn App) -> Result<(), PluginError> {
         Ok(())
     }
 
     /// Called at the start of a new frame.
-    fn pre_render(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
+    fn pre_render(&mut self, _engine: &mut Engine, _app: &mut dyn App) -> Result<(), PluginError> {
         Ok(())
     }
 
     /// Called after rendering is done but before frame submission.
     /// A `Frame` struct is passed to allow for more custom rendering.
-    fn post_render(&mut self, _engine: &mut Engine, _frame: &mut Frame) -> Result<(), PluginError> {
+    fn post_render(&mut self, _engine: &mut Engine, _frame: &mut Frame, _app: &mut dyn App) -> Result<(), PluginError> {
         Ok(())
     }
 
@@ -32,23 +32,24 @@ pub trait Plugin: Any {
         &mut self,
         _engine: &mut Engine,
         _event: winit::event::Event<()>,
+        _app: &mut dyn App,
     ) -> Result<bool, PluginError> {
         Ok(false)
     }
 
     /// Called on window resize.
-    fn on_resize(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
+    fn on_resize(&mut self, _engine: &mut Engine, _app: &mut dyn App) -> Result<(), PluginError> {
         Ok(())
     }
 
     /// Called in the main event loop. Should be very fast, ideally this should not be
     /// used.
-    fn update(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
+    fn update(&mut self, _engine: &mut Engine, _app: &mut dyn App) -> Result<(), PluginError> {
         Ok(())
     }
 
     /// Called once when the engine is shutting down.
-    fn shutdown(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
+    fn shutdown(&mut self, _engine: &mut Engine, _app: &mut dyn App) -> Result<(), PluginError> {
         Ok(())
     }
 

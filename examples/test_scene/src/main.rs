@@ -3,21 +3,13 @@
 use std::path::Path;
 
 use cobalt::{
-    assets::{AssetServer, MeshAsset, TextureAsset},
-    components::{Camera, Renderable, Transform},
-    ecs::Entity,
-    input::{InputEvent, KeyCode, KeyboardEvent},
-    maths::Vec4,
-    plugins::debug_gui::DebugGUIPlugin,
-    renderer::{
+    assets::{AssetServer, MeshAsset, TextureAsset}, components::{Camera, Renderable, Transform}, debug_gui::egui, ecs::Entity, input::{InputEvent, KeyCode, KeyboardEvent}, maths::Vec4, plugins::debug_gui::DebugGUIPlugin, renderer::{
         camera::Projection,
         materials::Unlit,
         renderables::Mesh,
         renderers::{DeferredRenderer, GeometryPassDebugMode},
         Material,
-    },
-    runtime::{engine::Engine, plugins::PluginManager, App},
-    types::resource::Resource,
+    }, runtime::{engine::Engine, plugins::PluginManager, App}, types::resource::Resource
 };
 
 struct Game {
@@ -79,9 +71,18 @@ impl App for Game {
         // Add debug gui
         let debug_gui = _plugins.try_take_plugin::<DebugGUIPlugin>();
 
-        if let Some(_debug_gui) = debug_gui {
+        if let Some(mut debug_gui) = debug_gui {
             log::info!("Debug GUI plugin found.");
-            _plugins.reinsert_plugin(_debug_gui).unwrap();
+
+            debug_gui.set_draw_ui(|ctx, _engine, _app| {
+                egui::Window::new("Debug Menu").show(ctx, |ui| {
+                    ui.label("Press F11 to toggle fullscreen.");
+                    ui.label("Press F10 to cycle through deferred rendering debug modes.");
+                    ui.separator();
+                });
+            });
+
+            _plugins.reinsert_plugin(debug_gui).unwrap();
         } else {
             log::error!("Debug GUI plugin not found.");
         }

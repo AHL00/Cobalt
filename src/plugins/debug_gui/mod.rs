@@ -1,6 +1,10 @@
 use cobalt_core::graphics::{context::Graphics, wgpu, window::WindowInternal};
-use cobalt_runtime::plugins::Plugin;
+use cobalt_runtime::{app::App, plugins::Plugin};
 use egui_winit::EventResponse;
+
+pub mod exports {
+    pub use egui;
+}
 
 /// Needs to run at a higher priority than other plugins that consume events if GUI input is to not be blocked by other plugins.
 /// If there are post-render plugins that render on top of the frame, they should run before this plugin to make sure the GUI is on top.
@@ -8,6 +12,7 @@ pub struct DebugGUIPlugin {
     ctx: Option<egui::Context>,
     renderer: Option<egui_wgpu::Renderer>,
     state: Option<egui_winit::State>,
+    draw_ui: fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App),
 }
 
 impl DebugGUIPlugin {
@@ -20,7 +25,17 @@ impl DebugGUIPlugin {
             ctx: None,
             renderer: None,
             state: None,
+            draw_ui: |_, _, _| {},
         }
+    }
+}
+
+impl DebugGUIPlugin {
+    pub fn set_draw_ui(
+        &mut self,
+        draw_ui: fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App),
+    ) {
+        self.draw_ui = draw_ui;
     }
 }
 
@@ -32,6 +47,7 @@ impl Plugin for DebugGUIPlugin {
     fn startup(
         &mut self,
         engine: &mut cobalt_runtime::engine::Engine,
+        _app: &mut dyn App,
     ) -> Result<(), cobalt_runtime::plugins::plugin::PluginError> {
         log::info!("Initializing egui context...");
 
@@ -65,6 +81,7 @@ impl Plugin for DebugGUIPlugin {
         &mut self,
         engine: &mut cobalt_runtime::engine::Engine,
         event: egui_winit::winit::event::Event<()>,
+        _app: &mut dyn App,
     ) -> Result<bool, cobalt_runtime::plugins::plugin::PluginError> {
         let mut event_consumed = false;
 
@@ -96,6 +113,7 @@ impl Plugin for DebugGUIPlugin {
         &mut self,
         engine: &mut cobalt_runtime::engine::Engine,
         frame: &mut cobalt_core::graphics::frame::Frame,
+        app: &mut dyn App,
     ) -> Result<(), cobalt_runtime::plugins::plugin::PluginError> {
         let ctx = self.ctx.as_ref().unwrap();
         let state = self.state.as_mut().unwrap();
@@ -106,10 +124,7 @@ impl Plugin for DebugGUIPlugin {
 
         ctx.begin_frame(raw_input);
 
-        // (self.run_ui)(&self.ctx, engine, app);
-        egui::Window::new("Debug GUI").show(&ctx, |ui| {
-            ui.label("Hello World!");
-        });
+        (self.draw_ui)(&ctx, engine, app);
 
         let full_output = ctx.end_frame();
 

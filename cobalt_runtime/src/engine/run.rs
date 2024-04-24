@@ -35,7 +35,7 @@ pub fn run(
     app.on_start(&mut engine, &mut plugins);
 
     for (plugin, _, _) in plugins.get_plugins_in_order() {
-        let res = plugin.startup(&mut engine);
+        let res = plugin.startup(&mut engine, app);
 
         if let Err(e) = res {
             match e {
@@ -71,7 +71,7 @@ pub fn run(
             elwt.exit();
         } else {
             for (plugin, _, _) in plugins.get_plugins_in_order() {
-                let res = plugin.update(&mut engine);
+                let res = plugin.update(&mut engine, app);
     
                 if let Err(e) = res {
                     match e {
@@ -102,7 +102,7 @@ pub fn run(
         let mut plugin_consumed_event = false;
 
         for (plugin, _, _) in plugins.get_plugins_in_order() {
-            let res = plugin.as_mut().event(&mut engine, event.clone());
+            let res = plugin.as_mut().event(&mut engine, event.clone(), app);
 
             if let Err(e) = res {
                 match e {
@@ -154,7 +154,7 @@ pub fn run(
                         app.on_stop(&mut engine, &mut plugins);
 
                         for (plugin, _, _) in plugins.get_plugins_in_order() {
-                            let res = plugin.shutdown(&mut engine);
+                            let res = plugin.shutdown(&mut engine, app);
 
                             if let Err(e) = res {
                                 match e {
@@ -182,7 +182,7 @@ pub fn run(
                     }
                     WindowEvent::RedrawRequested => {
                         for (plugin, _, _) in plugins.get_plugins_in_order() {
-                            let res = plugin.pre_render(&mut engine);
+                            let res = plugin.pre_render(&mut engine, app);
 
                             if let Err(e) = res {
                                 match e {
@@ -232,7 +232,7 @@ pub fn run(
                         );
 
                         for (plugin, _, _) in plugins.get_plugins_in_order() {
-                            let res = plugin.post_render(&mut engine, &mut frame);
+                            let res = plugin.post_render(&mut engine, &mut frame, app);
 
                             if let Err(e) = res {
                                 match e {
@@ -283,7 +283,7 @@ pub fn run(
                         app.on_resize(&mut engine, &mut plugins, size.width, size.height);
 
                         for (plugin, _, _) in plugins.get_plugins_in_order() {
-                            let res = plugin.on_resize(&mut engine);
+                            let res = plugin.on_resize(&mut engine, app);
 
                             if let Err(e) = res {
                                 match e {
