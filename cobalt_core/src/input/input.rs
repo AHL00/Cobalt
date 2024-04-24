@@ -3,8 +3,6 @@ use winit::event::WindowEvent;
 pub use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 
-use crate::stats::Stats;
-
 // TODO: Clean up and re-organise into multiple files
 
 pub struct Input {
@@ -73,6 +71,8 @@ impl InputInternal for Input {
 
         #[cfg(feature = "debug_stats")]
         {
+            use crate::stats::Stats;
+
             if let Some(input_event) = &input_event {
                 Stats::global().set(
                     "last_input_event",

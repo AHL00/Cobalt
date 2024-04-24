@@ -1,18 +1,71 @@
 use std::{io::BufReader, path::Path, sync::LazyLock};
 
 use crate::{
-    assets::exports::{Asset, AssetLoadError}, graphics::HasBindGroupLayout
+    assets::exports::{Asset, AssetLoadError},
+    graphics::HasBindGroupLayout,
 };
 
 use super::{context::Graphics, HasBindGroup};
 
 pub struct TextureAsset {
-    pub(crate) texture: wgpu::Texture,
-    pub(crate) view: wgpu::TextureView,
-    pub(crate) sampler: wgpu::Sampler,
-    pub(crate) size: wgpu::Extent3d,
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    sampler: wgpu::Sampler,
+    size: wgpu::Extent3d,
     pub(crate) bind_group: wgpu::BindGroup,
     // TODO: Bind group dirty after changing texture?
+}
+
+pub trait TextureInternal {
+    fn size(&self) -> &wgpu::Extent3d;
+
+    fn size_mut(&mut self) -> &mut wgpu::Extent3d;
+
+    fn wgpu_texture(&self) -> &wgpu::Texture;
+
+    fn wgpu_texture_mut(&mut self) -> &mut wgpu::Texture;
+
+    fn wgpu_texture_view(&self) -> &wgpu::TextureView;
+
+    fn wgpu_texture_view_mut(&mut self) -> &mut wgpu::TextureView;
+
+    fn wgpu_sampler(&self) -> &wgpu::Sampler;
+
+    fn wgpu_sampler_mut(&mut self) -> &mut wgpu::Sampler;
+}
+
+impl TextureInternal for TextureAsset {
+    fn size(&self) -> &wgpu::Extent3d {
+        &self.size
+    }
+
+    fn size_mut(&mut self) -> &mut wgpu::Extent3d {
+        &mut self.size
+    }
+
+    fn wgpu_texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
+
+    fn wgpu_texture_mut(&mut self) -> &mut wgpu::Texture {
+        &mut self.texture
+    }
+
+    fn wgpu_texture_view(&self) -> &wgpu::TextureView {
+        &self.view
+    }
+
+    fn wgpu_texture_view_mut(&mut self) -> &mut wgpu::TextureView {
+        &mut self.view
+    }
+
+    fn wgpu_sampler(&self) -> &wgpu::Sampler {
+        &self.sampler
+    }
+
+    fn wgpu_sampler_mut(&mut self) -> &mut wgpu::Sampler {
+        &mut self.sampler
+    }
 }
 
 impl TextureAsset {
@@ -23,6 +76,7 @@ impl TextureAsset {
     /// Get the empty texture
     /// This is a 1x1 white texture
     /// Used for unused texture uniforms in materials
+    #[allow(dead_code)]
     pub(crate) fn empty() -> &'static TextureAsset {
         &EMPTY_TEXTURE
     }

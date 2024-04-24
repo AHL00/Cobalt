@@ -4,10 +4,12 @@ use cobalt_core::graphics::{frame::Frame, winit};
 
 use crate::engine::Engine;
 
+use downcast::{downcast, Any};
+
 /// Structs that allows more functionality to be implemented into the `Engine`.
 /// Returning an error in any of the functions will stop the engine, unless the error is specified as non-fatal.
 /// Warning: Do not call any of these functions directly, they are called by the engine.
-pub trait Plugin {
+pub trait Plugin: Any {
     /// Called once at the start of the engine.
     fn startup(&mut self, _engine: &mut Engine) -> Result<(), PluginError> {
         Ok(())
@@ -52,6 +54,8 @@ pub trait Plugin {
 
     fn name(&self) -> &'static str;
 }
+
+downcast!(dyn Plugin);
 
 #[derive(Debug)]
 pub enum PluginError {

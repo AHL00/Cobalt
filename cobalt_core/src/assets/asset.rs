@@ -78,6 +78,7 @@ impl<T: Asset> Clone for AssetHandle<T> {
     }
 }
 
+#[allow(dead_code)]
 impl<T: Asset> AssetHandle<T> {
     /// This will return a reference to the asset.
     pub fn borrow<'a>(&'a self) -> RwLockReadGuard<'a, T> {

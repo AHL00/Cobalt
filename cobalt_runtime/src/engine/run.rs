@@ -102,7 +102,7 @@ pub fn run(
         let mut plugin_consumed_event = false;
 
         for (plugin, _, _) in plugins.get_plugins_in_order() {
-            let res = plugin.event(&mut engine, event.clone());
+            let res = plugin.as_mut().event(&mut engine, event.clone());
 
             if let Err(e) = res {
                 match e {

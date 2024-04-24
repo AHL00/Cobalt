@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::{Display, Formatter}, sync::Arc};
 
 use hashbrown::HashMap;
 use parking_lot::Mutex;
@@ -20,7 +20,7 @@ pub enum Stat {
 }
 
 impl Display for Stat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::f32(value) => write!(f, "{}", value),
             Self::i32(value) => write!(f, "{}", value),

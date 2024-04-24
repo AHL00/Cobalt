@@ -5,13 +5,13 @@ use hashbrown::HashMap;
 /// Inspired by HECS.
 /// Since TypeId is already a hash, use a hasher that does nothing.
 /// Tested against a 256 item array with linear search and a 256 item hashmap.
-pub(crate) type TypeIdMap<V> = HashMap<TypeId, V, BuildHasherDefault<TypeIdHasher>>;
+pub type TypeIdMap<V> = HashMap<TypeId, V, BuildHasherDefault<TypeIdHasher>>;
 
 /// This hasher does nothing.
 /// Since TypeId is already a hash, we can just use that.
 /// TypeId can be a u64 or u128 depending on ???.
 #[derive(Default)]
-pub(crate) struct TypeIdHasher {
+pub struct TypeIdHasher {
     hash: u64,
 }
 

@@ -1,4 +1,4 @@
-use winit::{dpi::PhysicalSize, monitor::VideoMode};
+use winit::dpi::PhysicalSize;
 
 pub struct Window {
     winit: winit::window::Window,

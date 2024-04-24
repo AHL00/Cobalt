@@ -6,10 +6,10 @@ pub mod component;
 pub mod query;
 pub mod world;
 pub mod entity;
+pub mod storage;
+pub mod typeid_map;
 
 mod tests;
-mod storage;
-mod typeid_map;
 
 // ## Problems
 // - Performance issues due to use of hash maps

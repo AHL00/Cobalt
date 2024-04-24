@@ -1,20 +1,21 @@
 use crate::{
     assets::asset::AssetHandle,
     types::aabb::AABB,
-    renderer::{material::Material, mesh::MeshAsset},
+    renderer::material::Material,
     types::resource::Resource,
+    assets,
 };
 
 use super::RenderableTrait;
 
 pub struct Mesh {
     pub material: Resource<Material>,
-    pub mesh: AssetHandle<MeshAsset>,
+    pub mesh: AssetHandle<assets::exports::MeshAsset>,
     pub(crate) local_space_aabb: AABB,
 }
 
 impl Mesh {
-    pub fn new(mesh: AssetHandle<MeshAsset>, material: Resource<Material>) -> Self {
+    pub fn new(mesh: AssetHandle<assets::exports::MeshAsset>, material: Resource<Material>) -> Self {
         let local_space_aabb = mesh.borrow().local_aabb.clone();
 
         Self {

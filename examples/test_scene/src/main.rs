@@ -1,14 +1,10 @@
 #![feature(downcast_unchecked)]
 
-use std::{any::Any, path::Path};
+use std::path::Path;
 
 use cobalt::{
-    assets::{AssetServer, MeshAsset, TextureAsset}, components::{Camera, Renderable, Transform}, ecs::Entity, input::{InputEvent, KeyCode, KeyboardEvent}, maths::Vec4, plugins::debug_gui::DebugGUIPlugin, renderer::{
-        camera::Projection,
-        materials::Unlit,
-        renderables::Mesh,
-        renderers::{DeferredRenderer, DeferredRendererDebugMode},
-        Material,
+    assets::{AssetServer, MeshAsset, TextureAsset}, components::{Camera, Renderable, Transform}, ecs::Entity, input::{InputEvent, KeyCode, KeyboardEvent}, maths::Vec4, plugins::{self, debug_gui::DebugGUIPlugin}, renderer::{
+        camera::Projection, materials::Unlit, renderables::Mesh, renderers::{DeferredRenderer, DeferredRendererDebugMode}, Material
     }, runtime::{engine::Engine, plugins::PluginManager, App}, stats::Stats, types::resource::Resource
 };
 
@@ -71,10 +67,11 @@ impl App for Game {
         self.main_camera = Some(cam_ent);
 
         // Add debug gui
-        let debug_gui = _plugins.try_get_plugin::<DebugGUIPlugin>();
+        let debug_gui = _plugins.try_take_plugin::<DebugGUIPlugin>();
 
-        if let Some(debug_gui) = debug_gui {
+        if let Some(_debug_gui) = debug_gui {
             log::info!("Debug GUI plugin found.");
+            _plugins.reinsert_plugin(_debug_gui).unwrap();
         } else {
             log::error!("Debug GUI plugin not found.");
         }

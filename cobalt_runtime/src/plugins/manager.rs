@@ -1,16 +1,22 @@
-use cobalt_core::utils::as_any::AsAny;
+use std::{any::TypeId, error::Error};
+
+use cobalt_core::{ecs::typeid_map::TypeIdMap, utils::as_any::AsAny};
 
 use super::Plugin;
 
 /// A manager for plugins. The plugins will be called in the order specified by the run order. If there are multiple plugins with the same run order, they will be called in the order they were added.
 pub struct PluginManager {
-    plugins: Vec<(Box<dyn Plugin>, u32, bool)>,
+    /// This will be None if the user has retrieved the plugin anywhere, only when it is reinserted will it
+    /// be Some again. This is to get around borrow issues when getting dyn Plugin's to mutate them.
+    plugins: TypeIdMap<(Option<Box<dyn Plugin>>, u32, bool)>,
 }
 
 pub trait PluginInternal {
     /// Gets all the plugins in the manager sorted by run order.
     /// (Plugin, run_priority, initialized / ready)
-    fn get_plugins_in_order(&mut self) -> &mut Vec<(Box<dyn Plugin>, u32, bool)>;
+    fn get_plugins_in_order<'a>(
+        &'a mut self,
+    ) -> Box<dyn Iterator<Item = (&mut Box<dyn Plugin>, &mut u32, &mut bool)> + 'a>;
 }
 
 pub trait PluginManagerInternal {
@@ -25,39 +31,58 @@ pub trait PluginManagerInternal {
 impl PluginManagerInternal for PluginManager {
     fn new() -> PluginManager {
         PluginManager {
-            plugins: Vec::new(),
+            plugins: TypeIdMap::default(),
         }
     }
 
     fn add_plugin<T: Plugin + 'static>(&mut self, plugin: Box<T>, run_priority: u32) {
-        self.plugins.push((plugin, run_priority, false));
+        self.plugins
+            .insert(TypeId::of::<T>(), (Some(plugin), run_priority, false));
     }
 }
 
 impl PluginManager {
-    pub fn try_get_plugin_mut<T: Plugin + 'static>(&mut self) -> Option<&mut T> {
-        for (plugin, _, _) in self.plugins.iter_mut() {
-            if let Some(plugin) = plugin.as_any_mut().downcast_mut::<T>() {
-                return Some(plugin);
-            }
-        }
-        None
+    /// Gets the plugin by value. When done using it, re-insert using `PluginManager::reinsert_plugin`.
+    /// While the plugin is taken, it will not be used by Engine.
+    pub fn try_take_plugin<T: Plugin + 'static>(&mut self) -> Option<Box<T>> {
+        let (plugin, _, _) = self.plugins.get_mut(&TypeId::of::<T>())?;
+
+        let plugin_dyn = plugin.take()?;
+
+        let plugin_t = plugin_dyn.downcast::<T>().expect("Error downcasting in PluginManager");
+
+        Some(plugin_t)
     }
 
-    pub fn try_get_plugin<'a, T: Plugin + 'static>(&'a self) -> Option<&'a T> {
-        for (plugin, _, _) in self.plugins.iter() {
-            if let Some(plugin) = plugin.as_any().downcast_ref::<T>() {
-                return Some(plugin);
-            }
+    // TODO: To prevent runtime plugin addition, keep a list of plugins that were
+    // already inserted before.
+    /// Reinsert plugin after retrieving from `try_take_plugin`.
+    /// Will not work if type `T` was never inserted into the Manager before, only for re-insertion.
+    pub fn reinsert_plugin<T: Plugin + 'static>(&mut self, plugin_box: Box<T>) -> Result<(), Box<dyn Error>> {
+        let (plugin, _, _) = self.plugins.get_mut(&TypeId::of::<T>()).ok_or(
+            String::from("Plugin type was not added before"))?;
+
+        if let None = plugin {
+            *plugin = Some(plugin_box);
         }
-        None
+
+        Ok(())
     }
 }
 
 impl PluginInternal for PluginManager {
     /// Gets all the plugins in the manager sorted by run order.
-    fn get_plugins_in_order(&mut self) -> &mut Vec<(Box<dyn Plugin>, u32, bool)> {
-        self.plugins.sort_by(|a, b| a.1.cmp(&b.1));
-        &mut self.plugins
+    fn get_plugins_in_order<'a>(
+        &'a mut self,
+    ) -> Box<dyn Iterator<Item = (&mut Box<dyn Plugin>, &mut u32, &mut bool)> + 'a> {
+        let plugins = self.plugins.iter_mut().filter_map(|(_, (plugin, a, b))| {
+            if let Some(plugin) = plugin {
+                return Some((plugin, a, b));
+            }
+
+            None
+        });
+
+        Box::new(plugins)
     }
 }

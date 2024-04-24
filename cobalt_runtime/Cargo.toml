@@ -5,4 +5,6 @@ edition = "2021"
 
 [dependencies]
 cobalt_core = { path = "../cobalt_core" }
+downcast = "0.11.0"
+hashbrown = "0.14.3"
 log = "0.4.21"

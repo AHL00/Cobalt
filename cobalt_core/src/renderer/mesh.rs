@@ -9,6 +9,7 @@ use crate::{
     assets::exports::{Asset, AssetLoadError}, graphics::{context::Graphics, vertex::UvNormalVertex}, types::aabb::AABB
 };
 
+#[allow(dead_code)]
 pub struct MeshAsset {
     /// Buffer of NormalUvVertex
     pub(crate) vertex_buffer: wgpu::Buffer,
