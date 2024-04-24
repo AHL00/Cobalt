@@ -27,6 +27,12 @@ pub trait HasBindGroup {
     fn bind_group(&mut self, graphics: &self::context::Graphics) -> &wgpu::BindGroup;
 }
 
+pub trait HasStableBindGroup {
+    /// Returns a reference to the bind group.
+    /// The bind group is guaranteed to be stable and not need to be recreated.
+    fn stable_bind_group(&self) -> &wgpu::BindGroup;
+}
+
 pub trait CreateBindGroup {
     fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup;
 }
@@ -71,6 +77,49 @@ impl CreateBindGroup for ultraviolet::Mat4 {
 impl HasBindGroupLayout for ultraviolet::Mat4 {
     fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
         &*MAT4X4_BIND_GROUP_LAYOUT
+    }
+}
+
+static U32_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
+    self::context::Graphics::global_read()
+        .device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        })
+});
+
+impl CreateBindGroup for u32 {
+    fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&[*self]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &*U32_BIND_GROUP_LAYOUT,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
+            }],
+        })
+    }
+}
+
+impl HasBindGroupLayout for u32 {
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+        &*U32_BIND_GROUP_LAYOUT
     }
 }
 

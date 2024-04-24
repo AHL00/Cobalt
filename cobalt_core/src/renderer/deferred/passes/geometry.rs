@@ -11,8 +11,8 @@ use crate::{
 /// This pass will clear the geometry buffers and draw the scene to them.
 /// It also clears and writes to the depth buffer.
 pub struct GeometryPass {
-    pipeline: wgpu::RenderPipeline,
-    g_buffers: GeometryBuffers,
+    pub pipeline: wgpu::RenderPipeline,
+    pub g_buffers: GeometryBuffers,
 }
 
 impl GeometryPass {
@@ -111,44 +111,30 @@ impl GeometryPass {
     }
 }
 
-impl RenderPass for GeometryPass {
+impl RenderPass<()> for GeometryPass {
     fn draw(
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         graphics: &crate::graphics::context::Graphics,
-        proj_view: crate::renderer::proj_view::ProjView,
+        proj_view: &crate::renderer::proj_view::ProjView,
         frame_data: &mut crate::renderer::FrameData,
+        _extra_data: (),
     ) -> Result<(), Box<dyn std::error::Error>> {
         let depth_view = frame_data
             .depth_view
             .as_ref()
             .ok_or(String::from("Depth view not found"))?;
 
-        let position_view = self
-            .g_buffers
-            .position_buffer
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let normal_view = self
-            .g_buffers
-            .normal_buffer
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let albedo_specular_view = self
-            .g_buffers
-            .albedo_specular_buffer
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
         // TODO: For optimisation, cache the render pass descriptor and update only when textures change.
         let descriptor = wgpu::RenderPassDescriptor {
-            label: Some("Deferred Render Pass"),
+            label: Some("Geometry Pass"),
             color_attachments: &[
                 Some(wgpu::RenderPassColorAttachment {
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
-                    },
-                    view: &position_view,
+                },
+                    view: &self.g_buffers.position_view,
                     resolve_target: None,
                 }),
                 Some(wgpu::RenderPassColorAttachment {
@@ -156,7 +142,7 @@ impl RenderPass for GeometryPass {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
-                    view: &normal_view,
+                    view: &self.g_buffers.normal_view,
                     resolve_target: None,
                 }),
                 Some(wgpu::RenderPassColorAttachment {
@@ -164,7 +150,7 @@ impl RenderPass for GeometryPass {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
-                    view: &albedo_specular_view,
+                    view: &self.g_buffers.albedo_specular_view,
                     resolve_target: None,
                 }),
             ],

@@ -1,9 +1,11 @@
 use std::error::Error;
 
+use downcast::{Any, downcast};
+
 use crate::{exports::ecs::World, graphics::frame::Frame};
 
 // TODO: Maybe split into internal and external, selectively exposing some methods.
-pub trait Renderer {
+pub trait Renderer: Any {
     fn render(&mut self, frame: &mut Frame, world: &mut World) -> Result<(), Box<dyn std::error::Error>>;
 
     /// Should update current size, resize buffers, and send the callback along to all render passes.
@@ -15,3 +17,5 @@ pub trait Renderer {
         std::any::type_name::<Self>()
     }
 }
+
+downcast!(dyn Renderer);

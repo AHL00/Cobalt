@@ -3,17 +3,27 @@
 use std::path::Path;
 
 use cobalt::{
-    assets::{AssetServer, MeshAsset, TextureAsset}, components::{Camera, Renderable, Transform}, ecs::Entity, input::{InputEvent, KeyCode, KeyboardEvent}, maths::Vec4, plugins::{self, debug_gui::DebugGUIPlugin}, renderer::{
-        camera::Projection, materials::Unlit, renderables::Mesh, renderers::{DeferredRenderer, DeferredRendererDebugMode}, Material
-    }, runtime::{engine::Engine, plugins::PluginManager, App}, stats::Stats, types::resource::Resource
+    assets::{AssetServer, MeshAsset, TextureAsset},
+    components::{Camera, Renderable, Transform},
+    ecs::Entity,
+    input::{InputEvent, KeyCode, KeyboardEvent},
+    maths::Vec4,
+    plugins::debug_gui::DebugGUIPlugin,
+    renderer::{
+        camera::Projection,
+        materials::Unlit,
+        renderables::Mesh,
+        renderers::{DeferredRenderer, GeometryPassDebugMode},
+        Material,
+    },
+    runtime::{engine::Engine, plugins::PluginManager, App},
+    types::resource::Resource,
 };
-
-use cobalt::core::utils::as_any::AsAny;
 
 struct Game {
     last_log_time: std::time::Instant,
     main_camera: Option<Entity>,
-    current_renderer_debug_mode: DeferredRendererDebugMode,
+    current_renderer_debug_mode: Option<GeometryPassDebugMode>,
 }
 
 impl App for Game {
@@ -79,11 +89,11 @@ impl App for Game {
 
     fn on_update(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, _delta_time: f32) {
         if self.last_log_time.elapsed().as_secs() >= 1 {
-            log::info!("> Stats:");
-            for (name, stat) in Stats::global().iter() {
-                log::info!("{}: {}", name, stat);
-            }
-            log::info!(">-----<");
+            // log::info!("> Stats:");
+            // for (name, stat) in Stats::global().iter() {
+            //     log::info!("{}: {}", name, stat);
+            // }
+            // log::info!(">-----<");
 
             self.last_log_time = std::time::Instant::now();
         }
@@ -115,30 +125,36 @@ impl App for Game {
                     // Filter through deferred rending G-Buffers
                     KeyboardEvent::Pressed(KeyCode::F10) => {
                         // Cast trait object renderer to DeferredRenderer
-                        let renderer: &mut DeferredRenderer =
-                            unsafe { _engine.renderer.as_any_mut().downcast_mut_unchecked() };
+                        let renderer: &mut DeferredRenderer = _engine
+                            .renderer
+                            .downcast_mut()
+                            .expect("Failed to downcast renderer to DeferredRenderer");
 
-                        match self.current_renderer_debug_mode {
-                            DeferredRendererDebugMode::None => {
-                                self.current_renderer_debug_mode =
-                                    DeferredRendererDebugMode::Position;
+                        if let Some(mode) = self.current_renderer_debug_mode {
+                            match mode {
+                                GeometryPassDebugMode::Normals => {
+                                    self.current_renderer_debug_mode =
+                                        Some(GeometryPassDebugMode::Albedo);
+                                }
+                                GeometryPassDebugMode::Albedo => {
+                                    self.current_renderer_debug_mode =
+                                        Some(GeometryPassDebugMode::Specular);
+                                }
+                                GeometryPassDebugMode::Specular => {
+                                    self.current_renderer_debug_mode =
+                                        Some(GeometryPassDebugMode::Position);
+                                }
+                                GeometryPassDebugMode::Position => {
+                                    self.current_renderer_debug_mode =
+                                        Some(GeometryPassDebugMode::Depth);
+                                }
+                                GeometryPassDebugMode::Depth => {
+                                    self.current_renderer_debug_mode =
+                                        None;
+                                }
                             }
-                            DeferredRendererDebugMode::Position => {
-                                self.current_renderer_debug_mode =
-                                    DeferredRendererDebugMode::Normal;
-                            }
-                            DeferredRendererDebugMode::Normal => {
-                                self.current_renderer_debug_mode =
-                                    DeferredRendererDebugMode::AlbedoSpecular;
-                            }
-                            DeferredRendererDebugMode::AlbedoSpecular => {
-                                self.current_renderer_debug_mode = DeferredRendererDebugMode::Depth;
-                            }
-                            DeferredRendererDebugMode::Depth => {
-                                self.current_renderer_debug_mode = DeferredRendererDebugMode::None;
-                            } // DeferredRendererDebugMode::Specular => {
-                              //     self.current_renderer_debug_mode = DeferredRendererDebugMode::None;
-                              // }
+                        } else {
+                            self.current_renderer_debug_mode = Some(GeometryPassDebugMode::Normals);
                         }
 
                         log::info!(
@@ -163,7 +179,7 @@ fn main() {
     let mut game_app = Game {
         last_log_time: std::time::Instant::now(),
         main_camera: None,
-        current_renderer_debug_mode: DeferredRendererDebugMode::None,
+        current_renderer_debug_mode: None,
     };
 
     cobalt::runtime::engine::EngineBuilder::new()

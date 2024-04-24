@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod unlit;
 mod wireframe;
 pub use unlit::*;

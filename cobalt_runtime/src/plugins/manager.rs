@@ -1,6 +1,6 @@
 use std::{any::TypeId, error::Error};
 
-use cobalt_core::{ecs::typeid_map::TypeIdMap, utils::as_any::AsAny};
+use cobalt_core::ecs::typeid_map::TypeIdMap;
 
 use super::Plugin;
 

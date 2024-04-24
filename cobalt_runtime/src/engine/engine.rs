@@ -45,7 +45,7 @@ impl Engine {
                 cobalt_core::renderer::exports::renderers::DeferredRenderer::new((
                     output_size.width,
                     output_size.height,
-                )),
+                ))?,
             ),
             input: cobalt_core::input::Input::new(),
 

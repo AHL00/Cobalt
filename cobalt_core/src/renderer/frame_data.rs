@@ -18,14 +18,14 @@ pub struct RenderData<'a> {
 /// Holds the data required to render a frame.
 /// It also helps generate that data from a few inputs using the `generate` method.
 pub struct FrameData<'a> {
-    pub depth_view: Option<wgpu::TextureView>,
+    pub depth_view: Option<&'a wgpu::TextureView>,
     pub render_data_vec: Vec<RenderData<'a>>,
 }
 
 impl<'a> FrameData<'a> {
     /// Generates a list of `RenderData` from the world. It also performs other processing
     /// such as frustum culling and sorting by material.
-    pub fn generate(world: &'a mut World, depth_view: Option<TextureView>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn generate(world: &'a mut World, depth_view: Option<&'a TextureView>) -> Result<Self, Box<dyn std::error::Error>> {
         let mut render_data_vec = Vec::new();
 
         let renderable_query = world.query_mut::<(Transform, Renderable)>()?;

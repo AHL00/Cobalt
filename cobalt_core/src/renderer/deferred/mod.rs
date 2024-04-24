@@ -1,6 +1,11 @@
+pub mod depth_buffer;
 pub mod g_buffers;
 pub mod passes;
+pub mod screen_quad;
 
+use std::error::Error;
+
+use exports::GeometryPassDebugMode;
 use ultraviolet::Mat4;
 
 use crate::{
@@ -8,69 +13,42 @@ use crate::{
     graphics::context::Graphics,
 };
 
-use self::passes::geometry::GeometryPass;
+use self::{
+    depth_buffer::DepthBuffer,
+    passes::{geometry::GeometryPass, geometry_debug::GeometryDebugPass},
+};
 
 use super::{
     camera::Camera, proj_view::ProjView, render_pass::RenderPass, renderer::Renderer, FrameData,
 };
 
 pub mod exports {
+    pub use super::passes::geometry_debug::GeometryPassDebugMode;
     pub use super::DeferredRenderer;
-    pub use super::DeferredRendererDebugMode;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum DeferredRendererDebugMode {
-    None,
-    Position,
-    Normal,
-    AlbedoSpecular,
-    Depth,
 }
 
 pub struct DeferredRenderer {
     geometry_pass: GeometryPass,
-    depth_buffer: wgpu::Texture,
+    geometry_debug_pass: GeometryDebugPass,
+    depth_buffer: DepthBuffer,
     current_output_size: (u32, u32),
-    debug_mode: DeferredRendererDebugMode,
 }
 
 impl DeferredRenderer {
-    pub fn new(output_size: (u32, u32)) -> Self {
-        Self {
-            geometry_pass: GeometryPass::new(output_size),
-            depth_buffer: Self::generate_depth_texture(output_size),
-            current_output_size: output_size,
-            debug_mode: DeferredRendererDebugMode::None,
-        }
-    }
-    
-    pub fn set_debug_mode(&mut self, debug_mode: DeferredRendererDebugMode) {
-        self.debug_mode = debug_mode;
-
-        log::warn!("Debug mode for deferred renderer not yet implemented!");
-    }
-
     const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
-    fn generate_depth_texture(size: (u32, u32)) -> wgpu::Texture {
-        Graphics::global_read()
-            .device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: Some("Depth Texture"),
-                size: wgpu::Extent3d {
-                    width: size.0,
-                    height: size.1,
-                    depth_or_array_layers: 1,
-                },
-                view_formats: &[Self::DEPTH_FORMAT],
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: Self::DEPTH_FORMAT,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING,
-            })
+    pub fn new(output_size: (u32, u32)) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            geometry_pass: GeometryPass::new(output_size),
+            geometry_debug_pass: GeometryDebugPass::new(),
+            depth_buffer: DepthBuffer::new(output_size, Self::DEPTH_FORMAT)?,
+            current_output_size: output_size,
+        })
+    }
+
+    // Set None to disable debug mode.
+    pub fn set_debug_mode(&mut self, debug_mode: Option<GeometryPassDebugMode>) {
+        self.geometry_debug_pass.mode = debug_mode;
     }
 
     // TODO: Integrate into Scene system when it is implemented.
@@ -152,21 +130,22 @@ impl Renderer for DeferredRenderer {
 
         let proj_view = proj_view.unwrap();
 
-        let mut frame_data = FrameData::generate(
-            world,
-            Some(
-                self.depth_buffer
-                    .create_view(&wgpu::TextureViewDescriptor::default()),
-            ),
+        let mut frame_data = FrameData::generate(world, Some(self.depth_buffer.view()))?;
+
+        self.geometry_pass.draw(
+            frame,
+            &Graphics::global_read(),
+            &proj_view,
+            &mut frame_data,
+            (),
         )?;
 
-        self.geometry_pass
-            .draw(frame, &Graphics::global_read(), proj_view, &mut frame_data)?;
-
         // If any debug mode is active, render it into the swap chain
-        match self.debug_mode {
-            DeferredRendererDebugMode::None => {}
-            _ => {}
+        if let Some(_) = self.geometry_debug_pass.mode {
+            self.geometry_debug_pass
+            .draw(frame, &Graphics::global_read(), &proj_view, &mut frame_data, (&self.geometry_pass.g_buffers, &self.depth_buffer))?;
+        } else {
+            // Read render pass
         }
 
         Ok(())
@@ -174,7 +153,7 @@ impl Renderer for DeferredRenderer {
 
     fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn std::error::Error>> {
         self.geometry_pass.resize_callback(size)?;
-        self.depth_buffer = Self::generate_depth_texture(size);
+        self.depth_buffer = DepthBuffer::new(size, Self::DEPTH_FORMAT)?;
 
         self.current_output_size = size;
 
