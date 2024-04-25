@@ -36,6 +36,7 @@ struct FragmentOutput {
     @location(1) normal: vec4f,
     /// First 3 components are albedo, last component is specular
     @location(2) albedo_specular: vec4f,
+    @location(3) uv: vec2<f32>,
 }
 
 @fragment
@@ -49,6 +50,8 @@ fn fs_main(input: VertexOutput) -> FragmentOutput {
     let specular = 0.0;
 
     output.albedo_specular = vec4f(1.0, 0.0, 0.0, specular);
+
+    output.uv = input.tex_coords;
 
     return output;
 }

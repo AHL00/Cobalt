@@ -52,21 +52,27 @@ impl GeometryPass {
                     // - Position: Rgba32Float
                     // - Normal: Rgba32Float
                     // - Albedo / Specular: Rgba8UnormSrgb [A_red; A_green; A_blue; S_intensity]
+                    // - UV: Rg32f
                     targets: &[
                         Some(wgpu::ColorTargetState {
-                            blend: Some(wgpu::BlendState::REPLACE),
+                            blend: None,
                             write_mask: wgpu::ColorWrites::ALL,
                             format: GeometryBuffers::POSITION_FORMAT,
                         }),
                         Some(wgpu::ColorTargetState {
-                            blend: Some(wgpu::BlendState::REPLACE),
+                            blend: None,
                             write_mask: wgpu::ColorWrites::ALL,
                             format: GeometryBuffers::NORMAL_FORMAT,
                         }),
                         Some(wgpu::ColorTargetState {
-                            blend: Some(wgpu::BlendState::REPLACE),
+                            blend: None,
                             write_mask: wgpu::ColorWrites::ALL,
                             format: GeometryBuffers::ALBEDO_SPECULAR_FORMAT,
+                        }),
+                        Some(wgpu::ColorTargetState {
+                            blend: None,
+                            write_mask: wgpu::ColorWrites::ALL,
+                            format: GeometryBuffers::UV_FORMAT,
                         }),
                     ],
                 }),
@@ -151,6 +157,14 @@ impl RenderPass<()> for GeometryPass {
                         store: wgpu::StoreOp::Store,
                     },
                     view: &self.g_buffers.albedo_specular_view,
+                    resolve_target: None,
+                }),
+                Some(wgpu::RenderPassColorAttachment {
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    view: &self.g_buffers.uv_view,
                     resolve_target: None,
                 }),
             ],

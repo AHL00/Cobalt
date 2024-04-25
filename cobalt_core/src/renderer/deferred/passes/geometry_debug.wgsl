@@ -18,6 +18,10 @@ var u_normal_sampler: sampler;
 var u_albedo_specular_buffer: texture_2d<f32>;
 @group(1) @binding(5)
 var u_albedo_specular_sampler: sampler;
+@group(1) @binding(6)
+var u_uv_buffer: texture_2d<f32>;
+@group(1) @binding(7)
+var u_uv_sampler: sampler;
 
 @group(2) @binding(0)
 var u_depth_buffer: texture_2d<f32>;
@@ -65,10 +69,13 @@ fn fs_main(
             return vec4f(textureSample(u_position_buffer, u_position_sampler, input.tex_coords.xy).xyz, 1.0);
         }
         case 4u: {
+            return vec4f(textureSample(u_uv_buffer, u_uv_sampler, input.tex_coords.xy).xy, 0.0, 1.0);
+        }
+        case 5u: {
             return vec4f(textureSample(u_depth_buffer, u_depth_sampler, input.tex_coords.xy).xxx, 1.0);
         }
         default: {
-            return vec4f(0.0, 0.0, 1.0, 1.0);
+            return vec4f(1.0, 0.0, 0.0, 1.0);
         }
     }
 }

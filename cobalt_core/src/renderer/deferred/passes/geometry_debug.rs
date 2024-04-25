@@ -12,7 +12,8 @@ pub enum GeometryPassDebugMode {
     Albedo = 1,
     Specular = 2,
     Position = 3,
-    Depth = 4,
+    UV = 4,
+    Depth = 5,
 }
 
 pub struct GeometryDebugPass {
