@@ -2,7 +2,7 @@ use crate::{
     graphics::{
         context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout
     },
-    renderer::{deferred::{depth_buffer::DepthBuffer, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass},
+    renderer::{deferred::{depth_buffer::DepthBuffer, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass}, stats::Stats,
 };
 
 #[repr(u32)]

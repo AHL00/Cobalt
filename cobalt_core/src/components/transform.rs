@@ -314,7 +314,7 @@ impl HasBindGroup for Transform {
                 let mut stats = Stats::global();
 
                 let (record, _) = stats.get_mut_else_default(
-                    "Transform::bind_group::write_buffer::Duration",
+                    "Transform bind group write",
                     (Stat::Duration(std::time::Duration::new(0, 0)), true),
                 );
 

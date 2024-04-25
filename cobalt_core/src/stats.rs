@@ -145,6 +145,13 @@ impl Stats {
         self.data.iter().map(|(label, (value, _))| (label, value))
     }
 
+    /// Data sorted by label.
+    pub fn sorted_by_label(&self) -> Vec<(&String, &Stat)> {
+        let mut data = self.data.iter().collect::<Vec<_>>();
+        data.sort_by(|(a, _), (b, _)| a.cmp(b));
+        data.into_iter().map(|(label, (value, _))| (label, value)).collect()
+    }
+
     pub fn remove(&mut self, label: &str) -> Option<Stat> {
         self.data.remove(label).map(|(value, _)| value)
     }

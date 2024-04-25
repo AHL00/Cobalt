@@ -17,6 +17,20 @@ pub enum InputEvent {
     MouseEvent(MouseEvent),
 }
 
+#[allow(dead_code)]
+impl InputEvent {
+    fn truncated_num_debug(&self) -> String {
+        match self {
+            InputEvent::KeyboardEvent(event) => format!("{:?}", event),
+            InputEvent::MouseEvent(event) => match event {
+                MouseEvent::Moved(x, y) => format!("Moved({:.02}, {:.02})", x, y),
+                MouseEvent::Scrolled(x, y) => format!("Scrolled({:.02}, {:.02})", x, y),
+                _ => format!("{:?}", event),
+            },
+        }
+    }
+}
+
 /// Represents changes in keyboard state.
 #[derive(Debug, Clone)]
 pub enum KeyboardEvent {
@@ -75,8 +89,8 @@ impl InputInternal for Input {
 
             if let Some(input_event) = &input_event {
                 Stats::global().set(
-                    "last_input_event",
-                    format!("{:?}", input_event).into(),
+                    "Last input",
+                    input_event.truncated_num_debug().into(),
                     false,
                 );
             }

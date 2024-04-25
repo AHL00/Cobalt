@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, time::Duration};
 
 use cobalt_core::{
     graphics::{
@@ -31,6 +31,8 @@ pub fn run(
     log::info!("Running engine...");
 
     let mut last_app_update = std::time::Instant::now();
+    let mut last_avg_fps_update = std::time::Instant::now();
+    let mut last_second_frames = 0;
 
     app.on_start(&mut engine, &mut plugins);
 
@@ -226,7 +228,7 @@ pub fn run(
                         });
 
                         Stats::global().set(
-                            "cpu_render_time",
+                            "CPU render time",
                             Stat::Duration(cpu_render_start.elapsed()),
                             false,
                         );
@@ -262,10 +264,33 @@ pub fn run(
                             .end_frame(frame, Some(|| engine.window.winit().pre_present_notify()));
 
                         Stats::global().set(
-                            "gpu_render_time",
+                            "GPU render time",
                             Stat::Duration(gpu_render_start.elapsed()),
                             false,
                         );
+
+                        Stats::global().set(
+                            "Frametime",
+                            Stat::Duration(cpu_render_start.elapsed()),
+                            false,
+                        );
+
+                        Stats::global().set(
+                            "1 / Frametime",
+                            Stat::String(format!("{:.2}", 1.0 / cpu_render_start.elapsed().as_secs_f32())),
+                            false,
+                        );
+
+                        last_second_frames += 1;
+
+                        if last_avg_fps_update.elapsed() >= Duration::from_secs(1) {
+                            Stats::global().set(
+                                "Avg FPS", format!("{}", last_second_frames).into(), false);
+
+                            last_avg_fps_update = std::time::Instant::now();
+                            last_second_frames = 0;
+
+                        }
                     }
                     WindowEvent::Resized(size) => {
                         let current_present_mode = Graphics::global_read().current_present_mode;

@@ -41,6 +41,7 @@ impl<'a> FrameData<'a> {
             render_data_vec.push(render_data);
         }
 
+        #[cfg(feature = "debug_stats")]
         let pre_cull_count = render_data_vec.len();
         // TODO: Implement frustum culling
 
@@ -57,9 +58,12 @@ impl<'a> FrameData<'a> {
                 .cmp(&b.renderable.get_material().id)
         });
 
-        let culled_count = pre_cull_count - render_data_vec.len();
-        Stats::global().set("culled_entities", culled_count.into(), false);
-        Stats::global().set("rendered_entities", render_data_vec.len().into(), false);
+        #[cfg(feature = "debug_stats")]
+        {
+            let culled_count = pre_cull_count - render_data_vec.len();
+            Stats::global().set("Culled entities", culled_count.into(), false);
+            Stats::global().set("Rendered entities", render_data_vec.len().into(), false);
+        }        
 
         Ok(Self {
             depth_view,

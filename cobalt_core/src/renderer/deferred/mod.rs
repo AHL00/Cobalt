@@ -11,6 +11,7 @@ use ultraviolet::Mat4;
 use crate::{
     exports::{components::Transform, ecs::World},
     graphics::context::Graphics,
+    stats::Stats,
 };
 
 use self::{
@@ -140,10 +141,23 @@ impl Renderer for DeferredRenderer {
             (),
         )?;
 
+        #[cfg(feature = "debug_stats")]
+        {
+            Stats::global().set(
+                "Geometry Pass Debug Mode",
+                format!("{:?}", self.geometry_debug_pass.mode).into(),
+                false,
+            );
+        }
         // If any debug mode is active, render it into the swap chain
         if let Some(_) = self.geometry_debug_pass.mode {
-            self.geometry_debug_pass
-            .draw(frame, &Graphics::global_read(), &proj_view, &mut frame_data, (&self.geometry_pass.g_buffers, &self.depth_buffer))?;
+            self.geometry_debug_pass.draw(
+                frame,
+                &Graphics::global_read(),
+                &proj_view,
+                &mut frame_data,
+                (&self.geometry_pass.g_buffers, &self.depth_buffer),
+            )?;
         } else {
             // Read render pass
         }

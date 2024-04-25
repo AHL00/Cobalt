@@ -13,6 +13,7 @@ pub struct DebugGUIPlugin {
     renderer: Option<egui_wgpu::Renderer>,
     state: Option<egui_winit::State>,
     draw_ui: fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App),
+    enabled: bool,
 }
 
 impl DebugGUIPlugin {
@@ -26,6 +27,7 @@ impl DebugGUIPlugin {
             renderer: None,
             state: None,
             draw_ui: |_, _, _| {},
+            enabled: true,
         }
     }
 }
@@ -36,6 +38,22 @@ impl DebugGUIPlugin {
         draw_ui: fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App),
     ) {
         self.draw_ui = draw_ui;
+    }
+
+    pub fn enable(&mut self) {
+        self.enabled = true;
+    }
+
+    pub fn disable(&mut self) {
+        self.enabled = false;
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub fn toggle(&mut self) {
+        self.enabled = !self.enabled;
     }
 }
 
@@ -83,6 +101,10 @@ impl Plugin for DebugGUIPlugin {
         event: egui_winit::winit::event::Event<()>,
         _app: &mut dyn App,
     ) -> Result<bool, cobalt_runtime::plugins::plugin::PluginError> {
+        if !self.enabled {
+            return Ok(false);
+        }
+
         let mut event_consumed = false;
 
         match event {
@@ -115,6 +137,10 @@ impl Plugin for DebugGUIPlugin {
         frame: &mut cobalt_core::graphics::frame::Frame,
         app: &mut dyn App,
     ) -> Result<(), cobalt_runtime::plugins::plugin::PluginError> {
+        if !self.enabled {
+            return Ok(());
+        }
+
         let ctx = self.ctx.as_ref().unwrap();
         let state = self.state.as_mut().unwrap();
         let renderer = self.renderer.as_mut().unwrap();
