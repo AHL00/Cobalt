@@ -6,6 +6,8 @@ pub mod exports {
     pub use egui;
 }
 
+// TODO: Add prebuilt debug windows such as StatsWindow.
+
 /// Needs to run at a higher priority than other plugins that consume events if GUI input is to not be blocked by other plugins.
 /// If there are post-render plugins that render on top of the frame, they should run before this plugin to make sure the GUI is on top.
 pub struct DebugGUIPlugin {

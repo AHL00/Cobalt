@@ -233,6 +233,11 @@ impl Transform {
         self.set_dirty();
     }
 
+    pub fn translate(&mut self, translation: Vec3) {
+        self.position += translation;
+        self.set_dirty();
+    }
+
     /// Gets the scale.
     pub fn scale(&self) -> Vec3 {
         self.scale
@@ -270,7 +275,7 @@ impl Transform {
     }
 
     pub fn right(&self) -> Vec3 {
-        self.rotation * Vec3::unit_x()
+        self.rotation * - Vec3::unit_x()
     }
 
     pub fn up(&self) -> Vec3 {

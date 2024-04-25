@@ -8,7 +8,7 @@ use cobalt::{
     components::{Camera, Renderable, Transform},
     debug_gui::egui::{self, Id},
     ecs::Entity,
-    input::{InputEvent, KeyCode, KeyboardEvent},
+    input::{ButtonState, InputEvent, KeyCode, KeyboardEvent},
     maths::Vec4,
     plugins::debug_gui::DebugGUIPlugin,
     renderer::{
@@ -30,6 +30,7 @@ struct GUIData {
 
 struct Game {
     main_camera: Option<Entity>,
+    plane_entity: Option<Entity>,
     current_renderer_debug_mode: Option<GeometryPassDebugMode>,
     gui_data: GUIData,
 }
@@ -83,6 +84,8 @@ impl App for Game {
         engine.scene.world.add_component(cam_ent, cam_transform);
 
         self.main_camera = Some(cam_ent);
+
+        self.plane_entity = Some(model_ent);
 
         // Add debug gui
         let debug_gui = _plugins.try_take_plugin::<DebugGUIPlugin>();
@@ -164,8 +167,8 @@ impl App for Game {
                                 if *_app.gui_data.displayed_stats.get(*name).unwrap() {
                                     ui.label(format!("{}: ", *name)).highlight();
                                     ui.label(stat.to_string());
+                                    ui.end_row();
                                 }
-                                ui.end_row();
                             }
                         });
                 });
@@ -177,7 +180,70 @@ impl App for Game {
         }
     }
 
-    fn on_update(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, _delta_time: f32) {}
+    fn on_update(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, _delta_time: f32) {
+        let transform = self.main_camera.map(|ent| {
+            _engine
+                .scene
+                .world
+                .query_entity_mut::<Transform>(ent)
+                .expect("Transform not found.")
+        });
+
+        if transform.is_none() {
+            return;
+        }
+
+        let transform = transform.unwrap();
+
+        let keyboard = _engine.input.get_keyboard();
+
+        let mut forwards = 0.0;
+        let mut right = 0.0;
+        let mut up = 0.0;
+
+        if keyboard.is_key_down(KeyCode::KeyW) {
+            forwards += 1.0;
+        }
+
+        if keyboard.is_key_down(KeyCode::KeyS) {
+            forwards -= 1.0;
+        }
+
+        if keyboard.is_key_down(KeyCode::KeyA) {
+            right -= 1.0;
+        }
+
+        if keyboard.is_key_down(KeyCode::KeyD) {
+            right += 1.0;
+        }
+
+        if keyboard.is_key_down(KeyCode::Space) {
+            up += 1.0;
+        }
+
+        if keyboard.is_key_down(KeyCode::ControlLeft) {
+            up -= 1.0;
+        }
+
+        let forward_vector = transform.forward();
+        let right_vector = transform.right();
+        let up_vector = transform.up();
+
+        let mut movement = forward_vector * forwards + right_vector * right + up_vector * up;
+
+        if movement.mag() > 0.0 {
+            movement.normalize();
+        }
+
+        transform.translate(movement * 5.0 * _delta_time);  
+
+        let rotate_x = keyboard.is_key_down(KeyCode::ArrowUp) as i32
+            - keyboard.is_key_down(KeyCode::ArrowDown) as i32;
+
+        let rotate_y = keyboard.is_key_down(KeyCode::ArrowRight) as i32
+            - keyboard.is_key_down(KeyCode::ArrowLeft) as i32;
+
+    }
 
     fn on_input(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, event: InputEvent) {
         match event {
@@ -266,6 +332,7 @@ fn main() {
 
     let mut game_app = Game {
         main_camera: None,
+        plane_entity: None,
         current_renderer_debug_mode: None,
         gui_data: GUIData {
             displayed_stats: HashMap::new(),

@@ -268,6 +268,16 @@ impl Keyboard {
 
         &ButtonState::NotPressed
     }
+
+    pub fn is_key_down(&self, key: KeyCode) -> bool {
+        for (k, state) in self.keys.iter() {
+            if *k == key {
+                return state.is_pressed();
+            }
+        }
+
+        false
+    }
 }
 
 pub struct Mouse {
