@@ -2,7 +2,7 @@ use crate::{
     graphics::{
         context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout
     },
-    renderer::{deferred::{depth_buffer::DepthBuffer, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass}, stats::Stats,
+    renderer::{deferred::{depth_buffer::DepthBuffer, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass, renderer::RenderError},
 };
 
 #[repr(u32)]
@@ -87,10 +87,9 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         graphics: &crate::graphics::context::Graphics,
-        _proj_view: &crate::renderer::proj_view::ProjView,
         _frame_data: &mut crate::renderer::FrameData,
         extra_data: (&GeometryBuffers, &DepthBuffer),
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), RenderError> {
         let swap_texture = frame
             .swap_texture()
             .texture
@@ -116,8 +115,7 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
         });
 
         if let None = self.mode {
-            log_once::error_once!("Geometry Debug Pass called without debug mode.");
-            return Ok(());
+            return Err(RenderError::RenderPassError("No debug mode set.".to_string()));
         }
 
         // Bind debug mode

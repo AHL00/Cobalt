@@ -1,10 +1,12 @@
 use crate::{
     exports::components::Transform,
     graphics::{
-        context::Graphics, vertex::UvNormalVertex, CreateBindGroup, HasBindGroup, HasBindGroupLayout, HasVertexBufferLayout
+        context::Graphics, vertex::UvNormalVertex, CreateBindGroup, HasBindGroup,
+        HasBindGroupLayout, HasVertexBufferLayout,
     },
     renderer::{
         deferred::g_buffers::GeometryBuffers, proj_view::ProjView, render_pass::RenderPass,
+        renderer::RenderError,
     },
 };
 
@@ -122,14 +124,15 @@ impl RenderPass<()> for GeometryPass {
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         graphics: &crate::graphics::context::Graphics,
-        proj_view: &crate::renderer::proj_view::ProjView,
         frame_data: &mut crate::renderer::FrameData,
         _extra_data: (),
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), RenderError> {
         let depth_view = frame_data
             .depth_view
             .as_ref()
-            .ok_or(String::from("Depth view not found"))?;
+            .ok_or(RenderError::RenderPassError(
+                "No depth view found.".to_string(),
+            ))?;
 
         // TODO: For optimisation, cache the render pass descriptor and update only when textures change.
         let descriptor = wgpu::RenderPassDescriptor {
@@ -139,7 +142,7 @@ impl RenderPass<()> for GeometryPass {
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
-                },
+                    },
                     view: &self.g_buffers.position_view,
                     resolve_target: None,
                 }),
@@ -182,8 +185,8 @@ impl RenderPass<()> for GeometryPass {
 
         let encoder = frame.encoder();
 
-        let proj_view_bind_group = proj_view.create_bind_group(&graphics.device);
-        
+        let proj_view_bind_group = frame_data.proj_view.create_bind_group(&graphics.device);
+
         let mut render_pass = encoder.begin_render_pass(&descriptor);
 
         // Bind shader pipeline
@@ -195,7 +198,7 @@ impl RenderPass<()> for GeometryPass {
         for render_data in &mut frame_data.render_data_vec {
             // Transform bind group
             render_pass.set_bind_group(0, &render_data.transform.bind_group(graphics), &[]);
-            
+
             // Let the renderable handle the drawing
             render_data.renderable.render(&mut render_pass);
         }

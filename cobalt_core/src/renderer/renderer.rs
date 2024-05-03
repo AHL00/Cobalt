@@ -1,12 +1,25 @@
 use std::error::Error;
 
-use downcast::{Any, downcast};
+use downcast::{downcast, Any};
 
 use crate::{exports::ecs::World, graphics::frame::Frame};
 
-// TODO: Maybe split into internal and external, selectively exposing some methods.
+use super::FrameData;
+
 pub trait Renderer: Any {
-    fn render(&mut self, frame: &mut Frame, world: &mut World) -> Result<(), Box<dyn std::error::Error>>;
+    /// Prepares necessary data for a frame. It should be called before rendering.
+    /// All necessary world data will be copied and stored in the renderer.
+    fn prep_frame<'a>(
+        &mut self,
+        frame: &mut Frame,
+        world: &'a mut World,
+    ) -> Result<FrameData<'a>, FramePrepError>;
+
+    fn render(
+        &mut self,
+        frame: &mut Frame,
+        frame_data: FrameData,
+    ) -> Result<(), RenderError>;
 
     /// Should update current size, resize buffers, and send the callback along to all render passes.
     fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn Error>>;
@@ -19,3 +32,21 @@ pub trait Renderer: Any {
 }
 
 downcast!(dyn Renderer);
+
+#[derive(thiserror::Error, Debug)]
+pub enum FramePrepError {
+    #[error("No camera entity found.")]
+    NoCamera,
+    #[error("Camera entity does not have a transform component.")]
+    NoCamTransform,
+    #[error("More than one enabled camera entity found.")]
+    MultipleCameras,
+    #[error("No renderables found.")]
+    NoRenderables,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum RenderError {
+    #[error("Render pass error: {0}")]
+    RenderPassError(String),
+}

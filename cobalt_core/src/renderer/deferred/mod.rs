@@ -20,7 +20,11 @@ use self::{
 };
 
 use super::{
-    camera::Camera, proj_view::ProjView, render_pass::RenderPass, renderer::Renderer, FrameData,
+    camera::Camera,
+    proj_view::ProjView,
+    render_pass::RenderPass,
+    renderer::{FramePrepError, RenderError, Renderer},
+    FrameData,
 };
 
 pub mod exports {
@@ -61,10 +65,7 @@ impl DeferredRenderer {
     /// Then, it extracts the `ProjView` from the camera and returns it.
     ///
     /// If problems are encountered, it will return an error.
-    fn get_camera(
-        &self,
-        world: &mut World,
-    ) -> Result<Option<ProjView>, Box<dyn std::error::Error>> {
+    fn get_camera(&self, world: &mut World) -> Result<ProjView, FramePrepError> {
         let cam_query = world.query::<Camera>().unwrap();
         let mut enabled_camera_count = 0;
         let mut camera_entity = None;
@@ -76,29 +77,20 @@ impl DeferredRenderer {
 
             // Make sure there is only one camera.
             if enabled_camera_count > 1 {
-                log_once::warn_once!("More than one enabled camera entity found.");
-                break;
+                return Err(FramePrepError::MultipleCameras);
             }
 
-            // Make sure it has a transform.
-            if let Some(_) = world.get_component::<Transform>(ent) {
-                if cam.enabled {
-                    camera_entity = Some(ent);
-                }
-                break;
-            }
-
-            log_once::warn_once!("Camera [{:?}] does not have a transform component.", ent);
+            camera_entity = Some(ent);
         }
-
-        if enabled_camera_count == 0 {
-            log_once::warn_once!("No enabled camera entity found.");
-        }
-
+        
         if let Some(camera_entity) = camera_entity {
+            if let None = world.get_component::<Transform>(camera_entity) {
+                return Err(FramePrepError::NoCamTransform);
+            }
+
             let (transform, camera) = world
                 .query_entity_mut::<(Transform, Camera)>(camera_entity)
-                .expect("Camera entity not found.");
+                .expect("Camera entity components not found. This should never happen.");
 
             let view_matrix = Mat4::look_at(
                 transform.position(),
@@ -108,38 +100,37 @@ impl DeferredRenderer {
 
             let proj_matrix = camera.projection_matrix();
 
-            Ok(Some(ProjView::new(view_matrix, proj_matrix)))
+            Ok(ProjView::new(view_matrix, proj_matrix))
         } else {
-            Ok(None)
+            Err(FramePrepError::NoCamera)
         }
     }
 }
 
 impl Renderer for DeferredRenderer {
+    fn prep_frame<'a>(
+        &mut self,
+        _frame: &mut crate::graphics::frame::Frame,
+        world: &'a mut World,
+    ) -> Result<FrameData<'a>, FramePrepError> {
+        let proj_view = self.get_camera(world)?;
+
+        let frame_data = FrameData::generate(
+            world,
+            Some(self.depth_buffer.texture.create_view(&Default::default())),
+            proj_view,
+        )?;
+
+        Ok(frame_data)
+    }
+
     fn render(
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
-        world: &mut crate::exports::ecs::World,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let proj_view = self.get_camera(world)?;
-
-        if proj_view.is_none() {
-            // No camera found, so don't render anything.
-            // Errors are already logged in `get_camera`.
-            return Ok(());
-        }
-
-        let proj_view = proj_view.unwrap();
-
-        let mut frame_data = FrameData::generate(world, Some(self.depth_buffer.view()))?;
-
-        self.geometry_pass.draw(
-            frame,
-            &Graphics::global_read(),
-            &proj_view,
-            &mut frame_data,
-            (),
-        )?;
+        mut frame_data: FrameData,
+    ) -> Result<(), RenderError> {
+        self.geometry_pass
+            .draw(frame, &Graphics::global_read(), &mut frame_data, ())?;
 
         #[cfg(feature = "debug_stats")]
         {
@@ -154,7 +145,6 @@ impl Renderer for DeferredRenderer {
             self.geometry_debug_pass.draw(
                 frame,
                 &Graphics::global_read(),
-                &proj_view,
                 &mut frame_data,
                 (&self.geometry_pass.g_buffers, &self.depth_buffer),
             )?;
@@ -165,7 +155,7 @@ impl Renderer for DeferredRenderer {
         Ok(())
     }
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn std::error::Error>> {
+    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn Error>> {
         self.geometry_pass.resize_callback(size)?;
         self.depth_buffer = DepthBuffer::new(size, Self::DEPTH_FORMAT)?;
 

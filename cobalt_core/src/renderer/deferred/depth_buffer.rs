@@ -4,11 +4,11 @@ use crate::graphics::{context::Graphics, HasBindGroupLayout, HasStableBindGroup}
 
 /// Recreate on resize for now.
 pub struct DepthBuffer {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
+    pub texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
+    pub sampler: wgpu::Sampler,
 
-    bind_group: wgpu::BindGroup,
+    pub bind_group: wgpu::BindGroup,
 }
 
 impl DepthBuffer {

@@ -26,7 +26,6 @@ log = "0.4.20"
 imstr = "0.2.0"
 parking_lot = {version = "0.12.1", features = []}
 ultraviolet = { version = "0.9.2", features = ["serde", "bytemuck"] }
-log-once = "0.4.1"
 
 # ECS
 serde_closure = "0.3.3"

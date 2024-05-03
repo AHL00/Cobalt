@@ -222,10 +222,43 @@ pub fn run(
 
                         frame.clear(wgpu::Color::BLACK);
 
-                        engine.renderer.render(&mut frame, &mut engine.scene.world).unwrap_or_else(|e| {
-                            log::error!("Failed to render frame: {:?}", e);
-                            engine.exit();
-                        });
+                        let prep_res = engine.renderer.prep_frame(&mut frame, &mut engine.scene.world);
+
+
+                        let frame_data = match prep_res {
+                            Ok(frame_data) => {
+                                Some(frame_data)
+                            }
+                            Err(e) => {
+                                match e {
+                                    _ => {
+                                        // Non-fatal error, log and continue rendering
+                                        log_once::error_once!("Non-fatal error during frame prep: {}", e);
+
+                                        None
+                                    }
+                                }
+                            }
+                        };
+
+                        if let Some(frame_data) = frame_data {
+                            let render_res = engine.renderer.render(&mut frame, frame_data);
+
+                            match render_res {
+                                Ok(_) => {
+                                    // Rendered successfully
+                                }
+                                Err(e) => {
+                                    match e {
+
+                                        _ => {
+                                            // Non-fatal error, log and continue rendering
+                                            log_once::error_once!("Non-fatal error during rendering: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         Stats::global().set(
                             "CPU render time",
