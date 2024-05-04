@@ -297,9 +297,9 @@ impl App for Game {
                                 }
                                 GeometryPassDebugMode::Position => {
                                     self.current_renderer_debug_mode =
-                                        Some(GeometryPassDebugMode::UV);
+                                        Some(GeometryPassDebugMode::Diffuse);
                                 }
-                                GeometryPassDebugMode::UV => {
+                                GeometryPassDebugMode::Diffuse => {
                                     self.current_renderer_debug_mode =
                                         Some(GeometryPassDebugMode::Depth);
                                 }

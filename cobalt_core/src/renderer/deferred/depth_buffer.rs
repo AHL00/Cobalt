@@ -1,6 +1,6 @@
-use std::{error::Error, sync::LazyLock};
+use std::sync::LazyLock;
 
-use crate::graphics::{context::Graphics, HasBindGroupLayout, HasStableBindGroup};
+use crate::{graphics::{context::Graphics, HasBindGroupLayout, HasStableBindGroup}, renderer::renderer::RendererError};
 
 /// Recreate on resize for now.
 pub struct DepthBuffer {
@@ -12,11 +12,13 @@ pub struct DepthBuffer {
 }
 
 impl DepthBuffer {
-    pub fn new(size: (u32, u32), format: wgpu::TextureFormat) -> Result<Self, Box<dyn Error>> {
+    pub fn new(size: (u32, u32), format: wgpu::TextureFormat) -> Result<Self, RendererError> {
         match format {
             wgpu::TextureFormat::Depth32Float | wgpu::TextureFormat::Depth24Plus => {}
             _ => {
-                return Err("Invalid depth format".into());
+                return Err(RendererError::BufferError(
+                    "Depth buffer format must be Depth32Float or Depth24Plus.".to_string(),
+                ));
             }
         }
 

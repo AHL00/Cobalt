@@ -21,9 +21,9 @@ pub struct GeometryBuffers {
     pub albedo_specular_view: wgpu::TextureView,
     pub albedo_specular_sampler: wgpu::Sampler,
 
-    pub uv_buffer: wgpu::Texture,
-    pub uv_view: wgpu::TextureView,
-    pub uv_sampler: wgpu::Sampler,
+    pub diffuse_buffer: wgpu::Texture,
+    pub diffuse_view: wgpu::TextureView,
+    pub diffuse_sampler: wgpu::Sampler,
 
     bind_group: wgpu::BindGroup,
 }
@@ -108,7 +108,7 @@ impl GeometryBuffers {
     pub const POSITION_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
     pub const NORMAL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
     pub const ALBEDO_SPECULAR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
-    pub const UV_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rg32Float;
+    pub const DIFFUSE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
     pub fn generate(size: (u32, u32)) -> Self {
         let graphics = Graphics::global_read();
@@ -158,18 +158,18 @@ impl GeometryBuffers {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         });
 
-        let uv_buffer = graphics.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("UV Geometry Buffer"),
+        let diffuse_buffer = graphics.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Diffuse Geometry Buffer"),
             size: wgpu::Extent3d {
                 width: size.0,
                 height: size.1,
                 depth_or_array_layers: 1,
             },
-            view_formats: &[Self::UV_FORMAT],
+            view_formats: &[Self::DIFFUSE_FORMAT],
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::UV_FORMAT,
+            format: Self::DIFFUSE_FORMAT,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         });
 
@@ -180,7 +180,7 @@ impl GeometryBuffers {
         let albedo_specular_view =
             albedo_specular_buffer.create_view(&TextureViewDescriptor::default());
 
-        let uv_view = uv_buffer.create_view(&TextureViewDescriptor::default());
+        let diffuse_view = diffuse_buffer.create_view(&TextureViewDescriptor::default());
 
         let position_sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Position Geometry Sampler"),
@@ -197,8 +197,8 @@ impl GeometryBuffers {
             ..Default::default()
         });
 
-        let uv_sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("UV Geometry Sampler"),
+        let diffuse_sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Diffuse Geometry Sampler"),
             ..Default::default()
         });
 
@@ -234,11 +234,11 @@ impl GeometryBuffers {
                     },
                     wgpu::BindGroupEntry {
                         binding: 6,
-                        resource: wgpu::BindingResource::TextureView(&uv_view),
+                        resource: wgpu::BindingResource::TextureView(&diffuse_view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 7,
-                        resource: wgpu::BindingResource::Sampler(&uv_sampler),
+                        resource: wgpu::BindingResource::Sampler(&diffuse_sampler),
                     },
                 ],
             });
@@ -256,9 +256,9 @@ impl GeometryBuffers {
             albedo_specular_view,
             albedo_specular_sampler,
 
-            uv_buffer,
-            uv_view,
-            uv_sampler,
+            diffuse_buffer,
+            diffuse_view,
+            diffuse_sampler,
 
             bind_group,
         }

@@ -2,8 +2,12 @@ use std::sync::LazyLock;
 
 use wgpu::util::DeviceExt;
 
-use crate::graphics::{context::Graphics, vertex::UvVertex};
+use crate::{
+    graphics::{context::Graphics, vertex::UvVertex},
+    renderer::renderable::RenderableTrait,
+};
 
+pub type ScreenQuadVertexFormat = UvVertex;
 
 pub struct ScreenQuad {
     pub vertex_buffer: &'static wgpu::Buffer,
@@ -17,19 +21,19 @@ static SCREEN_QUAD_VERTEX_BUFFER: LazyLock<wgpu::Buffer> = LazyLock::new(|| {
         .create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&[
-                UvVertex {
+                ScreenQuadVertexFormat {
                     position: [-1.0, -1.0, 0.0],
                     uv: [0.0, 1.0],
                 },
-                UvVertex {
+                ScreenQuadVertexFormat {
                     position: [1.0, -1.0, 0.0],
                     uv: [1.0, 1.0],
                 },
-                UvVertex {
+                ScreenQuadVertexFormat {
                     position: [1.0, 1.0, 0.0],
                     uv: [1.0, 0.0],
                 },
-                UvVertex {
+                ScreenQuadVertexFormat {
                     position: [-1.0, 1.0, 0.0],
                     uv: [0.0, 0.0],
                 },
@@ -55,5 +59,11 @@ impl ScreenQuad {
             index_buffer: &SCREEN_QUAD_INDEX_BUFFER,
             index_count: 6,
         }
+    }
+
+    pub fn render(&self, render_pass: &mut wgpu::RenderPass) {
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(0..self.index_count, 0, 0..1);
     }
 }

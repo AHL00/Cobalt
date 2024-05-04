@@ -36,7 +36,7 @@ struct FragmentOutput {
     @location(1) normal: vec4f,
     /// First 3 components are albedo, last component is specular
     @location(2) albedo_specular: vec4f,
-    @location(3) uv: vec2<f32>,
+    @location(3) diffuse: vec4f,
 }
 
 @fragment
@@ -51,7 +51,9 @@ fn fs_main(input: VertexOutput) -> FragmentOutput {
 
     output.albedo_specular = vec4f(1.0, 0.0, 0.0, specular);
 
-    output.uv = input.tex_coords;
+    // TODO: Material property uniforms -> albedo, specular, roughness, etc.
+    // It will also include diffuse textures, and other textures such as normal maps, etc.s
+    output.diffuse = vec4f(1.0, 1.0, 1.0, 1.0);
 
     return output;
 }

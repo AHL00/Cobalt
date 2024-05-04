@@ -174,7 +174,7 @@ impl Plugin for DebugGUIPlugin {
         renderer.update_buffers(
             &graphics.device,
             &graphics.queue,
-            frame.encoder(),
+            frame.get_encoder(),
             &tris,
             &screen_descriptor,
         );
@@ -185,7 +185,7 @@ impl Plugin for DebugGUIPlugin {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut render_pass = frame
-            .encoder()
+            .get_encoder()
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,

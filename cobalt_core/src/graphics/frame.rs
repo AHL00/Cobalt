@@ -7,7 +7,7 @@ pub struct Frame<'a> {
 impl Frame<'_> {
     /// TODO: For multithreading, we could make new encoders every time this is called.
     /// Store the encoders in a vec and then submit them all at the end of the frame.
-    pub fn encoder(&mut self) -> &mut wgpu::CommandEncoder {
+    pub fn get_encoder(&mut self) -> &mut wgpu::CommandEncoder {
         &mut self.encoder
     }
 

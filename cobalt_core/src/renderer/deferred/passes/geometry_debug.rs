@@ -2,7 +2,7 @@ use crate::{
     graphics::{
         context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout
     },
-    renderer::{deferred::{depth_buffer::DepthBuffer, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass, renderer::RenderError},
+    renderer::{deferred::{depth_buffer::DepthBuffer, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass, renderer::RendererError},
 };
 
 #[repr(u32)]
@@ -12,7 +12,7 @@ pub enum GeometryPassDebugMode {
     Albedo = 1,
     Specular = 2,
     Position = 3,
-    UV = 4,
+    Diffuse = 4,
     Depth = 5,
 }
 
@@ -89,13 +89,13 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
         graphics: &crate::graphics::context::Graphics,
         _frame_data: &mut crate::renderer::FrameData,
         extra_data: (&GeometryBuffers, &DepthBuffer),
-    ) -> Result<(), RenderError> {
+    ) -> Result<(), RendererError> {
         let swap_texture = frame
             .swap_texture()
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let encoder = frame.encoder();
+        let encoder = frame.get_encoder();
 
         let mode_bind_group = (self.mode.unwrap() as u32).create_bind_group(&graphics.device);
 
@@ -115,7 +115,7 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
         });
 
         if let None = self.mode {
-            return Err(RenderError::RenderPassError("No debug mode set.".to_string()));
+            return Err(RendererError::RenderPassError("No debug mode set.".to_string()));
         }
 
         // Bind debug mode
@@ -129,16 +129,12 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
 
         render_pass.set_pipeline(&self.pipeline);
 
-        render_pass.set_vertex_buffer(0, self.screen_quad.vertex_buffer.slice(..));
-
-        render_pass.set_index_buffer(self.screen_quad.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-
-        render_pass.draw_indexed(0..self.screen_quad.index_count, 0, 0..1);
+        self.screen_quad.render(&mut render_pass);
 
         Ok(())
     }
 
-    fn resize_callback(&mut self, _size: (u32, u32)) -> Result<(), Box<dyn std::error::Error>> {
+    fn resize_callback(&mut self, _size: (u32, u32)) -> Result<(), RendererError> {
         Ok(())
     }
 }

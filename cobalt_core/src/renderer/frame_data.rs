@@ -20,6 +20,7 @@ pub struct RenderData<'a> {
 pub struct FrameData<'a> {
     pub depth_view: Option<wgpu::TextureView>,
     pub proj_view: ProjView,
+    pub camera_position: ultraviolet::Vec3,
     pub render_data_vec: Vec<RenderData<'a>>,
 }
 
@@ -30,6 +31,7 @@ impl<'a> FrameData<'a> {
         world: &'a mut World,
         depth_view: Option<TextureView>,
         proj_view: ProjView,
+        camera_pos: ultraviolet::Vec3,
     ) -> Result<Self, FramePrepError> {
         let mut render_data_vec = Vec::new();
 
@@ -75,6 +77,7 @@ impl<'a> FrameData<'a> {
         Ok(Self {
             depth_view,
             proj_view,
+            camera_position: camera_pos,
             render_data_vec,
         })
     }

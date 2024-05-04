@@ -1,4 +1,4 @@
-use super::renderer::RenderError;
+use super::renderer::RendererError;
 
 /// The RenderPass should not alter FrameData.
 /// They are only mutable to allow for bind groups to be updated.
@@ -16,9 +16,9 @@ pub trait RenderPass<T> {
         graphics: &crate::graphics::context::Graphics,
         frame_data: &mut crate::renderer::FrameData,
         extra_data: T,
-    ) -> Result<(), RenderError>;
+    ) -> Result<(), RendererError>;
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn std::error::Error>>;
+    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), RendererError>;
 
     fn name(&self) -> &str {
         std::any::type_name::<Self>()

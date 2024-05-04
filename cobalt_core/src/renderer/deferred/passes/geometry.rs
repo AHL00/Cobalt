@@ -6,14 +6,14 @@ use crate::{
     },
     renderer::{
         deferred::g_buffers::GeometryBuffers, proj_view::ProjView, render_pass::RenderPass,
-        renderer::RenderError,
+        renderer::RendererError,
     },
 };
 
 /// This pass will clear the geometry buffers and draw the scene to them.
 /// It also clears and writes to the depth buffer.
 pub struct GeometryPass {
-    pub pipeline: wgpu::RenderPipeline,
+    pipeline: wgpu::RenderPipeline,
     pub g_buffers: GeometryBuffers,
 }
 
@@ -51,10 +51,10 @@ impl GeometryPass {
                     module: &shader,
                     entry_point: "fs_main",
                     // Output of the fragment shader is as follows:
-                    // - Position: Rgba32Float
-                    // - Normal: Rgba32Float
+                    // - Position: Rgba16Float
+                    // - Normal: Rgba16Float
                     // - Albedo / Specular: Rgba8UnormSrgb [A_red; A_green; A_blue; S_intensity]
-                    // - UV: Rg32f
+                    // - Diffuse: Rgba8UnormSrgb
                     targets: &[
                         Some(wgpu::ColorTargetState {
                             blend: None,
@@ -74,7 +74,7 @@ impl GeometryPass {
                         Some(wgpu::ColorTargetState {
                             blend: None,
                             write_mask: wgpu::ColorWrites::ALL,
-                            format: GeometryBuffers::UV_FORMAT,
+                            format: GeometryBuffers::DIFFUSE_FORMAT,
                         }),
                     ],
                 }),
@@ -126,17 +126,17 @@ impl RenderPass<()> for GeometryPass {
         graphics: &crate::graphics::context::Graphics,
         frame_data: &mut crate::renderer::FrameData,
         _extra_data: (),
-    ) -> Result<(), RenderError> {
+    ) -> Result<(), RendererError> {
         let depth_view = frame_data
             .depth_view
             .as_ref()
-            .ok_or(RenderError::RenderPassError(
+            .ok_or(RendererError::RenderPassError(
                 "No depth view found.".to_string(),
             ))?;
 
         // TODO: For optimisation, cache the render pass descriptor and update only when textures change.
         let descriptor = wgpu::RenderPassDescriptor {
-            label: Some("Geometry Pass"),
+            label: Some("Geometry Pass Descriptor"),
             color_attachments: &[
                 Some(wgpu::RenderPassColorAttachment {
                     ops: wgpu::Operations {
@@ -167,7 +167,7 @@ impl RenderPass<()> for GeometryPass {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
-                    view: &self.g_buffers.uv_view,
+                    view: &self.g_buffers.diffuse_view,
                     resolve_target: None,
                 }),
             ],
@@ -183,7 +183,7 @@ impl RenderPass<()> for GeometryPass {
             timestamp_writes: None,
         };
 
-        let encoder = frame.encoder();
+        let encoder = frame.get_encoder();
 
         let proj_view_bind_group = frame_data.proj_view.create_bind_group(&graphics.device);
 
@@ -206,7 +206,7 @@ impl RenderPass<()> for GeometryPass {
         Ok(())
     }
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn std::error::Error>> {
+    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), RendererError> {
         self.g_buffers = GeometryBuffers::generate(size);
         Ok(())
     }

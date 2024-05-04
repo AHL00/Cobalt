@@ -16,14 +16,14 @@ use crate::{
 
 use self::{
     depth_buffer::DepthBuffer,
-    passes::{geometry::GeometryPass, geometry_debug::GeometryDebugPass},
+    passes::{color::{ColorPass, ColorPassInput}, geometry::GeometryPass, geometry_debug::GeometryDebugPass},
 };
 
 use super::{
     camera::Camera,
     proj_view::ProjView,
     render_pass::RenderPass,
-    renderer::{FramePrepError, RenderError, Renderer},
+    renderer::{FramePrepError, RendererError, Renderer},
     FrameData,
 };
 
@@ -35,6 +35,7 @@ pub mod exports {
 pub struct DeferredRenderer {
     geometry_pass: GeometryPass,
     geometry_debug_pass: GeometryDebugPass,
+    color_pass: ColorPass,
     depth_buffer: DepthBuffer,
     current_output_size: (u32, u32),
 }
@@ -46,6 +47,7 @@ impl DeferredRenderer {
         Ok(Self {
             geometry_pass: GeometryPass::new(output_size),
             geometry_debug_pass: GeometryDebugPass::new(),
+            color_pass: ColorPass::new(output_size),
             depth_buffer: DepthBuffer::new(output_size, Self::DEPTH_FORMAT)?,
             current_output_size: output_size,
         })
@@ -65,7 +67,9 @@ impl DeferredRenderer {
     /// Then, it extracts the `ProjView` from the camera and returns it.
     ///
     /// If problems are encountered, it will return an error.
-    fn get_camera(&self, world: &mut World) -> Result<ProjView, FramePrepError> {
+    /// 
+    /// Returns: (ProjView, Camera Position)
+    fn get_camera(&self, world: &mut World) -> Result<(ProjView, ultraviolet::Vec3), FramePrepError> {
         let cam_query = world.query::<Camera>().unwrap();
         let mut enabled_camera_count = 0;
         let mut camera_entity = None;
@@ -100,7 +104,7 @@ impl DeferredRenderer {
 
             let proj_matrix = camera.projection_matrix();
 
-            Ok(ProjView::new(view_matrix, proj_matrix))
+            Ok((ProjView::new(view_matrix, proj_matrix), transform.position()))
         } else {
             Err(FramePrepError::NoCamera)
         }
@@ -113,12 +117,13 @@ impl Renderer for DeferredRenderer {
         _frame: &mut crate::graphics::frame::Frame,
         world: &'a mut World,
     ) -> Result<FrameData<'a>, FramePrepError> {
-        let proj_view = self.get_camera(world)?;
+        let (proj_view, cam_pos) = self.get_camera(world)?;
 
         let frame_data = FrameData::generate(
             world,
             Some(self.depth_buffer.texture.create_view(&Default::default())),
             proj_view,
+            cam_pos,
         )?;
 
         Ok(frame_data)
@@ -128,7 +133,7 @@ impl Renderer for DeferredRenderer {
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         mut frame_data: FrameData,
-    ) -> Result<(), RenderError> {
+    ) -> Result<(), RendererError> {
         self.geometry_pass
             .draw(frame, &Graphics::global_read(), &mut frame_data, ())?;
 
@@ -149,13 +154,24 @@ impl Renderer for DeferredRenderer {
                 (&self.geometry_pass.g_buffers, &self.depth_buffer),
             )?;
         } else {
-            // Read render pass
+            let camera_position = frame_data.camera_position.clone();
+
+            self.color_pass.draw(
+                frame,
+                &Graphics::global_read(),
+                &mut frame_data,
+                ColorPassInput {
+                    geometry_buffers: &self.geometry_pass.g_buffers,
+                    depth_buffer: &self.depth_buffer,
+                    cam_position: camera_position,
+                },
+            )?;
         }
 
         Ok(())
     }
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), Box<dyn Error>> {
+    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), RendererError> {
         self.geometry_pass.resize_callback(size)?;
         self.depth_buffer = DepthBuffer::new(size, Self::DEPTH_FORMAT)?;
 
