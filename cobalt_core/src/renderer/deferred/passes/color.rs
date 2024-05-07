@@ -89,7 +89,7 @@ impl<'a> RenderPass<ColorPassInput<'a>> for ColorPass {
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         graphics: &crate::graphics::context::Graphics,
-        frame_data: &mut crate::renderer::FrameData,
+        _frame_data: &mut crate::renderer::FrameData<super::super::Material>,
         extra_data: ColorPassInput<'a>,
     ) -> Result<(), crate::renderer::renderer::RendererError> {
         let swap_view = &frame

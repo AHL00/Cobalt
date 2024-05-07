@@ -2,7 +2,7 @@ use crate::{
     graphics::{
         context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout
     },
-    renderer::{deferred::{depth_buffer::DepthBuffer, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass, renderer::RendererError},
+    renderer::{deferred::{depth_buffer::DepthBuffer, exports::Material, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass, renderer::RendererError},
 };
 
 #[repr(u32)]
@@ -87,7 +87,7 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         graphics: &crate::graphics::context::Graphics,
-        _frame_data: &mut crate::renderer::FrameData,
+        _frame_data: &mut crate::renderer::FrameData<Material>,
         extra_data: (&GeometryBuffers, &DepthBuffer),
     ) -> Result<(), RendererError> {
         let swap_texture = frame

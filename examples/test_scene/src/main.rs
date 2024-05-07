@@ -12,11 +12,7 @@ use cobalt::{
     maths::Vec4,
     plugins::debug_gui::DebugGUIPlugin,
     renderer::{
-        camera::Projection,
-        materials::Unlit,
-        renderables::Mesh,
-        renderers::{DeferredRenderer, GeometryPassDebugMode},
-        Material,
+        camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer
     },
     runtime::{engine::Engine, plugins::PluginManager, App},
     stats::Stats,
@@ -53,16 +49,14 @@ impl App for Game {
             .load::<TextureAsset>(Path::new("jet.png"))
             .unwrap();
 
-        let model_material = Resource::new(Material::Unlit(Unlit::new(
-            Vec4::new(1.0, 1.0, 1.0, 1.0),
-            Some(model_texture),
-        )));
+        let model_material = Resource::new(Material {});
 
         engine.scene.world.add_component(model_ent, transform);
         engine.scene.world.add_component(
             model_ent,
-            Renderable::Mesh(Mesh::new(model_mesh.clone(), model_material.clone())),
+            Renderable::Mesh(Mesh::new(model_mesh.clone())),
         );
+        engine.scene.world.add_component(model_ent, model_material);
 
         let cam_ent = engine.scene.world.create_entity();
 
@@ -276,7 +270,7 @@ impl App for Game {
                     // Filter through deferred rending G-Buffers
                     KeyboardEvent::Pressed(KeyCode::F10) => {
                         // Cast trait object renderer to DeferredRenderer
-                        let renderer: &mut DeferredRenderer = _engine
+                        let renderer: &mut Renderer = _engine
                             .renderer
                             .downcast_mut()
                             .expect("Failed to downcast renderer to DeferredRenderer");

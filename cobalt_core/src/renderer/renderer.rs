@@ -1,22 +1,28 @@
 use downcast::{downcast, Any};
 
-use crate::{exports::ecs::World, graphics::frame::Frame};
+use crate::{exports::{ecs::World, renderer::Material}, graphics::frame::Frame};
 
 use super::FrameData;
 
+/// This is not implementable from outside core.
+/// The exports will be messed up, see `renderer::exports`.
 pub trait Renderer: Any {
+    fn new(size: (u32, u32)) -> Result<Self, RendererError>
+    where
+        Self: Sized;
+
     /// Prepares necessary data for a frame. It should be called before rendering.
     /// All necessary world data will be copied and stored in the renderer.
     fn prep_frame<'a>(
         &mut self,
         frame: &mut Frame,
         world: &'a mut World,
-    ) -> Result<FrameData<'a>, FramePrepError>;
+    ) -> Result<FrameData<'a, Material>, FramePrepError>;
 
     fn render(
         &mut self,
         frame: &mut Frame,
-        frame_data: FrameData,
+        frame_data: FrameData<Material>,
     ) -> Result<(), RendererError>;
 
     /// Should update current size, resize buffers, and send the callback along to all render passes.

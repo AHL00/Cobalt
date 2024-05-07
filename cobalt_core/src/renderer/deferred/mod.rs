@@ -1,9 +1,8 @@
 pub mod depth_buffer;
 pub mod g_buffers;
+pub mod material;
 pub mod passes;
 pub mod screen_quad;
-
-use std::error::Error;
 
 use exports::GeometryPassDebugMode;
 use ultraviolet::Mat4;
@@ -16,20 +15,26 @@ use crate::{
 
 use self::{
     depth_buffer::DepthBuffer,
-    passes::{color::{ColorPass, ColorPassInput}, geometry::GeometryPass, geometry_debug::GeometryDebugPass},
+    material::Material,
+    passes::{
+        color::{ColorPass, ColorPassInput},
+        geometry::GeometryPass,
+        geometry_debug::GeometryDebugPass,
+    },
 };
 
 use super::{
     camera::Camera,
     proj_view::ProjView,
     render_pass::RenderPass,
-    renderer::{FramePrepError, RendererError, Renderer},
+    renderer::{FramePrepError, Renderer, RendererError},
     FrameData,
 };
 
 pub mod exports {
+    pub use super::material::Material;
     pub use super::passes::geometry_debug::GeometryPassDebugMode;
-    pub use super::DeferredRenderer;
+    pub use super::DeferredRenderer as Renderer;
 }
 
 pub struct DeferredRenderer {
@@ -42,16 +47,6 @@ pub struct DeferredRenderer {
 
 impl DeferredRenderer {
     const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-
-    pub fn new(output_size: (u32, u32)) -> Result<Self, Box<dyn Error>> {
-        Ok(Self {
-            geometry_pass: GeometryPass::new(output_size),
-            geometry_debug_pass: GeometryDebugPass::new(),
-            color_pass: ColorPass::new(output_size),
-            depth_buffer: DepthBuffer::new(output_size, Self::DEPTH_FORMAT)?,
-            current_output_size: output_size,
-        })
-    }
 
     // Set None to disable debug mode.
     pub fn set_debug_mode(&mut self, debug_mode: Option<GeometryPassDebugMode>) {
@@ -67,9 +62,12 @@ impl DeferredRenderer {
     /// Then, it extracts the `ProjView` from the camera and returns it.
     ///
     /// If problems are encountered, it will return an error.
-    /// 
+    ///
     /// Returns: (ProjView, Camera Position)
-    fn get_camera(&self, world: &mut World) -> Result<(ProjView, ultraviolet::Vec3), FramePrepError> {
+    fn get_camera(
+        &self,
+        world: &mut World,
+    ) -> Result<(ProjView, ultraviolet::Vec3), FramePrepError> {
         let cam_query = world.query::<Camera>().unwrap();
         let mut enabled_camera_count = 0;
         let mut camera_entity = None;
@@ -86,7 +84,7 @@ impl DeferredRenderer {
 
             camera_entity = Some(ent);
         }
-        
+
         if let Some(camera_entity) = camera_entity {
             if let None = world.get_component::<Transform>(camera_entity) {
                 return Err(FramePrepError::NoCamTransform);
@@ -104,7 +102,10 @@ impl DeferredRenderer {
 
             let proj_matrix = camera.projection_matrix();
 
-            Ok((ProjView::new(view_matrix, proj_matrix), transform.position()))
+            Ok((
+                ProjView::new(view_matrix, proj_matrix),
+                transform.position(),
+            ))
         } else {
             Err(FramePrepError::NoCamera)
         }
@@ -112,11 +113,24 @@ impl DeferredRenderer {
 }
 
 impl Renderer for DeferredRenderer {
+    fn new(output_size: (u32, u32)) -> Result<Self, RendererError>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            geometry_pass: GeometryPass::new(output_size),
+            geometry_debug_pass: GeometryDebugPass::new(),
+            color_pass: ColorPass::new(output_size),
+            depth_buffer: DepthBuffer::new(output_size, Self::DEPTH_FORMAT)?,
+            current_output_size: output_size,
+        })
+    }
+
     fn prep_frame<'a>(
         &mut self,
         _frame: &mut crate::graphics::frame::Frame,
         world: &'a mut World,
-    ) -> Result<FrameData<'a>, FramePrepError> {
+    ) -> Result<FrameData<'a, Material>, FramePrepError> {
         let (proj_view, cam_pos) = self.get_camera(world)?;
 
         let frame_data = FrameData::generate(
@@ -132,7 +146,7 @@ impl Renderer for DeferredRenderer {
     fn render(
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
-        mut frame_data: FrameData,
+        mut frame_data: FrameData<Material>,
     ) -> Result<(), RendererError> {
         self.geometry_pass
             .draw(frame, &Graphics::global_read(), &mut frame_data, ())?;

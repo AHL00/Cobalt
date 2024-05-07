@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["deferred_renderer"]
 debug_stats = ["cobalt_core/debug_stats"]
 debug_gui = ["egui", "egui-winit", "egui-wgpu"]
+deferred_renderer = ["cobalt_core/deferred_renderer"]
 
 [dependencies]
 cobalt_core = { path = "cobalt_core" }
@@ -19,7 +20,7 @@ egui-wgpu = {version = "0.27.2", optional = true}
 log = "0.4.21"
 
 [dev-dependencies]
-simple_logger = "4.3.3"
+simple_logger = "5.0.0"
 
 [workspace]
 members = [

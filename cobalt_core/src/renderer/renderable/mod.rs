@@ -1,10 +1,9 @@
 use crate::{
     components::transform::Transform,
     ecs::component::Component,
-    types::{aabb::AABB, resource::Resource},
+    types::aabb::AABB,
 };
 
-use super::material::Material;
 
 pub mod mesh;
 pub mod plane;
@@ -25,8 +24,6 @@ impl Component for Renderable {}
 pub(super) trait RenderableTrait {
     /// Assume that the uniforms and shader are already set
     fn render(&self, render_pass: &mut wgpu::RenderPass);
-
-    fn get_material<'a>(&'a self) -> &'a Resource<Material>;
 }
 
 impl Renderable {
@@ -34,13 +31,6 @@ impl Renderable {
         match self {
             Self::Plane(plane) => plane.render(render_pass),
             Self::Mesh(mesh) => mesh.render(render_pass),
-        }
-    }
-
-    pub(crate) fn get_material<'a>(&'a self) -> &'a Resource<Material> {
-        match self {
-            Self::Plane(plane) => &plane.material,
-            Self::Mesh(mesh) => &mesh.material,
         }
     }
 

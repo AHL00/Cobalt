@@ -14,7 +14,7 @@ pub trait RenderPass<T> {
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         graphics: &crate::graphics::context::Graphics,
-        frame_data: &mut crate::renderer::FrameData,
+        frame_data: &mut crate::renderer::FrameData<crate::renderer::exports::Material>,
         extra_data: T,
     ) -> Result<(), RendererError>;
 

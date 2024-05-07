@@ -5,8 +5,7 @@ use crate::{
         HasBindGroupLayout, HasVertexBufferLayout,
     },
     renderer::{
-        deferred::g_buffers::GeometryBuffers, proj_view::ProjView, render_pass::RenderPass,
-        renderer::RendererError,
+        deferred::{exports::Material, g_buffers::GeometryBuffers}, proj_view::ProjView, render_pass::RenderPass, renderer::RendererError
     },
 };
 
@@ -124,7 +123,7 @@ impl RenderPass<()> for GeometryPass {
         &mut self,
         frame: &mut crate::graphics::frame::Frame,
         graphics: &crate::graphics::context::Graphics,
-        frame_data: &mut crate::renderer::FrameData,
+        frame_data: &mut crate::renderer::FrameData<Material>,
         _extra_data: (),
     ) -> Result<(), RendererError> {
         let depth_view = frame_data

@@ -1,14 +1,11 @@
 use std::error::Error;
 
 use cobalt_core::{
-    assets::server::{AssetServer, AssetServerInternal},
-    graphics::{
+    assets::server::{AssetServer, AssetServerInternal}, graphics::{
         context::Graphics,
         window::{WindowConfig, WindowInternal},
         winit,
-    },
-    input::InputInternal,
-    stats::{Stats, StatsInternal},
+    }, input::InputInternal, renderer::Renderer, stats::{Stats, StatsInternal}
 };
 
 pub struct Engine {
@@ -42,7 +39,7 @@ impl Engine {
             scene: cobalt_core::scenes::scene::Scene::new("Main Scene"),
             window,
             renderer: Box::new(
-                cobalt_core::renderer::exports::renderers::DeferredRenderer::new((
+                cobalt_core::renderer::exports::Renderer::new((
                     output_size.width,
                     output_size.height,
                 ))?,

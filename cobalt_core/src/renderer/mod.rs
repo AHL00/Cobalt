@@ -1,15 +1,18 @@
 pub mod camera;
-pub mod material;
-pub mod mesh;
-pub mod renderable;
-pub mod render_pass;
-pub mod frame_data;
-pub mod renderer;
 pub mod deferred;
+pub mod frame_data;
+pub mod mesh;
 pub mod proj_view;
+pub mod render_pass;
+pub mod renderable;
+pub mod renderer;
 
-pub use renderer::Renderer;
 pub use frame_data::*;
+pub use renderer::Renderer;
+
+// Guarantee that only one renderer feature is enabled.
+// use mutually_exclusive_features::none_or_one_of;
+// none_or_one_of!("deferred_renderer", "forward_renderer");
 
 pub mod exports {
     pub mod renderables {
@@ -17,18 +20,15 @@ pub mod exports {
         pub use super::super::renderable::plane::Plane;
     }
 
-    pub use super::material::Material;
-
-    pub mod materials {
-        pub use super::super::material::Unlit;
-        pub use super::super::material::Wireframe;
-    }
-
     pub mod camera {
         pub use super::super::camera::Projection;
     }
 
-    pub mod renderers {
-        pub use super::super::deferred::exports::*;
-    }
+    // NOTE: Renderers MUST export the following types:
+    // - Material (Named "Material")
+    // - Renderer (Named "Renderer")
+    // They are also allowed to export any other types they need, but some are required.
+
+    #[cfg(feature = "deferred_renderer")]
+    pub use super::deferred::exports::*;
 }

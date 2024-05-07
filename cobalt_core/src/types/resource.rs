@@ -5,13 +5,18 @@ use parking_lot::{
     RawRwLock, RwLock,
 };
 
+use crate::exports::ecs::Component;
+
 static RESOURCE_ID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 /// A reference counted resource. Can be any type that implements `ResourceTrait`.
+/// It is thread safe and can be shared across threads. It implements `Component` so it can be inserted into the World. 
 pub struct Resource<T: ResourceTrait> {
     pub(crate) id: u32,
     data: Arc<RwLock<T>>,
 }
+
+impl<T> Component for Resource<T> where T: ResourceTrait {}
 
 unsafe impl<T: ResourceTrait> Send for Resource<T> {}
 unsafe impl<T: ResourceTrait> Sync for Resource<T> {}
