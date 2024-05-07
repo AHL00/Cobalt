@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use super::exports::{Asset, AssetHandle, AssetLoadError};
+use super::exports::{AssetTrait, AssetHandle, AssetLoadError};
 
 /// Global asset server.
 /// This is in a RwLock to allow for multiple threads to access the asset server.
@@ -93,7 +93,7 @@ impl AssetServer {
     /// Load an asset from disk.
     /// If the asset is already loaded, it will not load it again.
     /// The path is relative to the assets directory.
-    pub fn load<T: Asset>(&mut self, path: &Path) -> Result<AssetHandle<T>, AssetLoadError> {
+    pub fn load<T: AssetTrait>(&mut self, path: &Path) -> Result<AssetHandle<T>, AssetLoadError> {
         let absolute_path = self.assets_dir.join(path);
 
         let relative_path_string = extract_relative_path(&absolute_path, &self.assets_dir);

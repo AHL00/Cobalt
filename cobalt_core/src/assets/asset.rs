@@ -13,13 +13,12 @@ use super::server::AssetServer;
 
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
-pub trait Asset: Sized + Send + Sync + 'static {
+pub trait AssetTrait: Sized + Send + Sync + 'static {
     fn load_from_file(
         data: BufReader<std::fs::File>,
         name: &ImString,
         path: &Path,
-    ) -> Result<Self, AssetLoadError>;
-}
+    ) -> Result<Self, AssetLoadError>;}
 
 #[derive(thiserror::Error, Debug)]
 pub enum AssetLoadError {
@@ -34,16 +33,16 @@ pub enum AssetLoadError {
 /// The handle can be serialized and deserialized.
 /// When the handle is serialized, it will serialize the path.
 /// When the handle is deserialized, it will load the asset into the global asset server.
-pub struct AssetHandle<T: Asset> {
+pub struct AssetHandle<T: AssetTrait> {
     /// The relative path to the asset
     pub(crate) path: ImString,
     data: Arc<RwLock<T>>,
 }
 
-unsafe impl<T: Asset> Send for AssetHandle<T> {}
-unsafe impl<T: Asset> Sync for AssetHandle<T> {}
+unsafe impl<T: AssetTrait> Send for AssetHandle<T> {}
+unsafe impl<T: AssetTrait> Sync for AssetHandle<T> {}
 
-impl<T: Asset> Debug for AssetHandle<T> {
+impl<T: AssetTrait> Debug for AssetHandle<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AssetHandle")
             .field("path", &self.path)
@@ -51,7 +50,7 @@ impl<T: Asset> Debug for AssetHandle<T> {
     }
 }
 
-impl<T: Asset> AssetHandle<T> {
+impl<T: AssetTrait> AssetHandle<T> {
     // Any must be of type T
     pub(crate) fn new(path: ImString, arc: Arc<dyn Any + Send + Sync + 'static>) -> Self {
         // This is safe because we know that the type is T
@@ -69,7 +68,7 @@ impl<T: Asset> AssetHandle<T> {
     }
 }
 
-impl<T: Asset> Clone for AssetHandle<T> {
+impl<T: AssetTrait> Clone for AssetHandle<T> {
     fn clone(&self) -> Self {
         Self {
             path: self.path.clone(),
@@ -79,7 +78,7 @@ impl<T: Asset> Clone for AssetHandle<T> {
 }
 
 #[allow(dead_code)]
-impl<T: Asset> AssetHandle<T> {
+impl<T: AssetTrait> AssetHandle<T> {
     /// This will return a reference to the asset.
     pub fn borrow<'a>(&'a self) -> RwLockReadGuard<'a, T> {
         self.data.read()
@@ -103,13 +102,13 @@ impl<T: Asset> AssetHandle<T> {
     }
 }
 
-impl<T: Asset> Serialize for AssetHandle<T> {
+impl<T: AssetTrait> Serialize for AssetHandle<T> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.path)
     }
 }
 
-impl<'de, T: Asset> serde::Deserialize<'de> for AssetHandle<T> {
+impl<'de, T: AssetTrait> serde::Deserialize<'de> for AssetHandle<T> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let path = String::deserialize(deserializer)?;
 
@@ -119,7 +118,7 @@ impl<'de, T: Asset> serde::Deserialize<'de> for AssetHandle<T> {
     }
 }
 
-impl<T: Asset> Drop for AssetHandle<T> {
+impl<T: AssetTrait> Drop for AssetHandle<T> {
     fn drop(&mut self) {
         let asset_hashmap_ref = &mut AssetServer::global_write().assets;
 

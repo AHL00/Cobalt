@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+default = [
+    # one renderer needs to be default for the tests to work
+    "deferred_renderer",
+]
+
 # Enables more detailed performance statistics
 debug_stats = []
 
@@ -27,7 +32,7 @@ pollster = "0.3.0"
 thiserror = "1.0.56"
 log = "0.4.20"
 imstr = "0.2.0"
-parking_lot = {version = "0.12.1", features = []}
+parking_lot = { version = "0.12.1", features = [] }
 ultraviolet = { version = "0.9.2", features = ["serde", "bytemuck"] }
 tobj = "4.0.1"
 downcast = "0.11.0"
@@ -35,6 +40,20 @@ mutually_exclusive_features = "0.1.0"
 
 # ECS
 serde_closure = "0.3.3"
+gltf = { version = "1.4.0", features = [
+    "extras",
+    "names",
+    # "KHR_lights_punctual",
+    "KHR_materials_pbrSpecularGlossiness",
+    "KHR_materials_unlit",
+    # "KHR_texture_transform",
+    # "KHR_materials_variants",
+    # "KHR_materials_volume",
+    "KHR_materials_specular",
+    # "KHR_materials_transmission",
+    # "KHR_materials_ior",
+    # "KHR_materials_emissive_strength",
+] }
 
 
 [dev-dependencies]

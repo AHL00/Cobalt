@@ -2,7 +2,10 @@
 
 use self::sealed::{QuerySealed, SealedQueryMut};
 use super::{
-    component::Component, storage::ComponentStorage, entity::{Entity, EntityData}, world::World,
+    component::{Component, ComponentId},
+    entity::{Entity, EntityData},
+    storage::ComponentStorage,
+    world::World,
 };
 use crate::utils::bit_array::SimdBitArray;
 use std::any::TypeId;
@@ -10,6 +13,12 @@ use std::any::TypeId;
 pub trait Query<'a>: QuerySealed<'a> {}
 
 pub trait QueryMut<'a>: SealedQueryMut<'a> {}
+
+#[derive(Debug, Clone)]
+pub enum QueryRestriction {
+    Optional(TypeId),
+    Exclude(TypeId),
+}
 
 mod sealed {
     use super::*;
@@ -20,7 +29,9 @@ mod sealed {
 
         fn type_ids() -> Vec<TypeId>;
 
-        fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item;
+        fn restrictions() -> Vec<QueryRestriction>;
+
+        fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item;
 
         fn get_storage_ref(world: &'a World) -> Self::StorageRef;
     }
@@ -31,7 +42,7 @@ mod sealed {
 
         fn type_ids() -> Vec<TypeId>;
 
-        fn get_unchecked_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item;
+        fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item;
 
         fn get_storage_ref(world: &'a mut World) -> Self::StorageRef;
     }
@@ -49,7 +60,7 @@ impl<'a> SealedQueryMut<'a> for () {
     }
 
     #[inline]
-    fn get_unchecked_mut(_entity: Entity, _storage: &'a mut Self::StorageRef) -> Self::Item {}
+    fn get_mut(_entity: Entity, _storage: &'a mut Self::StorageRef) -> Self::Item {}
 
     #[inline]
     fn get_storage_ref(_world: &'a mut World) -> Self::StorageRef {}
@@ -64,8 +75,12 @@ impl<'a> QuerySealed<'a> for () {
         vec![]
     }
 
+    fn restrictions() -> Vec<QueryRestriction> {
+        vec![]
+    }
+
     #[inline]
-    fn get_unchecked(_entity: Entity, _storage: &Self::StorageRef) -> Self::Item {}
+    fn get(_entity: Entity, _storage: &Self::StorageRef) -> Self::Item {}
 
     #[inline]
     fn get_storage_ref(_world: &'a World) -> Self::StorageRef {}
@@ -81,17 +96,13 @@ impl<'a, T: Component> SealedQueryMut<'a> for T {
     }
 
     #[inline]
-    fn get_unchecked_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
+    fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
         storage.get_unchecked_mut(entity)
     }
 
     #[inline]
     fn get_storage_ref(world: &'a mut World) -> Self::StorageRef {
-        &mut world
-            .components
-            .get_mut(&TypeId::of::<T>())
-            .unwrap()
-            .0
+        &mut world.components.get_mut(&TypeId::of::<T>()).unwrap().0
     }
 }
 
@@ -104,18 +115,72 @@ impl<'a, T: Component> QuerySealed<'a> for T {
         vec![TypeId::of::<T>()]
     }
 
+    fn restrictions() -> Vec<QueryRestriction> {
+        vec![]
+    }
+
     #[inline]
-    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+    fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         storage.get_unchecked(entity)
     }
 
     #[inline]
     fn get_storage_ref(world: &'a World) -> Self::StorageRef {
-        &world
-            .components
-            .get(&TypeId::of::<T>())
-            .unwrap()
-            .0
+        &world.components.get(&TypeId::of::<T>()).unwrap().0
+    }
+}
+
+pub struct Optional<T>(std::marker::PhantomData<T>);
+
+impl<'a, T: Component> Query<'a> for Optional<T> {}
+impl<'a, T: Component> QuerySealed<'a> for Optional<T> {
+    type Item = Option<&'a T>;
+    type StorageRef = &'a ComponentStorage;
+
+    fn type_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<T>()]
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        vec![QueryRestriction::Optional(TypeId::of::<T>())]
+    }
+
+    #[inline]
+    fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+        storage.get_optional::<T>(entity)
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        &world.components.get(&TypeId::of::<T>()).unwrap().0
+    }
+}
+
+pub struct Exclude<T>(std::marker::PhantomData<T>);
+
+impl<'a, T: Component> Query<'a> for Exclude<T> {}
+impl<'a, T: Component> QuerySealed<'a> for Exclude<T> {
+    type Item = ();
+    type StorageRef = &'a ComponentStorage;
+
+    fn type_ids() -> Vec<TypeId> {
+        // The type ID needs to be known to exclude it.
+        // Exclusion is done in the iterator.
+        vec![TypeId::of::<T>()]
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        vec![QueryRestriction::Exclude(TypeId::of::<T>())]
+    }
+
+    #[inline]
+    fn get(_entity: Entity, _storage: &Self::StorageRef) -> Self::Item {
+        ()
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+        &world.components.get(&TypeId::of::<T>()).unwrap().0
     }
 }
 
@@ -129,8 +194,8 @@ impl<'a, Q: SealedQueryMut<'a>> SealedQueryMut<'a> for (Q,) {
     }
 
     #[inline]
-    fn get_unchecked_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
-        (Q::get_unchecked_mut(entity, &mut storage.0),)
+    fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
+        (Q::get_mut(entity, &mut storage.0),)
     }
 
     #[inline]
@@ -148,9 +213,13 @@ impl<'a, Q: QuerySealed<'a>> QuerySealed<'a> for (Q,) {
         Q::type_ids()
     }
 
+    fn restrictions() -> Vec<QueryRestriction> {
+        Q::restrictions()
+    }
+
     #[inline]
-    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
-        (Q::get_unchecked(entity, &storage.0),)
+    fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+        (Q::get(entity, &storage.0),)
     }
     #[inline]
     fn get_storage_ref(world: &'a World) -> Self::StorageRef {
@@ -168,10 +237,10 @@ impl<'a, Q1: SealedQueryMut<'a>, Q2: SealedQueryMut<'a>> SealedQueryMut<'a> for 
     }
 
     #[inline]
-    fn get_unchecked_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
+    fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked_mut(entity, &mut storage.0),
-            Q2::get_unchecked_mut(entity, &mut storage.1),
+            Q1::get_mut(entity, &mut storage.0),
+            Q2::get_mut(entity, &mut storage.1),
         )
     }
 
@@ -196,12 +265,13 @@ impl<'a, Q1: QuerySealed<'a>, Q2: QuerySealed<'a>> QuerySealed<'a> for (Q1, Q2) 
         [Q1::type_ids(), Q2::type_ids()].concat()
     }
 
+    fn restrictions() -> Vec<QueryRestriction> {
+        [Q1::restrictions(), Q2::restrictions()].concat()
+    }
+
     #[inline]
-    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
-        (
-            Q1::get_unchecked(entity, &storage.0),
-            Q2::get_unchecked(entity, &storage.1),
-        )
+    fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+        (Q1::get(entity, &storage.0), Q2::get(entity, &storage.1))
     }
 
     #[inline]
@@ -222,11 +292,11 @@ impl<'a, Q1: SealedQueryMut<'a>, Q2: SealedQueryMut<'a>, Q3: SealedQueryMut<'a>>
     }
 
     #[inline]
-    fn get_unchecked_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
+    fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked_mut(entity, &mut storage.0),
-            Q2::get_unchecked_mut(entity, &mut storage.1),
-            Q3::get_unchecked_mut(entity, &mut storage.2),
+            Q1::get_mut(entity, &mut storage.0),
+            Q2::get_mut(entity, &mut storage.1),
+            Q3::get_mut(entity, &mut storage.2),
         )
     }
 
@@ -254,12 +324,16 @@ impl<'a, Q1: QuerySealed<'a>, Q2: QuerySealed<'a>, Q3: QuerySealed<'a>> QuerySea
         [Q1::type_ids(), Q2::type_ids(), Q3::type_ids()].concat()
     }
 
+    fn restrictions() -> Vec<QueryRestriction> {
+        [Q1::restrictions(), Q2::restrictions(), Q3::restrictions()].concat()
+    }
+
     #[inline]
-    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+    fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked(entity, &storage.0),
-            Q2::get_unchecked(entity, &storage.1),
-            Q3::get_unchecked(entity, &storage.2),
+            Q1::get(entity, &storage.0),
+            Q2::get(entity, &storage.1),
+            Q3::get(entity, &storage.2),
         )
     }
 
@@ -304,12 +378,12 @@ impl<
     }
 
     #[inline]
-    fn get_unchecked_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
+    fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked_mut(entity, &mut storage.0),
-            Q2::get_unchecked_mut(entity, &mut storage.1),
-            Q3::get_unchecked_mut(entity, &mut storage.2),
-            Q4::get_unchecked_mut(entity, &mut storage.3),
+            Q1::get_mut(entity, &mut storage.0),
+            Q2::get_mut(entity, &mut storage.1),
+            Q3::get_mut(entity, &mut storage.2),
+            Q4::get_mut(entity, &mut storage.3),
         )
     }
 
@@ -352,13 +426,23 @@ impl<'a, Q1: QuerySealed<'a>, Q2: QuerySealed<'a>, Q3: QuerySealed<'a>, Q4: Quer
         .concat()
     }
 
+    fn restrictions() -> Vec<QueryRestriction> {
+        [
+            Q1::restrictions(),
+            Q2::restrictions(),
+            Q3::restrictions(),
+            Q4::restrictions(),
+        ]
+        .concat()
+    }
+
     #[inline]
-    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+    fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked(entity, &storage.0),
-            Q2::get_unchecked(entity, &storage.1),
-            Q3::get_unchecked(entity, &storage.2),
-            Q4::get_unchecked(entity, &storage.3),
+            Q1::get(entity, &storage.0),
+            Q2::get(entity, &storage.1),
+            Q3::get(entity, &storage.2),
+            Q4::get(entity, &storage.3),
         )
     }
 
@@ -413,13 +497,13 @@ impl<
     }
 
     #[inline]
-    fn get_unchecked_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
+    fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked_mut(entity, &mut storage.0),
-            Q2::get_unchecked_mut(entity, &mut storage.1),
-            Q3::get_unchecked_mut(entity, &mut storage.2),
-            Q4::get_unchecked_mut(entity, &mut storage.3),
-            Q5::get_unchecked_mut(entity, &mut storage.4),
+            Q1::get_mut(entity, &mut storage.0),
+            Q2::get_mut(entity, &mut storage.1),
+            Q3::get_mut(entity, &mut storage.2),
+            Q4::get_mut(entity, &mut storage.3),
+            Q5::get_mut(entity, &mut storage.4),
         )
     }
 
@@ -471,14 +555,25 @@ impl<
         .concat()
     }
 
+    fn restrictions() -> Vec<QueryRestriction> {
+        [
+            Q1::restrictions(),
+            Q2::restrictions(),
+            Q3::restrictions(),
+            Q4::restrictions(),
+            Q5::restrictions(),
+        ]
+        .concat()
+    }
+
     #[inline]
-    fn get_unchecked(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
+    fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
         (
-            Q1::get_unchecked(entity, &storage.0),
-            Q2::get_unchecked(entity, &storage.1),
-            Q3::get_unchecked(entity, &storage.2),
-            Q4::get_unchecked(entity, &storage.3),
-            Q5::get_unchecked(entity, &storage.4),
+            Q1::get(entity, &storage.0),
+            Q2::get(entity, &storage.1),
+            Q3::get(entity, &storage.2),
+            Q4::get(entity, &storage.3),
+            Q5::get(entity, &storage.4),
         )
     }
 
@@ -527,7 +622,7 @@ impl<'a> World {
         }
 
         if components_found {
-            Some(Q::get_unchecked(entity, &Q::get_storage_ref(self)))
+            Some(Q::get(entity, &Q::get_storage_ref(self)))
         } else {
             None
         }
@@ -564,7 +659,7 @@ impl<'a> World {
         let storage_ptr = &mut Q::get_storage_ref(self) as *mut Q::StorageRef;
 
         if components_found {
-            Some(Q::get_unchecked_mut(entity, unsafe { &mut *storage_ptr }))
+            Some(Q::get_mut(entity, unsafe { &mut *storage_ptr }))
         } else {
             None
         }
@@ -577,7 +672,9 @@ pub struct QueryIter<'a, Q: Query<'a>> {
     query_mask: SimdBitArray<256>,
     storage_ref: Option<Q::StorageRef>,
     count: usize,
+    /// The number of entities that have the least amount of components in the query.
     smallest_storage_count: usize,
+    restrictions: Vec<(QueryRestriction, ComponentId)>,
     _phantom: std::marker::PhantomData<Q>,
 }
 
@@ -591,6 +688,8 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
     pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
         let mut smallest_storage_count = 0;
         let mut component_not_found = false;
+
+        let restrictions = Q::restrictions();
 
         let mut query_mask = SimdBitArray::new();
 
@@ -612,9 +711,44 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
             // Find the number of times to iterate.
             let storage = &world.components.get(&type_id).unwrap().0;
 
-            if smallest_storage_count == 0 || storage.count < smallest_storage_count {
+            let mut restriction = None;
+
+            // Query mask bit should be false if the component is optional.
+            // The type_id() in impl Query<'a> for Optional<T> returns an empty vec.
+            // So it should be fine to set the bit to true here.
+            for r in &restrictions {
+                match r {
+                    QueryRestriction::Optional(t) => {
+                        if type_id == *t {
+                            // Remove from bitmask
+                            query_mask.set(comp_id.0 as usize, false);
+
+                            restriction = Some(r);
+
+                            break;
+                        }
+                    }
+                    QueryRestriction::Exclude(t) => {
+                        if type_id == *t {
+                            // Remove from bitmask
+                            query_mask.set(comp_id.0 as usize, false);
+
+                            restriction = Some(r);
+
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Don't consider if restriction is present.
+            // TODO: Maybe more intelligent way to handle this, rather than disabling the optimisation altogether.
+            if (smallest_storage_count == 0 || storage.count < smallest_storage_count) && 
+                restriction.is_none() {
                 smallest_storage_count = storage.count;
             }
+
+           
         }
 
         let storage_ref = if component_not_found {
@@ -630,6 +764,22 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
             storage_ref,
             count: 0,
             smallest_storage_count,
+            restrictions: {
+                let mut res = Vec::new();
+
+                for restriction in restrictions {
+                    let type_id = match restriction {
+                        QueryRestriction::Optional(type_id) => type_id,
+                        QueryRestriction::Exclude(type_id) => type_id,
+                    };
+
+                    let comp_id = world.components.get(&type_id).unwrap().1;
+
+                    res.push((restriction, comp_id));
+                }
+
+                res
+            },
             _phantom: std::marker::PhantomData,
         })
     }
@@ -650,7 +800,7 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
             return None;
         }
 
-        loop {
+        'outer: loop {
             // Get the next entity and its data
             let entity_data = self.entity_iter.next()?;
 
@@ -661,10 +811,26 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
                 version: entity_data.version,
             };
 
+            // Verify restrictions.
+            for restriction in &self.restrictions {
+                match restriction {
+                    (QueryRestriction::Exclude(_), comp_id) => {
+                        // If the entity has the component, then skip it.
+                        if entity_data.components.get(comp_id.0 as usize) {
+                            continue 'outer;
+                        }
+                    }
+                    (QueryRestriction::Optional(_), _) => {
+                        // If optional, this bit in the query mask is set to false (check new() method).
+                        // There shouldn't be anything to do here.
+                    }
+                }
+            }
+
             // Check if the entity meets the query requirements.
             if entity_data.components.contains(&self.query_mask) {
                 // Get the components.
-                let components = Q::get_unchecked(entity, self.storage_ref.as_ref().unwrap());
+                let components = Q::get(entity, self.storage_ref.as_ref().unwrap());
 
                 // Increment the count.
                 self.count += 1;
@@ -775,7 +941,7 @@ impl<'a, Q: QueryMut<'a> + 'a> Iterator for QueryMutIter<'a, Q> {
                 let storage_ptr = self.storage_ref.as_mut().unwrap() as *mut Q::StorageRef;
 
                 // Get the components.
-                let components = Q::get_unchecked_mut(entity, unsafe { &mut *storage_ptr });
+                let components = Q::get_mut(entity, unsafe { &mut *storage_ptr });
 
                 // Increment the count.
                 self.count += 1;
@@ -931,6 +1097,142 @@ mod tests {
         }
 
         assert_eq!(count, 500);
+    }
+
+    #[test]
+    fn query_optional() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count_real = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count_real += 1;
+            }
+        }
+
+        let query = world.query::<(i32, Optional<f32>)>().unwrap();
+
+        let mut some_count = 0;
+        let mut none_count = 0;
+        let mut total_count = 0;
+
+        for (_, (_x, component)) in query {
+            total_count += 1;
+
+            if component.is_some() {
+                assert_eq!(component, Some(1.0f32).as_ref());
+                some_count += 1;
+            } else {
+                assert_eq!(component, None);
+                none_count += 1;
+            }
+        }
+
+        assert_eq!(total_count, 1000);
+        assert_eq!(some_count, some_count_real);
+        assert_eq!(none_count, 1000 - some_count_real);
+    }
+
+    #[test]
+    fn query_optional_only() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count_real = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count_real += 1;
+            }
+        }
+
+        let query = world.query::<Optional<f32>>().unwrap();
+
+        let mut some_count = 0;
+        let mut none_count = 0;
+        let mut total_count = 0;
+
+        for (_, component) in query {
+            total_count += 1;
+
+            if component.is_some() {
+                assert_eq!(component, Some(1.0f32).as_ref());
+                some_count += 1;
+            } else {
+                assert_eq!(component, None);
+                none_count += 1;
+            }
+        }
+
+        assert_eq!(total_count, 1000);
+        assert_eq!(some_count, some_count_real);
+        assert_eq!(none_count, 1000 - some_count_real);
+    }
+
+    #[test]
+    fn query_exclude() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count += 1;
+            }
+        }
+
+        let query = world.query::<(i32, Exclude<f32>)>().unwrap();
+
+        let mut query_count = 0;
+
+        for (_, (_x, _exclude)) in query {
+            query_count += 1;
+        }
+
+        assert_eq!(query_count, some_count);
+    }
+
+    #[test]
+    fn query_exclude_only() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count += 1;
+            }
+        }
+
+        let query = world.query::<Exclude<f32>>().unwrap();
+
+        let mut total_count = 0;
+
+        for (_, _x) in query {
+            total_count += 1;
+        }
+
+        assert_eq!(total_count, some_count);
     }
 
     #[test]

@@ -211,6 +211,30 @@ impl ComponentStorage {
         data
     }
 
+    pub fn get_optional<T: Component>(&self, entity: Entity) -> Option<&T> {
+        if let Some(index) = self.sparse_set[entity.id as usize] {
+            let size = std::mem::size_of::<T>();
+
+            // Zero sized type
+            if size == 0 {
+                // Transmute a 0 byte chunk of mem
+                let res = unsafe { std::mem::transmute::<&u8, &T>(&0) };
+
+                return Some(res);
+            }
+
+            // Get the pointer to the data.
+            let ptr = unsafe { self.data.as_ptr().add(index * size) as *const T };
+
+            // Get the reference to the data.
+            let data = unsafe { &*ptr };
+
+            Some(data)
+        } else {
+            None
+        }
+    }
+
     pub fn get_unchecked_mut<T: Component>(&mut self, entity: Entity) -> &mut T {
         let size = std::mem::size_of::<T>();
 
@@ -232,6 +256,30 @@ impl ComponentStorage {
         let data = unsafe { &mut *ptr };
 
         data
+    }
+
+    pub fn get_optional_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        if let Some(index) = self.sparse_set[entity.id as usize] {
+            let size = std::mem::size_of::<T>();
+
+            // Zero sized type
+            if size == 0 {
+                // Transmute a 0 byte chunk of mem
+                let res = unsafe { std::mem::transmute::<&mut u8, &mut T>(&mut 0) };
+
+                return Some(res);
+            }
+
+            // Get the pointer to the data.
+            let ptr = unsafe { self.data.as_ptr().add(index * size) as *mut T };
+
+            // Get the reference to the data.
+            let data = unsafe { &mut *ptr };
+
+            Some(data)
+        } else {
+            None
+        }
     }
 
     /// Removes this entity from the sparse set but does not delete the actual data.

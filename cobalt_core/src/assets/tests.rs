@@ -3,14 +3,14 @@ use std::{
     path::Path,
 };
 
-use super::exports::{Asset, AssetLoadError};
+use super::exports::{AssetTrait, AssetLoadError};
 
 #[allow(dead_code)]
 struct Text {
     pub text: String,
 }
 
-impl Asset for Text {
+impl AssetTrait for Text {
     fn load_from_file(
         mut reader: BufReader<std::fs::File>,
         _: &imstr::ImString,

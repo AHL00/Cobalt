@@ -35,7 +35,7 @@ where
             }
         }
     }
-    
+
     /// Sets a single bit at the given index.
     pub fn set(&mut self, index: usize, value: bool) {
         let vector_index = index / 512;
@@ -204,6 +204,34 @@ mod tests {
 
         assert_eq!(bit_array.get(0), false);
         assert_eq!(bit_array.get(8), true);
+    }
+
+    #[test]
+    fn simd_bit_array_contains() {
+        let mut bit_array1 = SimdBitArray::<1024>::new();
+        let mut bit_array2 = SimdBitArray::<1024>::new();
+
+        bit_array1.set(0, true);
+        bit_array1.set(8, false);
+
+        bit_array2.set(0, true);
+
+        assert!(bit_array1.contains(&bit_array2));
+
+        bit_array2.set(8, true);
+
+        assert!(!bit_array1.contains(&bit_array2));
+    }
+
+    #[test]
+    fn simd_bit_array_contains_empty() {
+        let mut bit_array1 = SimdBitArray::<1024>::new();
+        let bit_array2 = SimdBitArray::<1024>::new();
+
+        bit_array1.set(0, true);
+        bit_array1.set(8, false);
+
+        assert!(bit_array1.contains(&bit_array2));
     }
 
     #[test]

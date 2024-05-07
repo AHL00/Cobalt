@@ -49,7 +49,7 @@ impl App for Game {
             .load::<TextureAsset>(Path::new("jet.png"))
             .unwrap();
 
-        let model_material = Resource::new(Material {});
+        let model_material = Resource::new(Material::default());
 
         engine.scene.world.add_component(model_ent, transform);
         engine.scene.world.add_component(

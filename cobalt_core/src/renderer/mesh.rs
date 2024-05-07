@@ -6,7 +6,7 @@ use std::{
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::exports::{Asset, AssetLoadError}, graphics::{context::Graphics, vertex::UvNormalVertex}, types::aabb::AABB
+    assets::exports::{AssetTrait, AssetLoadError}, graphics::{context::Graphics, vertex::UvNormalVertex}, types::aabb::AABB
 };
 
 #[allow(dead_code)]
@@ -19,7 +19,7 @@ pub struct MeshAsset {
     pub(crate) has_uv: bool,
 }
 
-impl Asset for MeshAsset {
+impl AssetTrait for MeshAsset {
     fn load_from_file(
         mut reader: BufReader<std::fs::File>,
         name: &imstr::ImString,
