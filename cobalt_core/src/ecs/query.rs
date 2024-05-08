@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use self::sealed::{QuerySealed, SealedQueryMut};
+use self::sealed::{QueryMutSealed, QuerySealed};
 use super::{
     component::{Component, ComponentId},
     entity::{Entity, EntityData},
@@ -12,7 +12,7 @@ use std::any::TypeId;
 
 pub trait Query<'a>: QuerySealed<'a> {}
 
-pub trait QueryMut<'a>: SealedQueryMut<'a> {}
+pub trait QueryMut<'a>: QueryMutSealed<'a> {}
 
 #[derive(Debug, Clone)]
 pub enum QueryRestriction {
@@ -36,11 +36,13 @@ mod sealed {
         fn get_storage_ref(world: &'a World) -> Self::StorageRef;
     }
 
-    pub trait SealedQueryMut<'a> {
+    pub trait QueryMutSealed<'a> {
         type Item;
         type StorageRef;
 
         fn type_ids() -> Vec<TypeId>;
+
+        fn restrictions() -> Vec<QueryRestriction>;
 
         fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item;
 
@@ -51,11 +53,15 @@ mod sealed {
 // TODO: Optionals and excludes in queries.
 
 impl<'a> QueryMut<'a> for () {}
-impl<'a> SealedQueryMut<'a> for () {
+impl<'a> QueryMutSealed<'a> for () {
     type Item = ();
     type StorageRef = ();
 
     fn type_ids() -> Vec<TypeId> {
+        vec![]
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
         vec![]
     }
 
@@ -87,12 +93,16 @@ impl<'a> QuerySealed<'a> for () {
 }
 
 impl<'a, T: Component> QueryMut<'a> for T {}
-impl<'a, T: Component> SealedQueryMut<'a> for T {
+impl<'a, T: Component> QueryMutSealed<'a> for T {
     type Item = &'a mut T;
     type StorageRef = &'a mut ComponentStorage;
 
     fn type_ids() -> Vec<TypeId> {
         vec![TypeId::of::<T>()]
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        vec![]
     }
 
     #[inline]
@@ -130,7 +140,31 @@ impl<'a, T: Component> QuerySealed<'a> for T {
     }
 }
 
-pub struct Optional<T>(std::marker::PhantomData<T>);
+pub struct Optional<T: Component>(std::marker::PhantomData<T>);
+
+impl<'a, T: Component> QueryMut<'a> for Optional<T> {}
+impl<'a, T: Component> QueryMutSealed<'a> for Optional<T> {
+    type Item = Option<&'a mut T>;
+    type StorageRef = &'a mut ComponentStorage;
+
+    fn type_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<T>()]
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        vec![QueryRestriction::Optional(TypeId::of::<T>())]
+    }
+
+    #[inline]
+    fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
+        storage.get_optional_mut::<T>(entity)
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a mut World) -> Self::StorageRef {
+        &mut world.components.get_mut(&TypeId::of::<T>()).unwrap().0
+    }
+}
 
 impl<'a, T: Component> Query<'a> for Optional<T> {}
 impl<'a, T: Component> QuerySealed<'a> for Optional<T> {
@@ -157,6 +191,32 @@ impl<'a, T: Component> QuerySealed<'a> for Optional<T> {
 }
 
 pub struct Exclude<T>(std::marker::PhantomData<T>);
+
+impl<'a, T: Component> QueryMut<'a> for Exclude<T> {}
+impl<'a, T: Component> QueryMutSealed<'a> for Exclude<T> {
+    type Item = ();
+    type StorageRef = &'a mut ComponentStorage;
+
+    fn type_ids() -> Vec<TypeId> {
+        // The type ID needs to be known to exclude it.
+        // Exclusion is done in the iterator.
+        vec![TypeId::of::<T>()]
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        vec![QueryRestriction::Exclude(TypeId::of::<T>())]
+    }
+
+    #[inline]
+    fn get_mut(_entity: Entity, _storage: &'a mut Self::StorageRef) -> Self::Item {
+        ()
+    }
+
+    #[inline]
+    fn get_storage_ref(world: &'a mut World) -> Self::StorageRef {
+        &mut world.components.get_mut(&TypeId::of::<T>()).unwrap().0
+    }
+}
 
 impl<'a, T: Component> Query<'a> for Exclude<T> {}
 impl<'a, T: Component> QuerySealed<'a> for Exclude<T> {
@@ -185,12 +245,16 @@ impl<'a, T: Component> QuerySealed<'a> for Exclude<T> {
 }
 
 impl<'a, Q: QueryMut<'a>> QueryMut<'a> for (Q,) {}
-impl<'a, Q: SealedQueryMut<'a>> SealedQueryMut<'a> for (Q,) {
+impl<'a, Q: QueryMutSealed<'a>> QueryMutSealed<'a> for (Q,) {
     type Item = (Q::Item,);
     type StorageRef = (Q::StorageRef,);
 
     fn type_ids() -> Vec<TypeId> {
         Q::type_ids()
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        Q::restrictions()
     }
 
     #[inline]
@@ -228,12 +292,16 @@ impl<'a, Q: QuerySealed<'a>> QuerySealed<'a> for (Q,) {
 }
 
 impl<'a, Q1: QueryMut<'a>, Q2: QueryMut<'a>> QueryMut<'a> for (Q1, Q2) {}
-impl<'a, Q1: SealedQueryMut<'a>, Q2: SealedQueryMut<'a>> SealedQueryMut<'a> for (Q1, Q2) {
+impl<'a, Q1: QueryMutSealed<'a>, Q2: QueryMutSealed<'a>> QueryMutSealed<'a> for (Q1, Q2) {
     type Item = (Q1::Item, Q2::Item);
     type StorageRef = (Q1::StorageRef, Q2::StorageRef);
 
     fn type_ids() -> Vec<TypeId> {
         [Q1::type_ids(), Q2::type_ids()].concat()
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        [Q1::restrictions(), Q2::restrictions()].concat()
     }
 
     #[inline]
@@ -281,7 +349,7 @@ impl<'a, Q1: QuerySealed<'a>, Q2: QuerySealed<'a>> QuerySealed<'a> for (Q1, Q2) 
 }
 
 impl<'a, Q1: QueryMut<'a>, Q2: QueryMut<'a>, Q3: QueryMut<'a>> QueryMut<'a> for (Q1, Q2, Q3) {}
-impl<'a, Q1: SealedQueryMut<'a>, Q2: SealedQueryMut<'a>, Q3: SealedQueryMut<'a>> SealedQueryMut<'a>
+impl<'a, Q1: QueryMutSealed<'a>, Q2: QueryMutSealed<'a>, Q3: QueryMutSealed<'a>> QueryMutSealed<'a>
     for (Q1, Q2, Q3)
 {
     type Item = (Q1::Item, Q2::Item, Q3::Item);
@@ -289,6 +357,10 @@ impl<'a, Q1: SealedQueryMut<'a>, Q2: SealedQueryMut<'a>, Q3: SealedQueryMut<'a>>
 
     fn type_ids() -> Vec<TypeId> {
         [Q1::type_ids(), Q2::type_ids(), Q3::type_ids()].concat()
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        [Q1::restrictions(), Q2::restrictions(), Q3::restrictions()].concat()
     }
 
     #[inline]
@@ -353,11 +425,11 @@ impl<'a, Q1: QueryMut<'a>, Q2: QueryMut<'a>, Q3: QueryMut<'a>, Q4: QueryMut<'a>>
 }
 impl<
         'a,
-        Q1: SealedQueryMut<'a>,
-        Q2: SealedQueryMut<'a>,
-        Q3: SealedQueryMut<'a>,
-        Q4: SealedQueryMut<'a>,
-    > SealedQueryMut<'a> for (Q1, Q2, Q3, Q4)
+        Q1: QueryMutSealed<'a>,
+        Q2: QueryMutSealed<'a>,
+        Q3: QueryMutSealed<'a>,
+        Q4: QueryMutSealed<'a>,
+    > QueryMutSealed<'a> for (Q1, Q2, Q3, Q4)
 {
     type Item = (Q1::Item, Q2::Item, Q3::Item, Q4::Item);
     type StorageRef = (
@@ -373,6 +445,16 @@ impl<
             Q2::type_ids(),
             Q3::type_ids(),
             Q4::type_ids(),
+        ]
+        .concat()
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        [
+            Q1::restrictions(),
+            Q2::restrictions(),
+            Q3::restrictions(),
+            Q4::restrictions(),
         ]
         .concat()
     }
@@ -469,12 +551,12 @@ impl<
 }
 impl<
         'a,
-        Q1: SealedQueryMut<'a>,
-        Q2: SealedQueryMut<'a>,
-        Q3: SealedQueryMut<'a>,
-        Q4: SealedQueryMut<'a>,
-        Q5: SealedQueryMut<'a>,
-    > SealedQueryMut<'a> for (Q1, Q2, Q3, Q4, Q5)
+        Q1: QueryMutSealed<'a>,
+        Q2: QueryMutSealed<'a>,
+        Q3: QueryMutSealed<'a>,
+        Q4: QueryMutSealed<'a>,
+        Q5: QueryMutSealed<'a>,
+    > QueryMutSealed<'a> for (Q1, Q2, Q3, Q4, Q5)
 {
     type Item = (Q1::Item, Q2::Item, Q3::Item, Q4::Item, Q5::Item);
     type StorageRef = (
@@ -492,6 +574,17 @@ impl<
             Q3::type_ids(),
             Q4::type_ids(),
             Q5::type_ids(),
+        ]
+        .concat()
+    }
+
+    fn restrictions() -> Vec<QueryRestriction> {
+        [
+            Q1::restrictions(),
+            Q2::restrictions(),
+            Q3::restrictions(),
+            Q4::restrictions(),
+            Q5::restrictions(),
         ]
         .concat()
     }
@@ -672,7 +765,7 @@ pub struct QueryIter<'a, Q: Query<'a>> {
     query_mask: SimdBitArray<256>,
     storage_ref: Option<Q::StorageRef>,
     count: usize,
-    /// The number of entities that have the least amount of components in the query.
+    /// The storage with the smallest count of items.
     smallest_storage_count: usize,
     restrictions: Vec<(QueryRestriction, ComponentId)>,
     _phantom: std::marker::PhantomData<Q>,
@@ -686,7 +779,7 @@ impl<'a> World {
 
 impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
     pub(crate) fn new(world: &'a World) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut smallest_storage_count = 0;
+        let mut smallest_storage_count = usize::MAX;
         let mut component_not_found = false;
 
         let restrictions = Q::restrictions();
@@ -743,12 +836,11 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
 
             // Don't consider if restriction is present.
             // TODO: Maybe more intelligent way to handle this, rather than disabling the optimisation altogether.
-            if (smallest_storage_count == 0 || storage.count < smallest_storage_count) && 
-                restriction.is_none() {
+            if (smallest_storage_count == 0 || storage.count < smallest_storage_count)
+                && restriction.is_none()
+            {
                 smallest_storage_count = storage.count;
             }
-
-           
         }
 
         let storage_ref = if component_not_found {
@@ -848,7 +940,9 @@ pub struct QueryMutIter<'a, Q: QueryMut<'a>> {
     query_mask: SimdBitArray<256>,
     storage_ref: Option<Q::StorageRef>,
     count: usize,
+    /// The storage with the smallest count of items.
     smallest_storage_count: usize,
+    restrictions: Vec<(QueryRestriction, ComponentId)>,
     _phantom: std::marker::PhantomData<Q>,
 }
 
@@ -863,9 +957,10 @@ impl<'a> World {
 impl<'a, Q: QueryMut<'a>> QueryMutIter<'a, Q> {
     pub(crate) fn new(world: &'a mut World) -> Result<Self, Box<dyn std::error::Error>> {
         let mut query_mask = SimdBitArray::new();
-        let mut smallest_storage_count = 0;
-
+        let mut smallest_storage_count = usize::MAX;
         let mut component_not_found = false;
+
+        let restrictions = Q::restrictions();
 
         let world_ptr = world as *mut World;
 
@@ -887,7 +982,37 @@ impl<'a, Q: QueryMut<'a>> QueryMutIter<'a, Q> {
             // Find the number of times to iterate.
             let storage = &world.components.get(&type_id).unwrap().0;
 
-            if smallest_storage_count == 0 || storage.count < smallest_storage_count {
+            let mut restriction = None;
+
+            // Check same code in QueryIter for explanation.
+            for r in &restrictions {
+                match r {
+                    QueryRestriction::Optional(t) => {
+                        if type_id == *t {
+                            // Remove from bitmask
+                            query_mask.set(comp_id.0 as usize, false);
+
+                            restriction = Some(r);
+
+                            break;
+                        }
+                    }
+                    QueryRestriction::Exclude(t) => {
+                        if type_id == *t {
+                            // Remove from bitmask
+                            query_mask.set(comp_id.0 as usize, false);
+
+                            restriction = Some(r);
+
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (smallest_storage_count == 0 || storage.count < smallest_storage_count)
+                && restriction.is_none()
+            {
                 smallest_storage_count = storage.count;
             }
         }
@@ -905,6 +1030,22 @@ impl<'a, Q: QueryMut<'a>> QueryMutIter<'a, Q> {
             storage_ref,
             count: 0,
             smallest_storage_count,
+            restrictions: {
+                let mut res = Vec::new();
+
+                for restriction in restrictions {
+                    let type_id = match restriction {
+                        QueryRestriction::Optional(type_id) => type_id,
+                        QueryRestriction::Exclude(type_id) => type_id,
+                    };
+
+                    let comp_id = world.components.get(&type_id).unwrap().1;
+
+                    res.push((restriction, comp_id));
+                }
+
+                res
+            },
             _phantom: std::marker::PhantomData,
         })
     }
@@ -925,7 +1066,7 @@ impl<'a, Q: QueryMut<'a> + 'a> Iterator for QueryMutIter<'a, Q> {
             return None;
         }
 
-        loop {
+        'outer: loop {
             // Get the next entity and its data
             let entity_data = self.entity_iter.next()?;
 
@@ -935,6 +1076,22 @@ impl<'a, Q: QueryMut<'a> + 'a> Iterator for QueryMutIter<'a, Q> {
                 id: entity_data.id,
                 version: entity_data.version,
             };
+
+            // Verify restrictions.
+            for restriction in &self.restrictions {
+                match restriction {
+                    (QueryRestriction::Exclude(_), comp_id) => {
+                        // If the entity has the component, then skip it.
+                        if entity_data.components.get(comp_id.0 as usize) {
+                            continue 'outer;
+                        }
+                    }
+                    (QueryRestriction::Optional(_), _) => {
+                        // If optional, this bit in the query mask is set to false (check new() method).
+                        // There shouldn't be anything to do here.
+                    }
+                }
+            }
 
             // Check if the entity meets the query requirements.
             if entity_data.components.contains(&self.query_mask) {
@@ -1180,6 +1337,86 @@ mod tests {
     }
 
     #[test]
+    fn query_mut_optional() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count_real = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count_real += 1;
+            }
+        }
+
+        let query = world.query_mut::<(i32, Optional<f32>)>().unwrap();
+
+        let mut some_count = 0;
+        let mut none_count = 0;
+        let mut total_count = 0;
+
+        for (_, (_x, component)) in query {
+            total_count += 1;
+
+            if component.is_some() {
+                assert_eq!(component, Some(1.0f32).as_mut());
+                some_count += 1;
+            } else {
+                assert_eq!(component, None);
+                none_count += 1;
+            }
+        }
+
+        assert_eq!(total_count, 1000);
+        assert_eq!(some_count, some_count_real);
+        assert_eq!(none_count, 1000 - some_count_real);
+    }
+
+    #[test]
+    fn query_mut_optional_only() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count_real = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count_real += 1;
+            }
+        }
+
+        let query = world.query_mut::<Optional<f32>>().unwrap();
+
+        let mut some_count = 0;
+        let mut none_count = 0;
+        let mut total_count = 0;
+
+        for (_, component) in query {
+            total_count += 1;
+
+            if component.is_some() {
+                assert_eq!(component, Some(1.0f32).as_mut());
+                some_count += 1;
+            } else {
+                assert_eq!(component, None);
+                none_count += 1;
+            }
+        }
+
+        assert_eq!(total_count, 1000);
+        assert_eq!(some_count, some_count_real);
+        assert_eq!(none_count, 1000 - some_count_real);
+    }
+
+    #[test]
     fn query_exclude() {
         let mut world = World::with_capacity(10000);
 
@@ -1208,6 +1445,34 @@ mod tests {
     }
 
     #[test]
+    fn query_mut_exclude() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count += 1;
+            }
+        }
+
+        let query = world.query_mut::<(i32, Exclude<f32>)>().unwrap();
+
+        let mut query_count = 0;
+
+        for (_, (_x, _exclude)) in query {
+            query_count += 1;
+        }
+
+        assert_eq!(query_count, some_count);
+    }
+
+    #[test]
     fn query_exclude_only() {
         let mut world = World::with_capacity(10000);
 
@@ -1225,6 +1490,34 @@ mod tests {
         }
 
         let query = world.query::<Exclude<f32>>().unwrap();
+
+        let mut total_count = 0;
+
+        for (_, _x) in query {
+            total_count += 1;
+        }
+
+        assert_eq!(total_count, some_count);
+    }
+
+    #[test]
+    fn query_mut_exclude_only() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count += 1;
+            }
+        }
+
+        let query = world.query_mut::<Exclude<f32>>().unwrap();
 
         let mut total_count = 0;
 
