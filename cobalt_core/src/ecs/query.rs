@@ -145,7 +145,7 @@ pub struct Optional<T: Component>(std::marker::PhantomData<T>);
 impl<'a, T: Component> QueryMut<'a> for Optional<T> {}
 impl<'a, T: Component> QueryMutSealed<'a> for Optional<T> {
     type Item = Option<&'a mut T>;
-    type StorageRef = &'a mut ComponentStorage;
+    type StorageRef = Option<&'a mut ComponentStorage>;
 
     fn type_ids() -> Vec<TypeId> {
         vec![TypeId::of::<T>()]
@@ -157,19 +157,27 @@ impl<'a, T: Component> QueryMutSealed<'a> for Optional<T> {
 
     #[inline]
     fn get_mut(entity: Entity, storage: &'a mut Self::StorageRef) -> Self::Item {
-        storage.get_optional_mut::<T>(entity)
+        if let Some(storage) = storage {
+            storage.get_optional_mut::<T>(entity)
+        } else {
+            None
+        }
     }
 
     #[inline]
     fn get_storage_ref(world: &'a mut World) -> Self::StorageRef {
-        &mut world.components.get_mut(&TypeId::of::<T>()).unwrap().0
+        if let Some(data) = world.components.get_mut(&TypeId::of::<T>()) {
+            Some(&mut data.0)
+        } else {
+            None
+        }
     }
 }
 
 impl<'a, T: Component> Query<'a> for Optional<T> {}
 impl<'a, T: Component> QuerySealed<'a> for Optional<T> {
     type Item = Option<&'a T>;
-    type StorageRef = &'a ComponentStorage;
+    type StorageRef = Option<&'a ComponentStorage>;
 
     fn type_ids() -> Vec<TypeId> {
         vec![TypeId::of::<T>()]
@@ -181,12 +189,20 @@ impl<'a, T: Component> QuerySealed<'a> for Optional<T> {
 
     #[inline]
     fn get(entity: Entity, storage: &Self::StorageRef) -> Self::Item {
-        storage.get_optional::<T>(entity)
+        if let Some(storage) = storage {
+            storage.get_optional::<T>(entity)
+        } else {
+            None
+        }
     }
 
     #[inline]
     fn get_storage_ref(world: &'a World) -> Self::StorageRef {
-        &world.components.get(&TypeId::of::<T>()).unwrap().0
+        if let Some(data) = world.components.get(&TypeId::of::<T>()) {
+            Some(&data.0)
+        } else {
+            None
+        }
     }
 }
 
@@ -195,7 +211,7 @@ pub struct Exclude<T>(std::marker::PhantomData<T>);
 impl<'a, T: Component> QueryMut<'a> for Exclude<T> {}
 impl<'a, T: Component> QueryMutSealed<'a> for Exclude<T> {
     type Item = ();
-    type StorageRef = &'a mut ComponentStorage;
+    type StorageRef = ();
 
     fn type_ids() -> Vec<TypeId> {
         // The type ID needs to be known to exclude it.
@@ -214,14 +230,14 @@ impl<'a, T: Component> QueryMutSealed<'a> for Exclude<T> {
 
     #[inline]
     fn get_storage_ref(world: &'a mut World) -> Self::StorageRef {
-        &mut world.components.get_mut(&TypeId::of::<T>()).unwrap().0
+        ()
     }
 }
 
 impl<'a, T: Component> Query<'a> for Exclude<T> {}
 impl<'a, T: Component> QuerySealed<'a> for Exclude<T> {
     type Item = ();
-    type StorageRef = &'a ComponentStorage;
+    type StorageRef = ();
 
     fn type_ids() -> Vec<TypeId> {
         // The type ID needs to be known to exclude it.
@@ -240,7 +256,7 @@ impl<'a, T: Component> QuerySealed<'a> for Exclude<T> {
 
     #[inline]
     fn get_storage_ref(world: &'a World) -> Self::StorageRef {
-        &world.components.get(&TypeId::of::<T>()).unwrap().0
+        ()
     }
 }
 
@@ -696,13 +712,37 @@ impl<'a> World {
 
         let mut components_found = true;
 
+        let restrictions = Q::restrictions();
+
         for type_id in Q::type_ids() {
             let comp_data = self.components.get(&type_id);
 
+            // It doesn't matter if this is optional
+            let mut optional = false;
+            for r in &restrictions {
+                match r {
+                    QueryRestriction::Optional(t) => {
+                        if t == &type_id {
+                            optional = true;
+                        }
+                    }
+                    QueryRestriction::Exclude(t) => {
+                        if t == &type_id {
+                            // Return as the entity has the excluded component.
+                            return None;
+                        }
+                    }
+                }
+            }
+
             // Component not registered.
             if comp_data.is_none() {
-                components_found = false;
-                break;
+                if !optional {
+                    components_found = false;
+                    break;
+                } else {
+                    continue;
+                }
             }
 
             let comp_id = comp_data.unwrap().1;
@@ -731,13 +771,37 @@ impl<'a> World {
 
         let mut components_found = true;
 
+        let restrictions = Q::restrictions();
+
         for type_id in Q::type_ids() {
             let comp_data = self.components.get(&type_id);
 
+            // It doesn't matter if this is optional or excluded
+            let mut optional = false;
+            for r in &restrictions {
+                match r {
+                    QueryRestriction::Optional(t) => {
+                        if t == &type_id {
+                            optional = true;
+                        }
+                    }
+                    QueryRestriction::Exclude(t) => {
+                        if t == &type_id {
+                            // Return as the entity has the excluded component.
+                            return None;
+                        }
+                    }
+                }
+            }
+
             // Component not registered.
             if comp_data.is_none() {
-                components_found = false;
-                break;
+                if !optional {
+                    components_found = false;
+                    break;
+                } else {
+                    continue;
+                }
             }
 
             let comp_id = comp_data.unwrap().1;
@@ -767,7 +831,10 @@ pub struct QueryIter<'a, Q: Query<'a>> {
     count: usize,
     /// The storage with the smallest count of items.
     smallest_storage_count: usize,
-    restrictions: Vec<(QueryRestriction, ComponentId)>,
+    // If ComponentId is None, the component is unregistered.
+    // That means if it is excluded, automatically exclude and
+    // if it is optional, then it should return None.
+    restrictions: Vec<(QueryRestriction, Option<ComponentId>)>,
     _phantom: std::marker::PhantomData<Q>,
 }
 
@@ -792,7 +859,29 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
             let comp_data = world.components.get(&type_id);
 
             if comp_data.is_none() {
-                component_not_found = true;
+                let mut not_found = true;
+
+                for r in &restrictions {
+                    match r {
+                        QueryRestriction::Optional(t) => {
+                            if t == &type_id {
+                                not_found = false;
+                                break;
+                            }
+                        }
+                        QueryRestriction::Exclude(t) => {
+                            if t == &type_id {
+                                not_found = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if not_found {
+                    component_not_found = true;
+                }
+
                 continue;
             }
 
@@ -865,7 +954,7 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
                         QueryRestriction::Exclude(type_id) => type_id,
                     };
 
-                    let comp_id = world.components.get(&type_id).unwrap().1;
+                    let comp_id = world.components.get(&type_id).map(|x| x.1);
 
                     res.push((restriction, comp_id));
                 }
@@ -907,8 +996,9 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
             for restriction in &self.restrictions {
                 match restriction {
                     (QueryRestriction::Exclude(_), comp_id) => {
+                        // If component is not registered, automatically not excluded
                         // If the entity has the component, then skip it.
-                        if entity_data.components.get(comp_id.0 as usize) {
+                        if comp_id.is_some() && entity_data.components.get(comp_id.unwrap().0 as usize) {
                             continue 'outer;
                         }
                     }
@@ -942,7 +1032,8 @@ pub struct QueryMutIter<'a, Q: QueryMut<'a>> {
     count: usize,
     /// The storage with the smallest count of items.
     smallest_storage_count: usize,
-    restrictions: Vec<(QueryRestriction, ComponentId)>,
+    /// Check explanation in `QueryIter`
+    restrictions: Vec<(QueryRestriction, Option<ComponentId>)>,
     _phantom: std::marker::PhantomData<Q>,
 }
 
@@ -970,7 +1061,29 @@ impl<'a, Q: QueryMut<'a>> QueryMutIter<'a, Q> {
             let comp_data = world.components.get(&type_id);
 
             if comp_data.is_none() {
-                component_not_found = true;
+                let mut not_found = true;
+
+                for r in &restrictions {
+                    match r {
+                        QueryRestriction::Optional(t) => {
+                            if t == &type_id {
+                                not_found = false;
+                                break;
+                            }
+                        }
+                        QueryRestriction::Exclude(t) => {
+                            if t == &type_id {
+                                not_found = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if not_found {
+                    component_not_found = true;
+                }
+
                 continue;
             }
 
@@ -1039,7 +1152,7 @@ impl<'a, Q: QueryMut<'a>> QueryMutIter<'a, Q> {
                         QueryRestriction::Exclude(type_id) => type_id,
                     };
 
-                    let comp_id = world.components.get(&type_id).unwrap().1;
+                    let comp_id = world.components.get(&type_id).map(|x| x.1);
 
                     res.push((restriction, comp_id));
                 }
@@ -1081,8 +1194,9 @@ impl<'a, Q: QueryMut<'a> + 'a> Iterator for QueryMutIter<'a, Q> {
             for restriction in &self.restrictions {
                 match restriction {
                     (QueryRestriction::Exclude(_), comp_id) => {
+                        // If component is not registered, automatically not excluded
                         // If the entity has the component, then skip it.
-                        if entity_data.components.get(comp_id.0 as usize) {
+                        if comp_id.is_some() && entity_data.components.get(comp_id.unwrap().0 as usize) {
                             continue 'outer;
                         }
                     }
@@ -1337,6 +1451,132 @@ mod tests {
     }
 
     #[test]
+    fn query_optional_unregistered() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count_real = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count_real += 1;
+            }
+        }
+
+        let query = world
+            .query::<(i32, Optional<f32>, Optional<f64>)>()
+            .unwrap();
+
+        let mut some_count = 0;
+        let mut none_count = 0;
+        let mut total_count = 0;
+
+        for (_, (_x, component, _y)) in query {
+            total_count += 1;
+
+            if component.is_some() {
+                assert_eq!(component, Some(1.0f32).as_ref());
+                some_count += 1;
+            } else {
+                assert_eq!(component, None);
+                none_count += 1;
+            }
+        }
+
+        assert_eq!(total_count, 1000);
+        assert_eq!(some_count, some_count_real);
+        assert_eq!(none_count, 1000 - some_count_real);
+    }
+
+    #[test]
+    fn query_mut_optional_unregistered() {
+        let mut world = World::with_capacity(10000);
+
+        let mut some_count_real = 0;
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+
+            if entity.id % 2 == 0 {
+                world.add_component(entity, 1.0f32);
+                some_count_real += 1;
+            }
+        }
+
+        let query = world
+            .query_mut::<(i32, Optional<f32>, Optional<f64>)>()
+            .unwrap();
+
+        let mut some_count = 0;
+        let mut none_count = 0;
+        let mut total_count = 0;
+
+        for (_, (_x, component, _y)) in query {
+            total_count += 1;
+
+            if component.is_some() {
+                assert_eq!(component, Some(1.0f32).as_mut());
+                some_count += 1;
+            } else {
+                assert_eq!(component, None);
+                none_count += 1;
+            }
+        }
+
+        assert_eq!(total_count, 1000);
+        assert_eq!(some_count, some_count_real);
+        assert_eq!(none_count, 1000 - some_count_real);
+    }
+
+    #[test]
+    fn query_exclude_unregistered() {
+        let mut world = World::with_capacity(1000);
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0i32);
+        }
+
+        let query = world.query::<(Exclude<f32>, i32)>().unwrap();
+
+        let mut count = 0;
+
+        for (_, (_x, _y)) in query {
+            count += 1;
+        }
+
+        assert_eq!(count, 1000);
+    }
+
+    #[test]
+    fn query_mut_exclude_unregistered() {
+        let mut world = World::with_capacity(1000);
+
+        for _ in 0..1000 {
+            let entity = world.create_entity();
+
+            world.add_component(entity, 0);
+        }
+
+        let query = world.query_mut::<(Exclude<f32>, i32)>().unwrap();
+
+        let mut count = 0;
+
+        for (_, (_x, _y)) in query {
+            count += 1;
+        }
+
+        assert_eq!(count, 1000);
+    }
+
+    #[test]
     fn query_mut_optional() {
         let mut world = World::with_capacity(10000);
 
@@ -1374,6 +1614,142 @@ mod tests {
         assert_eq!(total_count, 1000);
         assert_eq!(some_count, some_count_real);
         assert_eq!(none_count, 1000 - some_count_real);
+    }
+
+    #[test]
+    fn query_entity_optional_only() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity::<Optional<i32>>(ent);
+
+        if let Some(data) = data {
+            assert_eq!(data, Some(&2i32));
+        } else {
+            panic!("Entity with query not found");
+        }
+    }
+
+    #[test]
+    fn query_entity_optional_unregistered_component() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 0f32);
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity::<(f32, Optional<i32>, Optional<f64>)>(ent);
+
+        if let Some(data) = data {
+            let (float, int, double) = data;
+
+            assert_eq!(float, &0f32);
+            assert_eq!(int, Some(&2i32));
+            assert_eq!(double, None);
+        } else {
+            panic!("Entity with query not found");
+        }
+    }
+
+    #[test]
+    fn query_entity_mut_optional_only() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity_mut::<Optional<i32>>(ent);
+
+        if let Some(data) = data {
+            assert_eq!(data, Some(&mut 2i32));
+        } else {
+            panic!("Entity with query not found");
+        }
+    }
+
+    #[test]
+    fn query_entity_mut_optional_unregistered_component() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 0f32);
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity_mut::<(f32, Optional<i32>, Optional<f64>)>(ent);
+
+        if let Some(data) = data {
+            let (float, int, double) = data;
+
+            assert_eq!(float, &mut 0f32);
+            assert_eq!(int, Some(&mut 2i32));
+            assert_eq!(double, None);
+        } else {
+            panic!("Entity with query not found");
+        }
+    }
+
+    #[test]
+    fn query_entity_exclude_unregistered() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 0f64);
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity::<(Exclude<f32>, i32)>(ent);
+
+        if let Some(_) = data {
+            panic!("Entity with exclude query was found");
+        }
+    }
+
+    #[test]
+    fn query_entity_exclude_only() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 0f64);
+        world.add_component(ent, 0f32);
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity::<Exclude<f32>>(ent);
+
+        if let Some(_) = data {
+            panic!("Entity with exclude query found");
+        }
+    }
+
+    #[test]
+    fn query_entity_mut_exclude_unregistered() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 0f64);
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity_mut::<(Exclude<f32>, i32)>(ent);
+
+        if let Some(_) = data {
+            panic!("Entity with exclude query found");
+        }
+    }
+
+    #[test]
+    fn query_entity_mut_exclude_only() {
+        let mut world = World::with_capacity(10);
+        let ent = world.create_entity();
+
+        world.add_component(ent, 0f64);
+        world.add_component(ent, 0f32);
+        world.add_component(ent, 2i32);
+
+        let data = world.query_entity_mut::<Exclude<f32>>(ent);
+
+        if let Some(_) = data {
+            panic!("Entity with exclude query found");
+        }
     }
 
     #[test]
@@ -1504,7 +1880,7 @@ mod tests {
     fn query_mut_exclude_only() {
         let mut world = World::with_capacity(10000);
 
-        let mut some_count = 0;
+        let mut exclude_count = 0;
 
         for _ in 0..1000 {
             let entity = world.create_entity();
@@ -1513,7 +1889,7 @@ mod tests {
 
             if entity.id % 2 == 0 {
                 world.add_component(entity, 1.0f32);
-                some_count += 1;
+                exclude_count += 1;
             }
         }
 
@@ -1525,7 +1901,7 @@ mod tests {
             total_count += 1;
         }
 
-        assert_eq!(total_count, some_count);
+        assert_eq!(total_count, 1000 - exclude_count);
     }
 
     #[test]
