@@ -17,7 +17,7 @@ pub struct ColorPass {
 }
 
 impl ColorPass {
-    pub fn new(output_size: (u32, u32)) -> Self {
+    pub fn new(_output_size: (u32, u32)) -> Self {
         let layout = Graphics::global_read().device.create_pipeline_layout(
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Color Pass Pipeline Layout"),
@@ -135,7 +135,7 @@ impl<'a> RenderPass<ColorPassInput<'a>> for ColorPass {
         Ok(())
     }
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), RendererError> {
+    fn resize_callback(&mut self, _size: (u32, u32)) -> Result<(), RendererError> {
         Ok(())
     }
 }

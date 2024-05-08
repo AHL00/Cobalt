@@ -29,9 +29,9 @@ impl ResourceTrait for Material {
 
 impl AssetTrait for Material {
     fn load_from_file(
-        data: std::io::BufReader<std::fs::File>,
-        name: &imstr::ImString,
-        path: &std::path::Path,
+        _data: std::io::BufReader<std::fs::File>,
+        _name: &imstr::ImString,
+        _path: &std::path::Path,
     ) -> Result<Self, crate::assets::exports::AssetLoadError> {
         todo!()
     }

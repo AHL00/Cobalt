@@ -1,5 +1,6 @@
-use crate::utils::bit_array::SimdBitArray;
+use std::fmt::{self, Display, Formatter};
 
+use crate::utils::bit_array::SimdBitArray;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Entity {
@@ -10,6 +11,12 @@ pub struct Entity {
     /// This allows for easy recycling of entities without having to worry about dangling references.
     /// This can become a u16 if we need more data in this struct
     pub(crate) version: u32,
+}
+
+impl Display for Entity {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "Entity({})", self.id())
+    }
 }
 
 impl Entity {

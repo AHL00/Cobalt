@@ -231,6 +231,13 @@ pub fn run(
                             }
                             Err(e) => {
                                 match e {
+                                    cobalt_core::renderer::renderer::FramePrepError::NoMaterial(_) => {
+                                        log::error!("Fatal error during frame prep: {:?}", e);
+
+                                        engine.exit();
+
+                                        None
+                                    }
                                     _ => {
                                         // Non-fatal error, log and continue rendering
                                         log_once::error_once!("Non-fatal error during frame prep: {}", e);

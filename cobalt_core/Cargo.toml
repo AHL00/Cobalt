@@ -54,6 +54,7 @@ gltf = { version = "1.4.0", features = [
     # "KHR_materials_ior",
     # "KHR_materials_emissive_strength",
 ] }
+log-once = "0.4.1"
 
 
 [dev-dependencies]

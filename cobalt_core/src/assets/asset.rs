@@ -9,6 +9,8 @@ use std::{
     sync::Arc,
 };
 
+use crate::exports::ecs::Component;
+
 use super::server::AssetServer;
 
 /// Assets are anything that can be loaded from disk.
@@ -38,6 +40,8 @@ pub struct AssetHandle<T: AssetTrait> {
     pub(crate) path: ImString,
     data: Arc<RwLock<T>>,
 }
+
+impl<T: AssetTrait> Component for AssetHandle<T> {}
 
 unsafe impl<T: AssetTrait> Send for AssetHandle<T> {}
 unsafe impl<T: AssetTrait> Sync for AssetHandle<T> {}

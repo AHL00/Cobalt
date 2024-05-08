@@ -1,6 +1,6 @@
 use downcast::{downcast, Any};
 
-use crate::{exports::{ecs::World, renderer::Material}, graphics::frame::Frame};
+use crate::{exports::{ecs::{Entity, World}, renderer::Material}, graphics::frame::Frame};
 
 use super::FrameData;
 
@@ -47,6 +47,8 @@ pub enum FramePrepError {
     MultipleCameras,
     #[error("No renderables found.")]
     NoRenderables,
+    #[error("Material not found on entity: {0}")]
+    NoMaterial(Entity),
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -229,7 +229,7 @@ impl<'a, T: Component> QueryMutSealed<'a> for Exclude<T> {
     }
 
     #[inline]
-    fn get_storage_ref(world: &'a mut World) -> Self::StorageRef {
+    fn get_storage_ref(_world: &'a mut World) -> Self::StorageRef {
         ()
     }
 }
@@ -255,7 +255,7 @@ impl<'a, T: Component> QuerySealed<'a> for Exclude<T> {
     }
 
     #[inline]
-    fn get_storage_ref(world: &'a World) -> Self::StorageRef {
+    fn get_storage_ref(_world: &'a World) -> Self::StorageRef {
         ()
     }
 }

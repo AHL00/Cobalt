@@ -2,38 +2,40 @@
 
 use wgpu::TextureView;
 
-use super::{
-    proj_view::ProjView, renderable::Renderable, renderer::FramePrepError,
-};
+use super::{proj_view::ProjView, renderable::Renderable, renderer::FramePrepError};
 use crate::{
+    assets::exports::{AssetHandle, AssetTrait},
     components::transform::Transform,
     ecs::entity::Entity,
     exports::{
-        ecs::World,
-        types::resource::{Resource, ResourceTrait},
+        ecs::{query::Optional, World},
+        types::{
+            either::Either,
+            resource::{Resource, ResourceTrait},
+        },
     },
     stats::Stats,
 };
 
 /// Holds the data required to render a renderable.
-pub struct RenderData<'a, M: ResourceTrait> {
+pub struct RenderData<'a, M: ResourceTrait + AssetTrait> {
     pub renderable: &'a Renderable,
     pub transform: &'a mut Transform,
     pub entity: Entity,
     pub in_frustum: bool,
-    pub material: Resource<M>,
+    pub material: Either<Resource<M>, AssetHandle<M>>,
 }
 
 /// Holds the data required to render a frame.
 /// It also helps generate that data from a few inputs using the `generate` method.
-pub struct FrameData<'a, M: ResourceTrait> {
+pub struct FrameData<'a, M: ResourceTrait + AssetTrait> {
     pub depth_view: Option<wgpu::TextureView>,
     pub proj_view: ProjView,
     pub camera_position: ultraviolet::Vec3,
     pub render_data_vec: Vec<RenderData<'a, M>>,
 }
 
-impl<'a, M: ResourceTrait> FrameData<'a, M> {
+impl<'a, M: ResourceTrait + AssetTrait> FrameData<'a, M> {
     /// Generates a list of `RenderData` from the world. It also performs other processing
     /// such as frustum culling and sorting by material.
     pub fn generate(
@@ -45,17 +47,38 @@ impl<'a, M: ResourceTrait> FrameData<'a, M> {
         let mut render_data_vec = Vec::new();
 
         let renderable_query = world
-            .query_mut::<(Transform, Renderable, Resource<M>)>()
+            .query_mut::<(
+                Transform,
+                Renderable,
+                Optional<Resource<M>>,
+                Optional<AssetHandle<M>>,
+            )>()
             .map_err(|_| FramePrepError::NoRenderables)?;
 
-        for (ent, (transform, renderable, material)) in renderable_query {
+        for (ent, (transform, renderable, resource_material, asset_material)) in renderable_query {
             let render_data = RenderData {
                 renderable,
                 transform,
                 entity: ent,
                 in_frustum: true,
                 // TODO: Is it faster to clone the `Resource` or take a reference to it?
-                material: material.clone(),
+                material: {
+                    // NOTE: Resource components take precedence over Asset components
+                    if let Some(resource) = resource_material {
+                        #[cfg(debug_assertions)]
+                        {
+                            if asset_material.is_some() {
+                                log_once::warn_once!("Entity {:?} has both a resource and an asset material. The resource takes precedence and will be used.", ent);
+                            }
+                        }
+
+                        Either::Left(resource.clone())
+                    } else if let Some(asset) = asset_material {
+                        Either::Right(asset.clone())
+                    } else {
+                        return Err(FramePrepError::NoMaterial(ent));
+                    }
+                },
             };
 
             render_data_vec.push(render_data);

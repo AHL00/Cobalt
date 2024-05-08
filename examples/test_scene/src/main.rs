@@ -6,10 +6,9 @@ use ahash::{HashMap, HashMapExt};
 use cobalt::{
     assets::{AssetServer, MeshAsset, TextureAsset},
     components::{Camera, Renderable, Transform},
-    debug_gui::egui::{self, Id},
+    debug_gui::egui::{self},
     ecs::Entity,
-    input::{ButtonState, InputEvent, KeyCode, KeyboardEvent},
-    maths::Vec4,
+    input::{InputEvent, KeyCode, KeyboardEvent},
     plugins::debug_gui::DebugGUIPlugin,
     renderer::{
         camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer
