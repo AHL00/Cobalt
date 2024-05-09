@@ -1,9 +1,6 @@
 use cobalt_core::stats::Stats;
 
-use self::stats::StatsWindow;
-
 mod entities;
-mod menu_bar;
 mod stats;
 
 /// Persistent data used to store debug menu state.
@@ -36,13 +33,19 @@ impl DebugMenu {
                     ui.checkbox(&mut self.show_stats, "Stats");
                 });
 
-                if let Some((frame_time, _)) = Stats::global().get("Frametime") {
-                    ui.label(format!("Frame time: {:.2}", frame_time));
-                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some((frame_time, _)) = Stats::global().get("Frametime") {
+                        ui.label(format!("Frame time: {:.2}", frame_time));
+                    }
 
-                if let Some((debug_mode, _)) = Stats::global().get("Geometry Pass Debug Mode") {
-                    ui.label(format!("Debug mode: {}", debug_mode));
-                }
+                    if let Some((fps, _)) = Stats::global().get("Avg FPS") {
+                        ui.label(format!("Avg FPS: {:.2}", fps));
+                    }
+    
+                    if let Some((debug_mode, _)) = Stats::global().get("Geometry Pass Debug Mode") {
+                        ui.label(format!("Debug mode: {}", debug_mode));
+                    }
+                });
             });
         });
 
