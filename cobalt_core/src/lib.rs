@@ -1,5 +1,6 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
+#![feature(adt_const_params)]
 #![feature(portable_simd)]
 // #![feature(unboxed_closures)]
 #![feature(fn_traits)]

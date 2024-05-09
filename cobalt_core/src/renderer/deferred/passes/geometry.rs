@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use crate::{
     exports::components::Transform,
     graphics::{
@@ -5,7 +7,10 @@ use crate::{
         HasBindGroupLayout, HasVertexBufferLayout,
     },
     renderer::{
-        deferred::{exports::Material, g_buffers::GeometryBuffers}, proj_view::ProjView, render_pass::RenderPass, renderer::RendererError
+        deferred::{exports::Material, g_buffers::GeometryBuffers},
+        proj_view::ProjView,
+        render_pass::RenderPass,
+        renderer::RendererError,
     },
 };
 
@@ -24,6 +29,7 @@ impl GeometryPass {
                 bind_group_layouts: &[
                     &Transform::bind_group_layout(),
                     &ProjView::bind_group_layout(),
+                    &Material::bind_group_layout(),
                 ],
                 push_constant_ranges: &[],
             },
@@ -52,7 +58,7 @@ impl GeometryPass {
                     // Output of the fragment shader is as follows:
                     // - Position: Rgba16Float
                     // - Normal: Rgba16Float
-                    // - Albedo / Specular: Rgba8UnormSrgb [A_red; A_green; A_blue; S_intensity]
+                    // - Albedo / Metallic: Rgba8UnormSrgb [A_red; A_green; A_blue; S_intensity]
                     // - Diffuse: Rgba8UnormSrgb
                     targets: &[
                         Some(wgpu::ColorTargetState {
@@ -194,7 +200,30 @@ impl RenderPass<()> for GeometryPass {
         // ProjView bind group
         render_pass.set_bind_group(1, &proj_view_bind_group, &[]);
 
+        let mut last_material_id: Option<usize> = None;
+
         for render_data in &mut frame_data.render_data_vec {
+            // These are okay being unsafe as the assets/resources are guaranteed to live as long as they aren't dropped, and they are not.
+            let mut material = render_data.material.left().map(|m| unsafe { m.borrow_unsafe() });
+
+            if let None = material {
+                material = render_data.material.right().map(|m| unsafe { m.borrow_unsafe() });
+            }
+
+            let material = material.unwrap();
+
+            if last_material_id.is_some() {
+                if last_material_id.unwrap() != *material.id() {
+                    // Bind material if it's different from the last one
+                    render_pass.set_bind_group(2, &material.bind_group(), &[]);
+
+                    last_material_id = Some(*material.id());
+                }
+            } else {
+                // This is the first time, so bind the material
+                render_pass.set_bind_group(2, &material.bind_group(), &[]);
+            }
+
             // Transform bind group
             render_pass.set_bind_group(0, &render_data.transform.bind_group(graphics), &[]);
 

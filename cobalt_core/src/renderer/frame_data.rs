@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::borrow::Borrow;
+
 use wgpu::TextureView;
 
 use super::{proj_view::ProjView, renderable::Renderable, renderer::FramePrepError};
@@ -28,14 +30,15 @@ pub struct RenderData<'a, M: ResourceTrait + AssetTrait> {
 
 /// Holds the data required to render a frame.
 /// It also helps generate that data from a few inputs using the `generate` method.
-pub struct FrameData<'a, M: ResourceTrait + AssetTrait> {
+/// Materials are sorted or at least grouped together. Should reduce material binding count.
+pub struct FrameData<'a, M: ResourceTrait + AssetTrait + Ord> {
     pub depth_view: Option<wgpu::TextureView>,
     pub proj_view: ProjView,
     pub camera_position: ultraviolet::Vec3,
     pub render_data_vec: Vec<RenderData<'a, M>>,
 }
 
-impl<'a, M: ResourceTrait + AssetTrait> FrameData<'a, M> {
+impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
     /// Generates a list of `RenderData` from the world. It also performs other processing
     /// such as frustum culling and sorting by material.
     pub fn generate(
@@ -94,12 +97,17 @@ impl<'a, M: ResourceTrait + AssetTrait> FrameData<'a, M> {
 
         // // Sort by material
         // // TODO: Instead of sorting, maybe just group
-        // render_data_vec.sort_unstable_by(|a, b| {
-        //     a.renderable
-        //         .get_material()
-        //         .id
-        //         .cmp(&b.renderable.get_material().id)
-        // });
+        render_data_vec.sort_unstable_by(|a, b| {
+            if let Either::Left(a) = &a.material {
+                if let Either::Left(b) = &b.material {
+                    a.borrow().cmp(&b.borrow())
+                } else {
+                    std::cmp::Ordering::Less
+                }
+            } else {
+                std::cmp::Ordering::Greater
+            }
+        });
 
         #[cfg(feature = "debug_stats")]
         {

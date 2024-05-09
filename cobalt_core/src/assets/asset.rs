@@ -41,6 +41,14 @@ pub struct AssetHandle<T: AssetTrait> {
     data: Arc<RwLock<T>>,
 }
 
+impl<T: AssetTrait> PartialEq for AssetHandle<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+impl<T: AssetTrait> Eq for AssetHandle<T> {}
+
 impl<T: AssetTrait> Component for AssetHandle<T> {}
 
 unsafe impl<T: AssetTrait> Send for AssetHandle<T> {}

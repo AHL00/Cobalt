@@ -2,7 +2,6 @@
 
 use std::path::Path;
 
-use ahash::{HashMap, HashMapExt};
 use cobalt::{
     assets::{AssetServer, MeshAsset, TextureAsset}, components::{Camera, Renderable, Transform}, core::graphics::texture::TextureType, debug_gui::{egui, DebugMenu}, ecs::Entity, input::{InputEvent, KeyCode, KeyboardEvent}, plugins::debug_gui::DebugGUIPlugin, renderer::{
         camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer
@@ -34,10 +33,7 @@ impl App for Game {
             .load::<TextureAsset<{TextureType::RGBA8Unorm}>>(Path::new("jet.png"))
             .unwrap();
 
-        let model_material = Resource::new(Material {
-            albedo: Either::Left(model_texture),
-            ..Default::default()
-        });
+        let model_material = Resource::new(Material::default());
 
         engine.scene.world.add_component(model_ent, transform);
         engine.scene.world.add_component(
@@ -211,11 +207,6 @@ impl App for Game {
                         } else {
                             self.current_renderer_debug_mode = Some(GeometryPassDebugMode::Normals);
                         }
-
-                        log::info!(
-                            "Deferred Renderer Debug Mode: {:?}",
-                            self.current_renderer_debug_mode
-                        );
 
                         renderer.set_debug_mode(self.current_renderer_debug_mode);
                     }
