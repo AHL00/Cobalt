@@ -2,7 +2,10 @@ use cobalt_core::graphics::{context::Graphics, wgpu, window::WindowInternal};
 use cobalt_runtime::{app::App, plugins::Plugin};
 use egui_winit::EventResponse;
 
+mod windows;
+
 pub mod exports {
+    pub use super::windows::DebugMenu;
     pub use egui;
 }
 
@@ -14,22 +17,28 @@ pub struct DebugGUIPlugin {
     ctx: Option<egui::Context>,
     renderer: Option<egui_wgpu::Renderer>,
     state: Option<egui_winit::State>,
-    draw_ui: fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App),
+    draw_ui: Box<dyn Fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App)>,
+    debug_menu: windows::DebugMenu,
     enabled: bool,
+    pub show_built_in_menus: bool,
 }
 
 impl DebugGUIPlugin {
     // NOTE: This has to match the MSAA samples of the main renderer.
     // TODO: Make this read from the renderer's configuration.
     const MSAA_SAMPLES: u32 = 1;
+}
 
-    pub fn new() -> Self {
+impl Default for DebugGUIPlugin {
+    fn default() -> Self {
         Self {
             ctx: None,
             renderer: None,
             state: None,
-            draw_ui: |_, _, _| {},
+            draw_ui: Box::new(|_, _, _| {}),
+            debug_menu: windows::DebugMenu::new(),
             enabled: true,
+            show_built_in_menus: true,
         }
     }
 }
@@ -37,9 +46,9 @@ impl DebugGUIPlugin {
 impl DebugGUIPlugin {
     pub fn set_draw_ui(
         &mut self,
-        draw_ui: fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App),
+        draw_ui: impl Fn(&egui::Context, &mut cobalt_runtime::engine::Engine, &mut dyn App) + 'static,
     ) {
-        self.draw_ui = draw_ui;
+        self.draw_ui = Box::new(draw_ui);
     }
 
     pub fn enable(&mut self) {
@@ -153,6 +162,10 @@ impl Plugin for DebugGUIPlugin {
         ctx.begin_frame(raw_input);
 
         (self.draw_ui)(&ctx, engine, app);
+
+        if self.show_built_in_menus {
+            self.debug_menu.show(&ctx, engine, app);
+        }
 
         let full_output = ctx.end_frame();
 

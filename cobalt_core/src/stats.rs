@@ -27,7 +27,7 @@ impl Display for Stat {
             Self::u32(value) => write!(f, "{}", value),
             Self::usize(value) => write!(f, "{}", value),
             Self::String(value) => write!(f, "{}", value),
-            Self::Duration(value) => write!(f, "{:?}", value),
+            Self::Duration(value) => write!(f, "{:.2?}", value),
         }
     }
 }
