@@ -40,18 +40,43 @@ impl TextureType {
         }
     }
 
-    pub(crate) fn get_image_data(&self, image: image::DynamicImage) -> Vec<u8> {
-        // TODO: Does as_?8() work for all types of images? Should test with different types of images.
+    // Tries to get image data from a dynamic image.
+    pub(crate) fn get_image_data(&self, image: image::DynamicImage) -> Result<Vec<u8>, String> {
         match self {
-            TextureType::RGBA32Float => image.into_rgba8().into_vec(),
-            TextureType::RGBA16Float => image.into_rgba8().into_vec(),
-            TextureType::RGBA8Unorm => image.into_rgba8().into_vec(),
+            TextureType::RGBA8Unorm => Ok(image.into_rgba8().into_vec()),
+            TextureType::RGBA32Float => Ok(bytemuck::cast_vec(image.into_rgba32f().into_vec())),
+            TextureType::RGBA16Float => Ok(bytemuck::cast_vec(
+                image
+                    .into_rgba32f()
+                    .into_vec()
+                    .iter()
+                    .map(|f| f16::from_f32(*f))
+                    .collect::<Vec<f16>>(),
+            )),
 
-            TextureType::R32Float => image.into_luma8().into_vec(),
-            TextureType::R16Float => image.into_luma8().into_vec(),
-            TextureType::R8Unorm => image.into_luma8().into_vec(),
-            TextureType::R8Uint => image.into_luma8().into_vec(),
-            TextureType::R8Snorm => image.into_luma8().into_vec(),
+            TextureType::R32Float => Ok(bytemuck::cast_vec(
+                image
+                    .into_luma16()
+                    .iter()
+                    .map(|u| f16::from_f32(*u as f32))
+                    .collect::<Vec<f16>>(),
+            )),
+            TextureType::R16Float => Ok(bytemuck::cast_vec(
+                image
+                    .into_luma16()
+                    .iter()
+                    .map(|u| f16::from_f32(*u as f32))
+                    .collect::<Vec<f16>>(),
+            )),
+            TextureType::R8Unorm => Ok(image.into_luma8().into_vec()),
+            TextureType::R8Uint => Ok(image.into_luma8().into_vec()),
+            TextureType::R8Snorm => Ok(bytemuck::cast_vec(
+                image
+                    .into_luma8()
+                    .iter()
+                    .map(|u| *u as i8)
+                    .collect::<Vec<i8>>(),
+            )),
         }
     }
 }
@@ -200,9 +225,37 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
     fn load_from_file(
         reader: BufReader<std::fs::File>,
         _: &imstr::ImString,
-        _: &Path,
+        path: &Path,
     ) -> Result<Self, AssetLoadError> {
-        let image = image::load(reader, image::ImageFormat::Png)
+        let file_extension = path.extension().ok_or(AssetLoadError::LoadError(
+            "File extension not found".to_string().into(),
+        ))?;
+
+        let image_format = {
+            let ext = file_extension.to_str().ok_or(AssetLoadError::LoadError(
+                "Failed to convert file extension to string"
+                    .to_string()
+                    .into(),
+            ))?;
+
+            match ext {
+                "png" => image::ImageFormat::Png,
+                "jpg" | "jpeg" => image::ImageFormat::Jpeg,
+                "bmp" => image::ImageFormat::Bmp,
+                "gif" => image::ImageFormat::Gif,
+                "ico" => image::ImageFormat::Ico,
+                "tiff" => image::ImageFormat::Tiff,
+                "webp" => image::ImageFormat::WebP,
+                "hdr" => image::ImageFormat::Hdr,
+                _ => {
+                    return Err(AssetLoadError::LoadError(
+                        "Unsupported image format".to_string().into(),
+                    ))
+                }
+            }
+        };
+
+        let image = image::load(reader, image_format)
             .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?;
 
         let (width, height) = image.dimensions();
@@ -233,7 +286,8 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &T.get_image_data(image),
+            &T.get_image_data(image)
+                .map_err(|e| AssetLoadError::LoadError(e.into()))?,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(T.bytes_per_pixel() as u32 * width),

@@ -47,6 +47,14 @@ impl App for Game {
 
         model_material.borrow_mut().set_metallic(Either::Left(1.0));
 
+        let test_roughness_texture = AssetServer::global_write()
+            .load::<TextureAsset<{ TextureType::R8Unorm }>>(Path::new("rough.jpg"))
+            .unwrap();
+
+        model_material
+            .borrow_mut()
+            .set_roughness(Either::Right(test_roughness_texture));
+
         engine.scene.world.add_component(model_ent, transform);
         engine
             .scene
