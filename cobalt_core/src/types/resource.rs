@@ -21,6 +21,15 @@ impl<T> Component for Resource<T> where T: ResourceTrait {}
 unsafe impl<T: ResourceTrait> Send for Resource<T> {}
 unsafe impl<T: ResourceTrait> Sync for Resource<T> {}
 
+impl<T: ResourceTrait + std::fmt::Debug> std::fmt::Debug for Resource<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Resource")
+            .field("id", &self.id)
+            .field("data", &self.data)
+            .finish()
+    }
+}
+
 impl<T: ResourceTrait> Clone for Resource<T> {
     fn clone(&self) -> Self {
         Self {

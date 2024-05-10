@@ -11,6 +11,7 @@ pub use wgpu;
 pub mod exports {
     pub use super::wgpu;
     pub use super::window;
+    pub use super::texture::TextureType;
 }
 
 /// Capable of creating a wgpu::BindGroupLayout.

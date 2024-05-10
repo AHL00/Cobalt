@@ -21,11 +21,11 @@ impl DebugMenu {
         &mut self,
         egui_ctx: &egui::Context,
         engine: &mut cobalt_runtime::engine::Engine,
-        app: &mut dyn cobalt_runtime::app::App,
+        _app: &mut dyn cobalt_runtime::app::App,
     ) {
         egui::TopBottomPanel::top("debug_menu_bar").show(egui_ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("Exit", |ui| {
+                ui.menu_button("Exit", |_| {
                         engine.exit();
                 });
 

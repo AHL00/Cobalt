@@ -1,12 +1,8 @@
-#![allow(dead_code)]
-
-use std::borrow::Borrow;
-
 use wgpu::TextureView;
 
 use super::{proj_view::ProjView, renderable::Renderable, renderer::FramePrepError};
 use crate::{
-    assets::exports::{AssetHandle, AssetTrait},
+    assets::exports::{Asset, AssetTrait},
     components::transform::Transform,
     ecs::entity::Entity,
     exports::{
@@ -25,7 +21,7 @@ pub struct RenderData<'a, M: ResourceTrait + AssetTrait> {
     pub transform: &'a mut Transform,
     pub entity: Entity,
     pub in_frustum: bool,
-    pub material: Either<Resource<M>, AssetHandle<M>>,
+    pub material: Either<Resource<M>, Asset<M>>,
 }
 
 /// Holds the data required to render a frame.
@@ -54,7 +50,7 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
                 Transform,
                 Renderable,
                 Optional<Resource<M>>,
-                Optional<AssetHandle<M>>,
+                Optional<Asset<M>>,
             )>()
             .map_err(|_| FramePrepError::NoRenderables)?;
 

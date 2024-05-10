@@ -3,11 +3,16 @@
 use std::path::Path;
 
 use cobalt::{
-    assets::{AssetServer, MeshAsset, TextureAsset}, components::{Camera, Renderable, Transform}, core::graphics::texture::TextureType, debug_gui::{egui, DebugMenu}, ecs::Entity, input::{InputEvent, KeyCode, KeyboardEvent}, plugins::debug_gui::DebugGUIPlugin, renderer::{
-        camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer
-    }, runtime::{engine::Engine, plugins::PluginManager, App}, stats::Stats, types::{either::Either, resource::Resource}
+    assets::{AssetServer, MeshAsset, TextureAsset},
+    components::{Camera, Renderable, Transform},
+    ecs::Entity,
+    graphics::TextureType,
+    input::{InputEvent, KeyCode, KeyboardEvent},
+    plugins::debug_gui::DebugGUIPlugin,
+    renderer::{camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer},
+    runtime::{engine::Engine, plugins::PluginManager, App},
+    types::{either::Either, resource::Resource},
 };
-
 
 struct Game {
     main_camera: Option<Entity>,
@@ -30,16 +35,23 @@ impl App for Game {
             .unwrap();
 
         let model_texture = AssetServer::global_write()
-            .load::<TextureAsset<{TextureType::RGBA8Unorm}>>(Path::new("jet.png"))
+            .load::<TextureAsset<{ TextureType::RGBA8Unorm }>>(Path::new("jet.png"))
             .unwrap();
 
         let model_material = Resource::new(Material::default());
 
+        model_material
+            .borrow_mut()
+            .set_albedo(None, Some(model_texture.clone()))
+            .unwrap();
+
+        model_material.borrow_mut().set_metallic(Either::Left(1.0));
+
         engine.scene.world.add_component(model_ent, transform);
-        engine.scene.world.add_component(
-            model_ent,
-            Renderable::Mesh(Mesh::new(model_mesh.clone())),
-        );
+        engine
+            .scene
+            .world
+            .add_component(model_ent, Renderable::Mesh(Mesh::new(model_mesh.clone())));
         engine.scene.world.add_component(model_ent, model_material);
 
         let cam_ent = engine.scene.world.create_entity();
@@ -68,7 +80,7 @@ impl App for Game {
         // Add debug gui
         let debug_gui = _plugins.try_take_plugin::<DebugGUIPlugin>();
 
-        if let Some(mut debug_gui) = debug_gui {
+        if let Some(debug_gui) = debug_gui {
             log::info!("Debug GUI plugin found.");
 
             _plugins.reinsert_plugin(debug_gui).unwrap();
@@ -132,14 +144,13 @@ impl App for Game {
             movement.normalize();
         }
 
-        transform.translate(movement * 5.0 * _delta_time);  
+        transform.translate(movement * 5.0 * _delta_time);
 
-        let rotate_x = keyboard.is_key_down(KeyCode::ArrowUp) as i32
+        let _rotate_x = keyboard.is_key_down(KeyCode::ArrowUp) as i32
             - keyboard.is_key_down(KeyCode::ArrowDown) as i32;
 
-        let rotate_y = keyboard.is_key_down(KeyCode::ArrowRight) as i32
+        let _rotate_y = keyboard.is_key_down(KeyCode::ArrowRight) as i32
             - keyboard.is_key_down(KeyCode::ArrowLeft) as i32;
-
     }
 
     fn on_input(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, event: InputEvent) {
@@ -186,17 +197,17 @@ impl App for Game {
                                 }
                                 GeometryPassDebugMode::Albedo => {
                                     self.current_renderer_debug_mode =
-                                        Some(GeometryPassDebugMode::Specular);
-                                }
-                                GeometryPassDebugMode::Specular => {
-                                    self.current_renderer_debug_mode =
                                         Some(GeometryPassDebugMode::Position);
                                 }
                                 GeometryPassDebugMode::Position => {
                                     self.current_renderer_debug_mode =
-                                        Some(GeometryPassDebugMode::Diffuse);
+                                        Some(GeometryPassDebugMode::Metallic);
                                 }
-                                GeometryPassDebugMode::Diffuse => {
+                                GeometryPassDebugMode::Metallic => {
+                                    self.current_renderer_debug_mode =
+                                        Some(GeometryPassDebugMode::Roughness);
+                                }
+                                GeometryPassDebugMode::Roughness => {
                                     self.current_renderer_debug_mode =
                                         Some(GeometryPassDebugMode::Depth);
                                 }

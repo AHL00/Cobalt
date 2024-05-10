@@ -1,5 +1,5 @@
 use crate::{
-    assets::asset::AssetHandle,
+    assets::asset::Asset,
     types::aabb::AABB,
     assets,
 };
@@ -7,12 +7,12 @@ use crate::{
 use super::RenderableTrait;
 
 pub struct Mesh {
-    pub mesh: AssetHandle<assets::exports::MeshAsset>,
+    pub mesh: Asset<assets::exports::MeshAsset>,
     pub(crate) local_space_aabb: AABB,
 }
 
 impl Mesh {
-    pub fn new(mesh: AssetHandle<assets::exports::MeshAsset>) -> Self {
+    pub fn new(mesh: Asset<assets::exports::MeshAsset>) -> Self {
         let local_space_aabb = mesh.borrow().local_aabb.clone();
 
         Self {

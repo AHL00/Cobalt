@@ -3,10 +3,14 @@ use std::sync::{atomic::AtomicUsize, LazyLock};
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::exports::{AssetHandle, AssetTrait, TextureAsset},
+    assets::exports::{Asset, AssetTrait, TextureAsset},
     exports::types::{either::Either, resource::ResourceTrait},
     graphics::{
-        context::Graphics, texture::{TextureInternal, TextureType, EMPTY_R8_UNORM, EMPTY_RGBA16_FLOAT, EMPTY_RGBA8_UNORM}, HasBindGroup, HasBindGroupLayout
+        context::Graphics,
+        texture::{
+            TextureInternal, TextureType, EMPTY_R8_UNORM, EMPTY_RGBA16_FLOAT, EMPTY_RGBA8_UNORM,
+        },
+        HasBindGroupLayout,
     },
 };
 
@@ -15,7 +19,7 @@ static MATERIAL_ID: AtomicUsize = AtomicUsize::new(0);
 /// Deferred renderer material.
 pub struct Material {
     id: usize,
-    
+
     /// If unlit is true, the material will not be affected by lighting.
     unlit: bool,
 
@@ -27,24 +31,24 @@ pub struct Material {
     /// If both are set, the texture's color will be multiplied by the color.
     albedo: (
         Option<[f32; 4]>,
-        Option<AssetHandle<TextureAsset<{ Material::ALBEDO_TEXTURE_TYPE }>>>,
+        Option<Asset<TextureAsset<{ Material::ALBEDO_TEXTURE_TYPE }>>>,
     ),
 
     /// Normal map, adds bumrps and details to the surface.
-    normal: Option<AssetHandle<TextureAsset<{ Material::NORMAL_TEXTURE_TYPE }>>>,
+    normal: Option<Asset<TextureAsset<{ Material::NORMAL_TEXTURE_TYPE }>>>,
 
     /// Metallic map or value.
-    metallic: Either<f32, AssetHandle<TextureAsset<{ Material::METALLIC_TEXTURE_TYPE }>>>,
+    metallic: Either<f32, Asset<TextureAsset<{ Material::METALLIC_TEXTURE_TYPE }>>>,
 
     /// Roughness map or value.
-    roughness: Either<f32, AssetHandle<TextureAsset<{ Material::ROUGHNESS_TEXTURE_TYPE }>>>,
+    roughness: Either<f32, Asset<TextureAsset<{ Material::ROUGHNESS_TEXTURE_TYPE }>>>,
 
     bind_group: Option<wgpu::BindGroup>,
 }
 
 impl std::fmt::Debug for Material {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct(format!("Material [{}]", self.id).as_str()) 
+        f.debug_struct(format!("Material [id: {}]", self.id).as_str())
             .field("unlit", &self.unlit)
             .field("wireframe", &self.wireframe)
             .field("albedo", &self.albedo)
@@ -86,11 +90,11 @@ impl Material {
         let albedo_supplied = if self.albedo.0.is_some() && self.albedo.1.is_some() {
             BindingSuppliedType::Both
         } else if self.albedo.0.is_some() {
-            BindingSuppliedType::Value
-        } else if self.albedo.1.is_some() {
             BindingSuppliedType::Texture
+        } else if self.albedo.1.is_some() {
+            BindingSuppliedType::Value
         } else {
-            BindingSuppliedType::Neither
+            panic!("Both albedo color and texture are None.");
         };
 
         let albedo_supplied_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -101,7 +105,7 @@ impl Material {
 
         let albedo_color_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&self.albedo.0.unwrap_or([0.0, 0.0, 0.0, 0.0])),
+            contents: bytemuck::cast_slice(&self.albedo.0.unwrap_or([1.0, 1.0, 1.0, 1.0])),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -116,9 +120,9 @@ impl Material {
         let normal_texture = self.normal.as_ref();
 
         let metallic_type = if self.metallic.is_left() {
-            BindingSuppliedType::Value
-        } else {
             BindingSuppliedType::Texture
+        } else {
+            BindingSuppliedType::Value
         };
 
         let metallic_type_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -129,16 +133,16 @@ impl Material {
 
         let metallic_value_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&[self.metallic.left().map_or(0f32, |x| *x)]),
+            contents: bytemuck::cast_slice(&[self.metallic.left().map_or(1f32, |x| *x)]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         let metallic_texture = self.metallic.right();
 
         let roughness_type = if self.roughness.is_left() {
-            BindingSuppliedType::Value
-        } else {
             BindingSuppliedType::Texture
+        } else {
+            BindingSuppliedType::Value
         };
 
         let roughness_type_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -149,7 +153,7 @@ impl Material {
 
         let roughness_value_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&[self.roughness.left().map_or(0f32, |x| *x)]),
+            contents: bytemuck::cast_slice(&[self.roughness.left().map_or(1f32, |x| *x)]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -159,92 +163,142 @@ impl Material {
             label: Some("Material Bind Group"),
             layout: &*MATERIAL_BIND_GROUP_LAYOUT,
             entries: &[
+                // Unlit
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(
                         unlit_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Wireframe
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer(
                         wireframe_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Wireframe color
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(
                         wireframe_color_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Albedo supplied
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(
                         albedo_supplied_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Albedo color
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Buffer(
                         albedo_color_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Albedo texture
                 wgpu::BindGroupEntry {
                     binding: 5,
+                    resource: wgpu::BindingResource::TextureView(
+                        albedo_texture.map_or(EMPTY_RGBA8_UNORM.wgpu_texture_view(), |x| unsafe {
+                            x.borrow_unsafe().wgpu_texture_view()
+                        }),
+                    ),
+                },
+                // Albedo sampler
+                wgpu::BindGroupEntry {
+                    binding: 6,
                     resource: wgpu::BindingResource::Sampler(
                         albedo_texture.map_or(EMPTY_RGBA8_UNORM.wgpu_sampler(), |x| unsafe {
                             x.borrow_unsafe().wgpu_sampler()
                         }),
                     ),
                 },
+                // Normal supplied
                 wgpu::BindGroupEntry {
-                    binding: 6,
+                    binding: 7,
                     resource: wgpu::BindingResource::Buffer(
                         normal_supplied_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Normal texture
                 wgpu::BindGroupEntry {
-                    binding: 7,
+                    binding: 8,
+                    resource: wgpu::BindingResource::TextureView(
+                        normal_texture.map_or(EMPTY_RGBA16_FLOAT.wgpu_texture_view(), |x| unsafe {
+                            x.borrow_unsafe().wgpu_texture_view()
+                        }),
+                    ),
+                },
+                // Normal sampler
+                wgpu::BindGroupEntry {
+                    binding: 9,
                     resource: wgpu::BindingResource::Sampler(
                         normal_texture.map_or(EMPTY_RGBA16_FLOAT.wgpu_sampler(), |x| unsafe {
                             x.borrow_unsafe().wgpu_sampler()
                         }),
                     ),
                 },
+                // Metallic type
                 wgpu::BindGroupEntry {
-                    binding: 8,
+                    binding: 10,
                     resource: wgpu::BindingResource::Buffer(
                         metallic_type_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Metallic value
                 wgpu::BindGroupEntry {
-                    binding: 9,
+                    binding: 11,
                     resource: wgpu::BindingResource::Buffer(
                         metallic_value_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Metallic texture
                 wgpu::BindGroupEntry {
-                    binding: 10,
+                    binding: 12,
+                    resource: wgpu::BindingResource::TextureView(
+                        metallic_texture.map_or(EMPTY_R8_UNORM.wgpu_texture_view(), |x| unsafe {
+                            x.borrow_unsafe().wgpu_texture_view()
+                        }),
+                    ),
+                },
+                // Metallic sampler
+                wgpu::BindGroupEntry {
+                    binding: 13,
                     resource: wgpu::BindingResource::Sampler(
                         metallic_texture.map_or(EMPTY_R8_UNORM.wgpu_sampler(), |x| unsafe {
                             x.borrow_unsafe().wgpu_sampler()
                         }),
                     ),
                 },
+                // Roughness type
                 wgpu::BindGroupEntry {
-                    binding: 11,
+                    binding: 14,
                     resource: wgpu::BindingResource::Buffer(
                         roughness_type_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Roughness value
                 wgpu::BindGroupEntry {
-                    binding: 12,
+                    binding: 15,
                     resource: wgpu::BindingResource::Buffer(
                         roughness_value_buffer.as_entire_buffer_binding(),
                     ),
                 },
+                // Roughness texture
                 wgpu::BindGroupEntry {
-                    binding: 13,
+                    binding: 16,
+                    resource: wgpu::BindingResource::TextureView(
+                        roughness_texture.map_or(EMPTY_R8_UNORM.wgpu_texture_view(), |x| unsafe {
+                            x.borrow_unsafe().wgpu_texture_view()
+                        }),
+                    ),
+                },
+                // Roughness sampler
+                wgpu::BindGroupEntry {
+                    binding: 17,
                     resource: wgpu::BindingResource::Sampler(
                         roughness_texture.map_or(EMPTY_R8_UNORM.wgpu_sampler(), |x| unsafe {
                             x.borrow_unsafe().wgpu_sampler()
@@ -261,11 +315,11 @@ impl Material {
         wireframe: Option<[f32; 4]>,
         albedo: (
             Option<[f32; 4]>,
-            Option<AssetHandle<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
+            Option<Asset<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
         ),
-        normal: Option<AssetHandle<TextureAsset<{ TextureType::R16Float }>>>,
-        metallic: Either<f32, AssetHandle<TextureAsset<{ TextureType::R8Unorm }>>>,
-        roughness: Either<f32, AssetHandle<TextureAsset<{ TextureType::R8Unorm }>>>,
+        normal: Option<Asset<TextureAsset<{ TextureType::R16Float }>>>,
+        metallic: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
+        roughness: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
     ) -> Self {
         let mut m = Material {
             id: MATERIAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -293,16 +347,16 @@ impl Material {
 
     /// If unlit is true, the material will not be affected by lighting.
     pub fn set_unlit(&mut self, unlit: bool) {
-        self.generate_bind_group();
-
         self.unlit = unlit;
+        
+        self.generate_bind_group();
     }
 
     /// If a color is set, the material will be rendered as a wireframe with that color.
     pub fn set_wireframe(&mut self, wireframe: Option<[f32; 4]>) {
-        self.generate_bind_group();
-
         self.wireframe = wireframe;
+        
+        self.generate_bind_group();
     }
 
     /// The base color of the material.
@@ -310,44 +364,45 @@ impl Material {
     /// If both are set, the texture's color will be multiplied by the color.
     pub fn set_albedo(
         &mut self,
-        albedo: (
-            Option<[f32; 4]>,
-            Option<AssetHandle<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
-        ),
-    ) {
+        color: Option<[f32; 4]>,
+        texture: Option<Asset<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if color.is_none() && texture.is_none() {
+            return Err("Both color and texture cannot be None.".into());
+        }
+
+        self.albedo = (color, texture);
+        
         self.generate_bind_group();
 
-        self.albedo = albedo;
+        Ok(())
     }
 
     /// Normal map, adds bumrps and details to the surface.
-    pub fn set_normal(
-        &mut self,
-        normal: Option<AssetHandle<TextureAsset<{ TextureType::R16Float }>>>,
-    ) {
-        self.generate_bind_group();
-
+    pub fn set_normal(&mut self, normal: Option<Asset<TextureAsset<{ TextureType::R16Float }>>>) {
         self.normal = normal;
+        
+        self.generate_bind_group();
     }
 
     /// Metallic map or value.
     pub fn set_metallic(
         &mut self,
-        metallic: Either<f32, AssetHandle<TextureAsset<{ TextureType::R8Unorm }>>>,
+        metallic: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
     ) {
-        self.generate_bind_group();
-
         self.metallic = metallic;
+        
+        self.generate_bind_group();
     }
 
     /// Roughness map or value.
     pub fn set_roughness(
         &mut self,
-        roughness: Either<f32, AssetHandle<TextureAsset<{ TextureType::R8Unorm }>>>,
+        roughness: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
     ) {
-        self.generate_bind_group();
-
         self.roughness = roughness;
+        
+        self.generate_bind_group();
     }
 
     pub fn unlit(&self) -> &bool {
@@ -362,20 +417,20 @@ impl Material {
         &self,
     ) -> &(
         Option<[f32; 4]>,
-        Option<AssetHandle<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
+        Option<Asset<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
     ) {
         &self.albedo
     }
 
-    pub fn normal(&self) -> &Option<AssetHandle<TextureAsset<{ TextureType::R16Float }>>> {
+    pub fn normal(&self) -> &Option<Asset<TextureAsset<{ TextureType::R16Float }>>> {
         &self.normal
     }
 
-    pub fn metallic(&self) -> &Either<f32, AssetHandle<TextureAsset<{ TextureType::R8Unorm }>>> {
+    pub fn metallic(&self) -> &Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>> {
         &self.metallic
     }
 
-    pub fn roughness(&self) -> &Either<f32, AssetHandle<TextureAsset<{ TextureType::R8Unorm }>>> {
+    pub fn roughness(&self) -> &Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>> {
         &self.roughness
     }
 }
@@ -384,27 +439,31 @@ impl Material {
 // 0. Unlit [bool]
 // 1. Wireframe [bool]
 // 2. WireframeColor [vec4]
-// 3. AlbedoSupplied [u32 (BindingSuppliedType)] (0 = neither, 1 = color, 2 = texture, 3 = both)
+// 3. AlbedoSupplied [u32 (BindingSuppliedType)] (1 = color, 2 = texture, 3 = both)
 // 4. AlbedoColor [vec4]
-// 5. AlbedoTexture [sampler]
-// 6. NormalSupplied [bool]
-// 7. NormalTexture [sampler]
-// 8. MetallicType [u32 (BindingSuppliedType)] (0 = neither, 1 = value, 2 = texture)
-// 9. MetallicValue [f32]
-// 10. MetallicTexture [sampler]
-// 11. RoughnessType [u32 (BindingSuppliedType)] (0 = neither, 1 = value, 2 = texture)
-// 12. RoughnessValue [f32]
-// 13. RoughnessTexture [sampler]
+// 5. AlbedoTexture [buffer]
+// 6. AlbedoSampler [sampler]
+// 7. NormalSupplied [bool]
+// 8. NormalTexture [buffer]
+// 9. NormalSampler [sampler]
+// 10. MetallicType [u32 (BindingSuppliedType)] (1 = value, 2 = texture)
+// 11. MetallicValue [f32]
+// 12. MetallicTexture [buffer]
+// 13. MetallicSampler [sampler]
+// 14. RoughnessType [u32 (BindingSuppliedType)] (1 = value, 2 = texture)
+// 15. RoughnessValue [f32]
+// 16. RoughnessTexture [buffer]
+// 17. RoughnessSampler [sampler]
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub(crate) enum BindingSuppliedType {
-    Neither = 0,
-    Texture = 1,
-    Value = 2,
+    Value = 1,
+    Texture = 2,
     Both = 3,
 }
 
+// TODO: Can these be storage textures?
 static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
     Graphics::global_read()
         .device
@@ -414,7 +473,7 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                 // Unlit [bool]
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -425,7 +484,7 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                 // Wireframe [bool]
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -436,7 +495,7 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                 // WireframeColor [vec4]
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -447,7 +506,7 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                 // AlbedoSupplied [u32 (BindingSuppliedType)]
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -458,7 +517,7 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                 // AlbedoColor [vec4]
                 wgpu::BindGroupLayoutEntry {
                     binding: 4,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -466,17 +525,28 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                     },
                     count: None,
                 },
-                // AlbedoTexture [sampler]
+                // AlbedoTexture [buffer]
                 wgpu::BindGroupLayoutEntry {
                     binding: 5,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture { 
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // AlbedoSampler [sampler]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
                     count: None,
                 },
                 // NormalSupplied [bool]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -484,17 +554,28 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                     },
                     count: None,
                 },
-                // NormalTexture [sampler]
+                // NormalTexture [buffer]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 7,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture { 
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // NormalSampler [sampler]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
                     count: None,
                 },
                 // MetallicType [u32 (BindingSuppliedType)]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 8,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    binding: 10,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -504,8 +585,8 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                 },
                 // MetallicValue [f32]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    binding: 11,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -513,17 +594,28 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                     },
                     count: None,
                 },
-                // MetallicTexture [sampler]
+                // MetallicTexture [buffer]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 10,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    binding: 12,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture { 
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // MetallicSampler [sampler]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 13,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
                     count: None,
                 },
                 // RoughnessType [u32 (BindingSuppliedType)]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 11,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    binding: 14,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -533,8 +625,8 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                 },
                 // RoughnessValue [f32]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 12,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    binding: 15,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -542,11 +634,22 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
                     },
                     count: None,
                 },
-                // RoughnessTexture [sampler]
+                // RoughnessTexture [buffer]
                 wgpu::BindGroupLayoutEntry {
-                    binding: 13,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    binding: 16,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture { 
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // RoughnessSampler [sampler]
+                wgpu::BindGroupLayoutEntry {
+                    binding: 17,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
                     count: None,
                 },
             ],
@@ -577,7 +680,7 @@ impl std::cmp::Ord for Material {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.id.cmp(&other.id)
     }
-} 
+}
 
 impl Default for Material {
     /// Default instance of `Material`.

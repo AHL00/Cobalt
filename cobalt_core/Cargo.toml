@@ -21,6 +21,21 @@ wgpu = "0.19.1"
 winit = "0.29.10"
 bytemuck = { version = "1.14.1", features = ["derive"] }
 image = "0.24.8"
+gltf = { version = "1.4.0", features = [
+    "extras",
+    "names",
+    "extensions",
+    "KHR_lights_punctual",
+    "KHR_materials_pbrSpecularGlossiness",
+    "KHR_materials_unlit",
+    # "KHR_texture_transform",
+    # "KHR_materials_variants",
+    # "KHR_materials_volume",
+    "KHR_materials_specular",
+    # "KHR_materials_transmission",
+    # "KHR_materials_ior",
+    # "KHR_materials_emissive_strength",
+] }
 
 # Misc
 serde = { version = "1.0.196", features = ["derive"] }
@@ -38,25 +53,10 @@ tobj = "4.0.1"
 downcast = "0.11.0"
 mutually_exclusive_features = "0.1.0"
 log-once = "0.4.1"
+half = {version = "2.4.1", features = ["serde", "bytemuck"]}
 
 # ECS
 serde_closure = "0.3.3"
-gltf = { version = "1.4.0", features = [
-    "extras",
-    "names",
-    "extensions",
-    "KHR_lights_punctual",
-    "KHR_materials_pbrSpecularGlossiness",
-    "KHR_materials_unlit",
-    # "KHR_texture_transform",
-    # "KHR_materials_variants",
-    # "KHR_materials_volume",
-    "KHR_materials_specular",
-    # "KHR_materials_transmission",
-    # "KHR_materials_ior",
-    # "KHR_materials_emissive_strength",
-] }
-
 
 [dev-dependencies]
 simple_logger = "5.0.0"

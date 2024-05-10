@@ -1,5 +1,6 @@
 use std::{io::BufReader, marker::ConstParamTy, path::Path, sync::LazyLock};
 
+use half::f16;
 use image::GenericImageView;
 
 use crate::{
@@ -80,6 +81,15 @@ pub struct TextureAsset<const T: TextureType> {
     pub(crate) bind_group: wgpu::BindGroup,
 }
 
+impl<const T: TextureType> std::fmt::Debug for TextureAsset<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TextureAsset")
+            .field("size", &self.size)
+            .field("format", &T)
+            .finish()
+    }
+}
+
 pub trait TextureInternal {
     fn size(&self) -> &wgpu::Extent3d;
 
@@ -138,7 +148,13 @@ impl<const T: TextureType> TextureAsset<T> {
     }
 }
 
-static TEXTURE_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
+static TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE: LazyLock<wgpu::BindGroupLayout> =
+    LazyLock::new(|| create_bind_group_layout(true, true));
+
+static TEXTURE_BIND_GROUP_LAYOUT_NON_FILTERING_NON_FILTERABLE: LazyLock<wgpu::BindGroupLayout> =
+    LazyLock::new(|| create_bind_group_layout(false, false));
+
+fn create_bind_group_layout(filterable: bool, filtering: bool) -> wgpu::BindGroupLayout {
     Graphics::global_read()
         .device
         .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -150,19 +166,35 @@ static TEXTURE_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::ne
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        sample_type: wgpu::TextureSampleType::Float { filterable },
                     },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    ty: wgpu::BindingType::Sampler(match filtering {
+                        true => wgpu::SamplerBindingType::Filtering,
+                        false => wgpu::SamplerBindingType::NonFiltering,
+                    }),
                     count: None,
                 },
             ],
         })
-});
+}
+
+fn get_bind_group_layout<const T: TextureType>() -> &'static wgpu::BindGroupLayout {
+    match T {
+        TextureType::RGBA32Float | TextureType::RGBA16Float | TextureType::RGBA8Unorm => {
+            &TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE
+        }
+        TextureType::R32Float
+        | TextureType::R16Float
+        | TextureType::R8Unorm
+        | TextureType::R8Uint
+        | TextureType::R8Snorm => &TEXTURE_BIND_GROUP_LAYOUT_NON_FILTERING_NON_FILTERABLE,
+    }
+}
 
 impl<const T: TextureType> AssetTrait for TextureAsset<T> {
     fn load_from_file(
@@ -226,7 +258,7 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
-                layout: &TEXTURE_BIND_GROUP_LAYOUT,
+                layout: TextureAsset::<T>::bind_group_layout(),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -258,7 +290,7 @@ impl<const T: TextureType> HasBindGroup for TextureAsset<T> {
 
 impl<const T: TextureType> HasBindGroupLayout for TextureAsset<T> {
     fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
-        &TEXTURE_BIND_GROUP_LAYOUT
+        get_bind_group_layout::<T>()
     }
 }
 
@@ -300,7 +332,7 @@ fn gen_empty_texture<const T: TextureType>() -> TextureAsset<T> {
         .device
         .create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &TEXTURE_BIND_GROUP_LAYOUT,
+            layout: TextureAsset::<T>::bind_group_layout(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -313,6 +345,76 @@ fn gen_empty_texture<const T: TextureType>() -> TextureAsset<T> {
             ],
         });
 
+    fn write_texture(
+        data: &[u8],
+        bytes_per_row: u32,
+        texture: &wgpu::Texture,
+        size: wgpu::Extent3d,
+    ) {
+        Graphics::global_read().queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            data,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(size.height),
+            },
+            size,
+        );
+    }
+
+    match T {
+        TextureType::RGBA32Float => {
+            write_texture(
+                bytemuck::cast_slice(&[1.0f32, 1.0, 1.0, 1.0]),
+                16,
+                &texture,
+                size,
+            );
+        }
+        TextureType::RGBA16Float => {
+            write_texture(
+                bytemuck::cast_slice(&[
+                    f16::from_f32(1.0),
+                    f16::from_f32(1.0),
+                    f16::from_f32(1.0),
+                    f16::from_f32(1.0),
+                ]),
+                8,
+                &texture,
+                size,
+            );
+        }
+        TextureType::RGBA8Unorm => {
+            write_texture(&[255u8, 255, 255, 255], 4, &texture, size);
+        }
+        TextureType::R32Float => {
+            write_texture(bytemuck::cast_slice(&[1.0f32]), 4, &texture, size);
+        }
+        TextureType::R16Float => {
+            write_texture(
+                bytemuck::cast_slice(&[f16::from_f32(1.0)]),
+                2,
+                &texture,
+                size,
+            );
+        }
+        TextureType::R8Unorm => {
+            write_texture(&[255u8], 1, &texture, size);
+        }
+        TextureType::R8Uint => {
+            write_texture(&[255u8], 1, &texture, size);
+        }
+        TextureType::R8Snorm => {
+            write_texture(bytemuck::cast_slice(&[127i8]), 1, &texture, size);
+        }
+    }
+
     TextureAsset {
         texture,
         view,
@@ -322,19 +424,27 @@ fn gen_empty_texture<const T: TextureType>() -> TextureAsset<T> {
     }
 }
 
+/// White 1x1 texture
 pub static EMPTY_RGBA32_FLOAT: LazyLock<TextureAsset<{ TextureType::RGBA32Float }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
 pub static EMPTY_RGBA16_FLOAT: LazyLock<TextureAsset<{ TextureType::RGBA16Float }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
 pub static EMPTY_RGBA8_UNORM: LazyLock<TextureAsset<{ TextureType::RGBA8Unorm }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
 pub static EMPTY_R32_FLOAT: LazyLock<TextureAsset<{ TextureType::R32Float }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
 pub static EMPTY_R16_FLOAT: LazyLock<TextureAsset<{ TextureType::R16Float }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
 pub static EMPTY_R8_UNORM: LazyLock<TextureAsset<{ TextureType::R8Unorm }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
 pub static EMPTY_R8_UINT: LazyLock<TextureAsset<{ TextureType::R8Uint }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
 pub static EMPTY_R8_SNORM: LazyLock<TextureAsset<{ TextureType::R8Snorm }>> =
     LazyLock::new(|| gen_empty_texture());

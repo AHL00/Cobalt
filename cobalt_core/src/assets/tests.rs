@@ -30,7 +30,7 @@ impl AssetTrait for Text {
 mod tests {
     use std::borrow::Borrow;
 
-    use crate::assets::{exports::AssetHandle, server::{AssetServer, AssetServerInternal, ASSET_SERVER}};
+    use crate::assets::{exports::Asset, server::{AssetServer, AssetServerInternal, ASSET_SERVER}};
 
     use super::*;
 
@@ -69,7 +69,7 @@ mod tests {
 
         let serialized = serde_yaml::to_string(&asset).unwrap();
 
-        let deserialized: AssetHandle<Text> = serde_yaml::from_str(&serialized).unwrap();
+        let deserialized: Asset<Text> = serde_yaml::from_str(&serialized).unwrap();
 
         let asset_ref = deserialized.borrow();
 

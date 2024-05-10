@@ -19,7 +19,7 @@ pub fn show(&mut self, egui_ctx: &egui::Context) {
 
         // If there is a new stat, replace the hashmap with the vec
         let mut stats_dirty = false;
-        for (name, stat) in &stats {
+        for (name, _stat) in &stats {
             if !self.displayed_stats.contains_key(name.as_str()) {
                 stats_dirty = true;
             }
@@ -30,7 +30,7 @@ pub fn show(&mut self, egui_ctx: &egui::Context) {
 
             self.displayed_stats.clear();
 
-            for (name, stat) in &stats {
+            for (name, _stat) in &stats {
                 self.displayed_stats.insert(
                     (*name).clone(),
                     if old_displayed_stats.contains_key(*name) {
@@ -59,7 +59,7 @@ pub fn show(&mut self, egui_ctx: &egui::Context) {
 
             ui.separator();
 
-            for (name, stat) in &stats {
+            for (name, _stat) in &stats {
                 ui.checkbox(
                     &mut self.displayed_stats.get_mut(*name).unwrap(),
                     *name,

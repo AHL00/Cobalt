@@ -1,18 +1,20 @@
-use crate::{
-    graphics::{
-        context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout
+use crate::{graphics::{context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout}, renderer::{
+    deferred::{
+        depth_buffer::DepthBuffer, exports::Material, g_buffers::GeometryBuffers,
+        screen_quad::ScreenQuad,
     },
-    renderer::{deferred::{depth_buffer::DepthBuffer, exports::Material, g_buffers::GeometryBuffers, screen_quad::ScreenQuad}, render_pass::RenderPass, renderer::RendererError},
-};
+    render_pass::RenderPass,
+    renderer::RendererError,
+}};
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
 pub enum GeometryPassDebugMode {
     Normals = 0,
     Albedo = 1,
-    Specular = 2,
-    Position = 3,
-    Diffuse = 4,
+    Position = 2,
+    Metallic = 3,
+    Roughness = 4,
     Depth = 5,
 }
 
@@ -27,7 +29,11 @@ impl GeometryDebugPass {
         let pipeline_layout = Graphics::global_read().device.create_pipeline_layout(
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Geometry Debug Pass Pipeline Layout"),
-                bind_group_layouts: &[&u32::bind_group_layout(), &GeometryBuffers::bind_group_layout(), &DepthBuffer::bind_group_layout()],
+                bind_group_layouts: &[
+                    &u32::bind_group_layout(),
+                    &GeometryBuffers::bind_group_layout(),
+                    &DepthBuffer::bind_group_layout(),
+                ],
                 push_constant_ranges: &[],
             },
         );
@@ -115,7 +121,9 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
         });
 
         if let None = self.mode {
-            return Err(RendererError::RenderPassError("No debug mode set.".to_string()));
+            return Err(RendererError::RenderPassError(
+                "No debug mode set.".to_string(),
+            ));
         }
 
         // Bind debug mode

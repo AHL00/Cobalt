@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use crate::{
     exports::components::Transform,
     graphics::{
@@ -74,12 +72,12 @@ impl GeometryPass {
                         Some(wgpu::ColorTargetState {
                             blend: None,
                             write_mask: wgpu::ColorWrites::ALL,
-                            format: GeometryBuffers::ALBEDO_SPECULAR_FORMAT,
+                            format: GeometryBuffers::ALBEDO_FORMAT,
                         }),
                         Some(wgpu::ColorTargetState {
                             blend: None,
                             write_mask: wgpu::ColorWrites::ALL,
-                            format: GeometryBuffers::DIFFUSE_FORMAT,
+                            format: GeometryBuffers::METALLIC_ROUGHNESS_FORMAT,
                         }),
                     ],
                 }),
@@ -164,7 +162,7 @@ impl RenderPass<()> for GeometryPass {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
-                    view: &self.g_buffers.albedo_specular_view,
+                    view: &self.g_buffers.albedo_view,
                     resolve_target: None,
                 }),
                 Some(wgpu::RenderPassColorAttachment {
@@ -172,7 +170,7 @@ impl RenderPass<()> for GeometryPass {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,
                     },
-                    view: &self.g_buffers.diffuse_view,
+                    view: &self.g_buffers.metallic_roughness_view,
                     resolve_target: None,
                 }),
             ],

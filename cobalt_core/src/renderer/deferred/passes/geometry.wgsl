@@ -5,22 +5,27 @@ var<uniform> u_model: mat4x4<f32>;
 var<uniform> u_proj_view: mat4x4<f32>;
 
 
-// Material bind group layout.
 // NOTE: All bools are sent as u32
+// Material bind group layout.
 // 0. Unlit [bool]
 // 1. Wireframe [bool]
 // 2. WireframeColor [vec4]
-// 3. AlbedoSupplied [u32 (BindingSuppliedType)] (0 = neither, 1 = color, 2 = texture, 3 = both)
+// 3. AlbedoSupplied [u32 (BindingSuppliedType)] (1 = color, 2 = texture, 3 = both)
 // 4. AlbedoColor [vec4]
-// 5. AlbedoTexture [sampler]
-// 6. NormalSupplied [bool]
-// 7. NormalTexture [sampler]
-// 8. MetallicType [u32 (BindingSuppliedType)] (0 = neither, 1 = value, 2 = texture)
-// 9. MetallicValue [f32]
-// 10. MetallicTexture [sampler]
-// 11. RoughnessType [u32 (BindingSuppliedType)] (0 = neither, 1 = value, 2 = texture)
-// 12. RoughnessValue [f32]
-// 13. RoughnessTexture [sampler]
+// 5. AlbedoTexture [buffer]
+// 6. AlbedoSampler [sampler]
+// 7. NormalSupplied [bool]
+// 8. NormalTexture [buffer]
+// 9. NormalSampler [sampler]
+// 10. MetallicType [u32 (BindingSuppliedType)] (1 = value, 2 = texture)
+// 11. MetallicValue [f32]
+// 12. MetallicTexture [buffer]
+// 13. MetallicSampler [sampler]
+// 14. RoughnessType [u32 (BindingSuppliedType)] (1 = value, 2 = texture)
+// 15. RoughnessValue [f32]
+// 16. RoughnessTexture [buffer]
+// 17. RoughnessSampler [sampler]
+
 
 @group(2) @binding(0)
 var<uniform> u_unlit: u32;
@@ -33,23 +38,31 @@ var<uniform> u_albedo_supplied: u32;
 @group(2) @binding(4)
 var<uniform> u_albedo_color: vec4f;
 @group(2) @binding(5)
-var u_albedo_texture: sampler;
+var u_albedo_texture: texture_2d<f32>;
 @group(2) @binding(6)
-var<uniform> u_normal_supplied: u32;
+var u_albedo_sampler: sampler;
 @group(2) @binding(7)
-var u_normal_texture: sampler;
+var<uniform> u_normal_supplied: u32;
 @group(2) @binding(8)
-var<uniform> u_metallic_type: u32;
+var u_normal_texture: texture_2d<f32>;
 @group(2) @binding(9)
-var<uniform> u_metallic_value: f32;
+var u_normal_sampler: sampler;
 @group(2) @binding(10)
-var u_metallic_texture: sampler;
+var<uniform> u_metallic_type: u32;
 @group(2) @binding(11)
-var<uniform> u_roughness_type: u32;
+var<uniform> u_metallic_value: f32;
 @group(2) @binding(12)
-var<uniform> u_roughness_value: f32;
+var u_metallic_texture: texture_2d<f32>;
 @group(2) @binding(13)
-var u_roughness_texture: sampler;
+var u_metallic_sampler: sampler;
+@group(2) @binding(14)
+var<uniform> u_roughness_type: u32;
+@group(2) @binding(15)
+var<uniform> u_roughness_value: f32;
+@group(2) @binding(16)
+var u_roughness_texture: texture_2d<f32>;
+@group(2) @binding(17)
+var u_roughness_sampler: sampler;
 
 struct VertexInput {
     @location(0) position: vec3f,
@@ -79,11 +92,10 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 
 struct FragmentOutput {
     /// World position
-    @location(0) position: vec4<f32>,
+    @location(0) position: vec4f,
     @location(1) normal: vec4f,
-    /// First 3 components are albedo, last component is specular
-    @location(2) albedo_specular: vec4f,
-    @location(3) diffuse: vec4f,
+    @location(2) albedo: vec4f,
+    @location(3) metallic_roughness: vec4f,
 }
 
 @fragment
@@ -92,15 +104,21 @@ fn fs_main(input: VertexOutput) -> FragmentOutput {
 
     output.position = vec4f(input.world_position, 1.0);
 
-    output.normal = vec4f(normalize(input.normal), 1.0);
+    // If texture is not supplied, its a white texture, so it will be fine.
+    // Albedo color default must be white if not supplied for this to work.
+    // This is done instead of a switch because texture sampling doesn't work in switches for some reason?
+    output.albedo = textureSample(u_albedo_texture, u_albedo_sampler, input.tex_coords) * u_albedo_color;
 
-    let specular = 0.0;
+    if u_normal_supplied == 1 {
+        output.normal = textureSample(u_normal_texture, u_normal_sampler, input.tex_coords);
+    } else {
+        output.normal = vec4f(input.normal, 1.0);
+    }
 
-    output.albedo_specular = vec4f(1.0, 0.0, 0.0, specular);
-
-    // TODO: Material property uniforms -> albedo, specular, roughness, etc.
-    // It will also include diffuse textures, and other textures such as normal maps, etc.s
-    output.diffuse = vec4f(1.0, 1.0, 1.0, 1.0);
+    // If the texture is not supplied, the texture will be white so this is fine.
+    // If the value is not supplied, the value will be 1 by default so this is fine.
+    output.metallic_roughness.r = textureSample(u_metallic_texture, u_metallic_sampler, input.tex_coords).r * u_metallic_value;
+    output.metallic_roughness.g = textureSample(u_roughness_texture, u_roughness_sampler, input.tex_coords).r * u_roughness_value;
 
     return output;
 }
