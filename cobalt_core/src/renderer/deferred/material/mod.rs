@@ -8,7 +8,7 @@ use crate::{
     graphics::{
         context::Graphics,
         texture::{
-            TextureInternal, TextureType, EMPTY_R8_UNORM, EMPTY_RGBA16_FLOAT, EMPTY_RGBA8_UNORM,
+            TextureInternal, TextureType, EMPTY_R8_UNORM, EMPTY_RGBA16_FLOAT, EMPTY_RGBA8_UNORM, EMPTY_RGBA8_UNORM_SRGB,
         },
         HasBindGroupLayout,
     },
@@ -61,7 +61,7 @@ impl std::fmt::Debug for Material {
 
 impl Material {
     // NOTE: Make sure this type matches the EMPTY_? in the generate_bind_group function when changing.
-    const ALBEDO_TEXTURE_TYPE: TextureType = TextureType::RGBA8Unorm;
+    const ALBEDO_TEXTURE_TYPE: TextureType = TextureType::RGBA8UnormSrgb;
     const NORMAL_TEXTURE_TYPE: TextureType = TextureType::R16Float;
     const METALLIC_TEXTURE_TYPE: TextureType = TextureType::R8Unorm;
     const ROUGHNESS_TEXTURE_TYPE: TextureType = TextureType::R8Unorm;
@@ -202,7 +202,7 @@ impl Material {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: wgpu::BindingResource::TextureView(
-                        albedo_texture.map_or(EMPTY_RGBA8_UNORM.wgpu_texture_view(), |x| unsafe {
+                        albedo_texture.map_or(EMPTY_RGBA8_UNORM_SRGB.wgpu_texture_view(), |x| unsafe {
                             x.borrow_unsafe().wgpu_texture_view()
                         }),
                     ),
@@ -315,7 +315,7 @@ impl Material {
         wireframe: Option<[f32; 4]>,
         albedo: (
             Option<[f32; 4]>,
-            Option<Asset<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
+            Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
         ),
         normal: Option<Asset<TextureAsset<{ TextureType::R16Float }>>>,
         metallic: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
@@ -365,7 +365,7 @@ impl Material {
     pub fn set_albedo(
         &mut self,
         color: Option<[f32; 4]>,
-        texture: Option<Asset<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
+        texture: Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if color.is_none() && texture.is_none() {
             return Err("Both color and texture cannot be None.".into());
@@ -417,7 +417,7 @@ impl Material {
         &self,
     ) -> &(
         Option<[f32; 4]>,
-        Option<Asset<TextureAsset<{ TextureType::RGBA8Unorm }>>>,
+        Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
     ) {
         &self.albedo
     }

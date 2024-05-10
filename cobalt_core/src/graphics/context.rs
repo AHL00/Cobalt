@@ -104,12 +104,42 @@ impl Graphics {
 
         let surface_capabilities = surface.get_capabilities(&adapter);
 
+        fn is_srgb(format: wgpu::TextureFormat) -> bool {
+            format == wgpu::TextureFormat::Bgra8UnormSrgb
+                || format == wgpu::TextureFormat::Rgba8UnormSrgb
+        }
+
         // Get preferred format
         let output_color_format = if surface_capabilities.formats.is_empty() {
             log::warn!("No preferred format found, using Bgra8UnormSrgb");
             wgpu::TextureFormat::Bgra8UnormSrgb
         } else {
-            surface_capabilities.formats[0]
+            log::info!(
+                "Preferred surface format: {:?}",
+                surface_capabilities.formats[0]
+            );
+
+            // If preferred format is not Srgb, look if there are any supported Srgb formats to fall back to
+            if !is_srgb(surface_capabilities.formats[0]) {
+                let srgb_format = surface_capabilities
+                    .formats
+                    .iter()
+                    .find(|f| is_srgb(**f))
+                    .copied();
+
+                if let Some(srgb_format) = srgb_format {
+                    log::warn!(
+                        "Preferred format is not Srgb, falling back to {:?}",
+                        srgb_format
+                    );
+                    srgb_format
+                } else {
+                    log::warn!("No Srgb format found, using preferred: {:?}. This may cause issues with color accuracy.", surface_capabilities.formats[0]);
+                    surface_capabilities.formats[0]
+                }
+            } else {
+                surface_capabilities.formats[0]
+            }
         };
 
         let output_depth_format = Some(wgpu::TextureFormat::Depth32Float);

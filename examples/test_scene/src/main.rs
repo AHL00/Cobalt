@@ -35,7 +35,7 @@ impl App for Game {
             .unwrap();
 
         let model_texture = AssetServer::global_write()
-            .load::<TextureAsset<{ TextureType::RGBA8Unorm }>>(Path::new("jet.png"))
+            .load::<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>(Path::new("jet.png"))
             .unwrap();
 
         let model_material = Resource::new(Material::default());

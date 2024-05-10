@@ -16,6 +16,8 @@ pub enum TextureType {
     RGBA32Float,
     RGBA16Float,
     RGBA8Unorm,
+    /// SRGB texture, used for color textures such as albedo.
+    RGBA8UnormSrgb,
 
     // Gray scale textures
     R32Float,
@@ -31,6 +33,7 @@ impl TextureType {
             TextureType::RGBA32Float => 16,
             TextureType::RGBA16Float => 8,
             TextureType::RGBA8Unorm => 4,
+            TextureType::RGBA8UnormSrgb => 4,
 
             TextureType::R32Float => 4,
             TextureType::R16Float => 2,
@@ -44,6 +47,7 @@ impl TextureType {
     pub(crate) fn get_image_data(&self, image: image::DynamicImage) -> Result<Vec<u8>, String> {
         match self {
             TextureType::RGBA8Unorm => Ok(image.into_rgba8().into_vec()),
+            TextureType::RGBA8UnormSrgb => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA32Float => Ok(bytemuck::cast_vec(image.into_rgba32f().into_vec())),
             TextureType::RGBA16Float => Ok(bytemuck::cast_vec(
                 image
@@ -87,6 +91,7 @@ impl Into<wgpu::TextureFormat> for TextureType {
             TextureType::RGBA32Float => wgpu::TextureFormat::Rgba32Float,
             TextureType::RGBA16Float => wgpu::TextureFormat::Rgba16Float,
             TextureType::RGBA8Unorm => wgpu::TextureFormat::Rgba8Unorm,
+            TextureType::RGBA8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,
 
             TextureType::R32Float => wgpu::TextureFormat::R32Float,
             TextureType::R16Float => wgpu::TextureFormat::R16Float,
@@ -210,7 +215,7 @@ fn create_bind_group_layout(filterable: bool, filtering: bool) -> wgpu::BindGrou
 
 fn get_bind_group_layout<const T: TextureType>() -> &'static wgpu::BindGroupLayout {
     match T {
-        TextureType::RGBA32Float | TextureType::RGBA16Float | TextureType::RGBA8Unorm => {
+        TextureType::RGBA32Float | TextureType::RGBA16Float | TextureType::RGBA8Unorm | TextureType::RGBA8UnormSrgb => {
             &TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE
         }
         TextureType::R32Float
@@ -447,6 +452,9 @@ fn gen_empty_texture<const T: TextureType>() -> TextureAsset<T> {
         TextureType::RGBA8Unorm => {
             write_texture(&[255u8, 255, 255, 255], 4, &texture, size);
         }
+        TextureType::RGBA8UnormSrgb => {
+            write_texture(&[255u8, 255, 255, 255], 4, &texture, size);
+        }
         TextureType::R32Float => {
             write_texture(bytemuck::cast_slice(&[1.0f32]), 4, &texture, size);
         }
@@ -487,6 +495,9 @@ pub static EMPTY_RGBA16_FLOAT: LazyLock<TextureAsset<{ TextureType::RGBA16Float 
 /// White 1x1 texture
 pub static EMPTY_RGBA8_UNORM: LazyLock<TextureAsset<{ TextureType::RGBA8Unorm }>> =
     LazyLock::new(|| gen_empty_texture());
+/// White 1x1 texture
+pub static EMPTY_RGBA8_UNORM_SRGB: LazyLock<TextureAsset<{ TextureType::RGBA8UnormSrgb }>> =
+    LazyLock::new(|| gen_empty_texture());    
 /// White 1x1 texture
 pub static EMPTY_R32_FLOAT: LazyLock<TextureAsset<{ TextureType::R32Float }>> =
     LazyLock::new(|| gen_empty_texture());
