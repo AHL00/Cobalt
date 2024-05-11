@@ -117,7 +117,7 @@ impl AssetServer {
 
         let buf_reader = BufReader::new(file);
 
-        let asset = Arc::new(RwLock::new(T::load_from_file(
+        let asset = Arc::new(RwLock::new(T::read_from_file(
             buf_reader,
             &asset_handle_path,
             &absolute_path,

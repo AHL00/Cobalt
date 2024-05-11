@@ -20,7 +20,7 @@ pub struct MeshAsset {
 }
 
 impl AssetTrait for MeshAsset {
-    fn load_from_file(
+    fn read_from_file(
         mut reader: BufReader<std::fs::File>,
         name: &imstr::ImString,
         path: &Path,

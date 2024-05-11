@@ -49,29 +49,37 @@ impl TextureType {
             TextureType::RGBA8Unorm => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA8UnormSrgb => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA32Float => Ok(bytemuck::cast_vec(image.into_rgba32f().into_vec())),
-            TextureType::RGBA16Float => Ok(bytemuck::cast_vec(
-                image
+            TextureType::RGBA16Float => Ok({
+                let image_data = image
                     .into_rgba32f()
                     .into_vec()
                     .iter()
                     .map(|f| f16::from_f32(*f))
-                    .collect::<Vec<f16>>(),
-            )),
+                    .collect::<Vec<f16>>();
+
+                let bytes: &[u8] = bytemuck::must_cast_slice(&image_data);
+
+                bytes.to_vec()
+            }),
 
             TextureType::R32Float => Ok(bytemuck::cast_vec(
                 image
                     .into_luma16()
                     .iter()
-                    .map(|u| f16::from_f32(*u as f32))
-                    .collect::<Vec<f16>>(),
+                    .map(|u| *u as f32)
+                    .collect::<Vec<f32>>(),
             )),
-            TextureType::R16Float => Ok(bytemuck::cast_vec(
-                image
+            TextureType::R16Float => Ok(bytemuck::cast_vec({
+                let image_data = image
                     .into_luma16()
                     .iter()
                     .map(|u| f16::from_f32(*u as f32))
-                    .collect::<Vec<f16>>(),
-            )),
+                    .collect::<Vec<f16>>();
+
+                let bytes: &[u8] = bytemuck::must_cast_slice(&image_data);
+
+                bytes.to_vec()
+            })),
             TextureType::R8Unorm => Ok(image.into_luma8().into_vec()),
             TextureType::R8Uint => Ok(image.into_luma8().into_vec()),
             TextureType::R8Snorm => Ok(bytemuck::cast_vec(
@@ -215,9 +223,10 @@ fn create_bind_group_layout(filterable: bool, filtering: bool) -> wgpu::BindGrou
 
 fn get_bind_group_layout<const T: TextureType>() -> &'static wgpu::BindGroupLayout {
     match T {
-        TextureType::RGBA32Float | TextureType::RGBA16Float | TextureType::RGBA8Unorm | TextureType::RGBA8UnormSrgb => {
-            &TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE
-        }
+        TextureType::RGBA32Float
+        | TextureType::RGBA16Float
+        | TextureType::RGBA8Unorm
+        | TextureType::RGBA8UnormSrgb => &TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE,
         TextureType::R32Float
         | TextureType::R16Float
         | TextureType::R8Unorm
@@ -227,7 +236,7 @@ fn get_bind_group_layout<const T: TextureType>() -> &'static wgpu::BindGroupLayo
 }
 
 impl<const T: TextureType> AssetTrait for TextureAsset<T> {
-    fn load_from_file(
+    fn read_from_file(
         reader: BufReader<std::fs::File>,
         _: &imstr::ImString,
         path: &Path,
@@ -305,9 +314,9 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
 
         let sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
             label: None,
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
@@ -497,7 +506,7 @@ pub static EMPTY_RGBA8_UNORM: LazyLock<TextureAsset<{ TextureType::RGBA8Unorm }>
     LazyLock::new(|| gen_empty_texture());
 /// White 1x1 texture
 pub static EMPTY_RGBA8_UNORM_SRGB: LazyLock<TextureAsset<{ TextureType::RGBA8UnormSrgb }>> =
-    LazyLock::new(|| gen_empty_texture());    
+    LazyLock::new(|| gen_empty_texture());
 /// White 1x1 texture
 pub static EMPTY_R32_FLOAT: LazyLock<TextureAsset<{ TextureType::R32Float }>> =
     LazyLock::new(|| gen_empty_texture());

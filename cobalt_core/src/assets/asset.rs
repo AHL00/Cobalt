@@ -16,11 +16,18 @@ use super::server::AssetServer;
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
 pub trait AssetTrait: Sized + Send + Sync + 'static {
-    fn load_from_file(
+    /// Reads an asset from a file and parses it.
+    fn read_from_file(
         data: BufReader<std::fs::File>,
         name: &ImString,
         path: &Path,
-    ) -> Result<Self, AssetLoadError>;}
+    ) -> Result<Self, AssetLoadError>;
+
+    /// Loads an asset into the global asset server.
+    fn load(path: &Path) -> Result<Asset<Self>, AssetLoadError> {
+        Ok(AssetServer::global_write().load(path)?)
+    }
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum AssetLoadError {

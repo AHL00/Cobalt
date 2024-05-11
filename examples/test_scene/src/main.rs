@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use cobalt::{
-    assets::{AssetServer, MeshAsset, TextureAsset},
+    assets::{AssetServer, AssetTrait, MeshAsset, TextureAsset},
     components::{Camera, Renderable, Transform},
     ecs::Entity,
     graphics::TextureType,
@@ -45,7 +45,7 @@ impl App for Game {
             .set_albedo(None, Some(model_texture.clone()))
             .unwrap();
 
-        model_material.borrow_mut().set_metallic(Either::Left(1.0));
+        model_material.borrow_mut().set_metallic(Either::Left(0.7));
 
         let test_roughness_texture = AssetServer::global_write()
             .load::<TextureAsset<{ TextureType::R8Unorm }>>(Path::new("rough.jpg"))
@@ -61,6 +61,42 @@ impl App for Game {
             .world
             .add_component(model_ent, Renderable::Mesh(Mesh::new(model_mesh.clone())));
         engine.scene.world.add_component(model_ent, model_material);
+
+        let brick_cube_ent = engine.scene.world.create_entity();
+
+        let brick_cube_transform = Transform::with_position([0.0, 3.0, 0.0].into());
+
+        let brick_cube_mesh = AssetServer::global_write()
+            .load::<MeshAsset>(Path::new("cube.obj"))
+            .unwrap();
+
+        let mut brick_material = Material::default();
+
+        brick_material
+            .set_albedo(
+                None,
+                Some(TextureAsset::load(Path::new("./brick/diffuse.png")).unwrap()),
+            )
+            .unwrap();
+
+        brick_material.set_metallic(Either::Left(0.0));
+
+        brick_material.set_roughness(Either::Right(
+            TextureAsset::load(Path::new("./brick/roughness.png")).unwrap(),
+        ));
+
+        brick_material.set_normal(Some(
+            TextureAsset::load(Path::new("./brick/normal.png")).unwrap(),
+        ));
+
+        log::info!("Brick material: {:#?}", brick_material);
+
+        engine.scene.world.add_component(brick_cube_ent, brick_cube_transform);
+        engine.scene.world.add_component(
+            brick_cube_ent,
+            Renderable::Mesh(Mesh::new(brick_cube_mesh.clone())),
+        );
+        engine.scene.world.add_component(brick_cube_ent, Resource::new(brick_material));
 
         let cam_ent = engine.scene.world.create_entity();
 

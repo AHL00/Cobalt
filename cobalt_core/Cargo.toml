@@ -19,7 +19,7 @@ deferred_renderer = []
 # Graphics
 wgpu = "0.19.1"
 winit = "0.29.10"
-bytemuck = { version = "1.14.1", features = ["derive"] }
+bytemuck = { version = "1.14.1", features = ["derive", "must_cast"] }
 image = "0.24.8"
 gltf = { version = "1.4.0", features = [
     "extras",

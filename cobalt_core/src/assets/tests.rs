@@ -11,7 +11,7 @@ struct Text {
 }
 
 impl AssetTrait for Text {
-    fn load_from_file(
+    fn read_from_file(
         mut reader: BufReader<std::fs::File>,
         _: &imstr::ImString,
         _: &Path,

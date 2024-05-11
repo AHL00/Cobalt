@@ -34,7 +34,7 @@ pub struct Material {
         Option<Asset<TextureAsset<{ Material::ALBEDO_TEXTURE_TYPE }>>>,
     ),
 
-    /// Normal map, adds bumrps and details to the surface.
+    /// Normal map, adds bumps and details to the surface.
     normal: Option<Asset<TextureAsset<{ Material::NORMAL_TEXTURE_TYPE }>>>,
 
     /// Metallic map or value.
@@ -62,7 +62,7 @@ impl std::fmt::Debug for Material {
 impl Material {
     // NOTE: Make sure this type matches the EMPTY_? in the generate_bind_group function when changing.
     const ALBEDO_TEXTURE_TYPE: TextureType = TextureType::RGBA8UnormSrgb;
-    const NORMAL_TEXTURE_TYPE: TextureType = TextureType::R16Float;
+    const NORMAL_TEXTURE_TYPE: TextureType = TextureType::RGBA16Float;
     const METALLIC_TEXTURE_TYPE: TextureType = TextureType::R8Unorm;
     const ROUGHNESS_TEXTURE_TYPE: TextureType = TextureType::R8Unorm;
 
@@ -317,7 +317,7 @@ impl Material {
             Option<[f32; 4]>,
             Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
         ),
-        normal: Option<Asset<TextureAsset<{ TextureType::R16Float }>>>,
+        normal: Option<Asset<TextureAsset<{ TextureType::RGBA16Float }>>>,
         metallic: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
         roughness: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
     ) -> Self {
@@ -379,7 +379,7 @@ impl Material {
     }
 
     /// Normal map, adds bumrps and details to the surface.
-    pub fn set_normal(&mut self, normal: Option<Asset<TextureAsset<{ TextureType::R16Float }>>>) {
+    pub fn set_normal(&mut self, normal: Option<Asset<TextureAsset<{ TextureType::RGBA16Float }>>>) {
         self.normal = normal;
         
         self.generate_bind_group();
@@ -422,7 +422,7 @@ impl Material {
         &self.albedo
     }
 
-    pub fn normal(&self) -> &Option<Asset<TextureAsset<{ TextureType::R16Float }>>> {
+    pub fn normal(&self) -> &Option<Asset<TextureAsset<{ TextureType::RGBA16Float }>>> {
         &self.normal
     }
 
@@ -706,7 +706,7 @@ impl Default for Material {
 impl ResourceTrait for Material {}
 
 impl AssetTrait for Material {
-    fn load_from_file(
+    fn read_from_file(
         _data: std::io::BufReader<std::fs::File>,
         _name: &imstr::ImString,
         _path: &std::path::Path,

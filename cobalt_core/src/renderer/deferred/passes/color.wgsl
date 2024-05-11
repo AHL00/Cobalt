@@ -62,10 +62,10 @@ fn fs_main(
 
     let depth = textureSample(u_depth_buffer, u_depth_sampler, input.tex_coords).r;
 
-    if (depth == 1.0) {
+    if depth == 1.0 {
         output.color = vec4<f32>(0.509, 0.69, 0.765, 1.0);
         return output;
-    } 
+    }
 
     let position = textureSample(u_position_buffer, u_position_sampler, input.tex_coords).xyz;
     let normal = textureSample(u_normal_buffer, u_normal_sampler, input.tex_coords).xyz;
@@ -75,37 +75,10 @@ fn fs_main(
 
     let cam_position = u_cam_position;
 
-    let light_direction = normalize(vec3f(0.0, 0.0, 1.0));
-
-    let N = normalize(normal);
-    let V = normalize(cam_position - position);
-    let L = normalize(light_direction);
-
-    let H = normalize(V + L);
-
-    let NdotL = max(dot(N, L), 0.0);
-    let NdotH = max(dot(N, H), 0.0);
-    let VdotH = max(dot(V, H), 0.0);
-
-    let F = 0.04 + 0.96 * pow(1.0 - VdotH, 5.0);
-
-    let Fd90 = 0.5 + 2.0 * VdotH * VdotH * roughness;
-    let Fd = mix(1.0, Fd90, F);
-
-    let Fr = mix(0.04, 1.0, F);
-    let FdFr = (1.0 / PI) * mix(Fd, Fr, metallic);
-
-    let kS = F;
-    var kD = 1.0 - kS;
-    kD *= 1.0 - metallic;
-
-    let diffuse = albedo / PI;
-    let specular = FdFr * NdotL;
-
-    let color = (kD * diffuse + specular) * NdotL;
+    let view_direction = normalize(cam_position - position);
+    let light_direction = normalize(vec3f(0.0, 1.0, 0.0) - position);
     
-    output.color = vec4<f32>(color, 1.0);
+    output.color = vec4<f32>(albedo, 1.0);
 
     return output;
 }
-
