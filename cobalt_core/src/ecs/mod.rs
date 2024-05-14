@@ -1,5 +1,5 @@
 pub mod exports {
-    pub use super::{component::Component, entity::Entity, world::World, query};
+    pub use super::{component::Component, entity::Entity, world::World, query::exports::*};
 }
 
 pub mod component;

@@ -5,27 +5,35 @@ use std::ptr::NonNull;
 
 use super::entity::Entity;
 
+pub(super) struct SendSyncNonNull<T>(NonNull<T>);
+
+unsafe impl<T> Send for SendSyncNonNull<T> {}
+unsafe impl<T> Sync for SendSyncNonNull<T> {}
+
 pub(super) struct DataBuffer {
-    ptr: NonNull<u8>,
+    ptr: SendSyncNonNull<u8>,
     size: usize,
 }
 
+unsafe impl Send for DataBuffer {}
+unsafe impl Sync for DataBuffer {}
+
 impl DataBuffer {
     fn new(ptr: NonNull<u8>, size: usize) -> Self {
-        Self { ptr, size }
+        Self { ptr: SendSyncNonNull(ptr), size }
     }
 
     fn as_ptr(&self) -> *const u8 {
-        self.ptr.as_ptr()
+        self.ptr.0.as_ptr()
     }
 
     fn as_ptr_mut(&self) -> *mut u8 {
-        self.ptr.as_ptr()
+        self.ptr.0.as_ptr()
     }
 
     fn reallocate(&mut self, new_size: usize) {
         let new_ptr = unsafe {
-            let new_ptr = std::alloc::realloc(self.ptr.as_ptr(), std::alloc::Layout::array::<u8>(new_size).unwrap(), new_size);
+            let new_ptr = std::alloc::realloc(self.ptr.0.as_ptr(), std::alloc::Layout::array::<u8>(new_size).unwrap(), new_size);
 
             if new_ptr.is_null() {
                 panic!("Failed to reallocate memory for component storage.");
@@ -34,7 +42,7 @@ impl DataBuffer {
             NonNull::new_unchecked(new_ptr)
         };
 
-        self.ptr = new_ptr;
+        self.ptr.0 = new_ptr;
         self.size = new_size;
     }
 }
@@ -42,7 +50,7 @@ impl DataBuffer {
 impl Drop for DataBuffer {
     fn drop(&mut self) {
         unsafe {
-            std::alloc::dealloc(self.ptr.as_ptr(), std::alloc::Layout::array::<u8>(self.size).unwrap());
+            std::alloc::dealloc(self.ptr.0.as_ptr(), std::alloc::Layout::array::<u8>(self.size).unwrap());
         }
     }
 }
@@ -66,8 +74,10 @@ pub struct ComponentStorage {
     pub(super) type_id: TypeId,
     pub(super) type_name: String,
     pub(super) type_size: usize,
-    pub(super) drop_fn: Box<dyn FnMut(*mut u8) -> ()>,
+    pub(super) drop_fn: Box<dyn FnMut(*mut u8) -> () + Send + Sync>,
 }
+
+unsafe impl Sync for ComponentStorage {}
 
 impl Debug for ComponentStorage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

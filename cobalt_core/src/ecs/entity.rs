@@ -13,6 +13,8 @@ pub struct Entity {
     pub(crate) version: u32,
 }
 
+unsafe impl Send for Entity {}
+
 impl Display for Entity {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Entity({})", self.id())
