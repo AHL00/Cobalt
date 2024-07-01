@@ -58,6 +58,8 @@ impl Drop for DataBuffer {
 /// Stores any number of components of the same type.
 /// This is going to be a sparse set array.
 /// The capacity of this storage has to be synced with the World's capacity through the expand method.
+/// NOTE: Sync is implemented but the same component must not be accessed from multiple threads.
+/// It is only implemented to allow for parallel queries.
 pub struct ComponentStorage {
     /// The index to this vector is the entity id.
     /// The value at that index is the index to the dense set.

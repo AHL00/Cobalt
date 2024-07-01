@@ -1,5 +1,8 @@
-use crate::{ecs::{component::ComponentId, entity::EntityData, query::QueryRestriction}, exports::ecs::{Entity, Query, World}, utils::bit_array::SimdBitArray};
-
+use crate::{
+    ecs::{component::ComponentId, entity::EntityData, query::QueryRestriction},
+    exports::ecs::{Entity, query::Query, World},
+    utils::bit_array::SimdBitArray,
+};
 
 pub struct QueryIter<'a, Q: Query<'a>> {
     #[allow(dead_code)]
@@ -16,7 +19,6 @@ pub struct QueryIter<'a, Q: Query<'a>> {
     restrictions: Vec<(QueryRestriction, Option<ComponentId>)>,
     _phantom: std::marker::PhantomData<Q>,
 }
-
 
 impl<'a> World {
     pub fn query<Q: Query<'a>>(&'a self) -> Result<QueryIter<'a, Q>, Box<dyn std::error::Error>> {
@@ -146,7 +148,6 @@ impl<'a, Q: Query<'a>> QueryIter<'a, Q> {
     }
 }
 
-
 impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
     type Item = (Entity, Q::Item);
 
@@ -179,7 +180,9 @@ impl<'a, Q: Query<'a>> Iterator for QueryIter<'a, Q> {
                     (QueryRestriction::Exclude(_), comp_id) => {
                         // If component is not registered, automatically not excluded
                         // If the entity has the component, then skip it.
-                        if comp_id.is_some() && entity_data.components.get(comp_id.unwrap().0 as usize) {
+                        if comp_id.is_some()
+                            && entity_data.components.get(comp_id.unwrap().0 as usize)
+                        {
                             continue 'outer;
                         }
                     }

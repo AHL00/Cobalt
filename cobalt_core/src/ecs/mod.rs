@@ -1,13 +1,17 @@
 pub mod exports {
-    pub use super::{component::Component, entity::Entity, world::World, query::exports::*};
+    pub use super::{component::Component, entity::Entity, world::World};
+
+    pub mod query {
+        pub use super::super::query::exports::*;
+    }
 }
 
 pub mod component;
-pub mod query;
-pub mod world;
 pub mod entity;
+pub mod query;
 pub mod storage;
 pub mod typeid_map;
+pub mod world;
 
 mod tests;
 
@@ -30,4 +34,3 @@ mod tests;
 // - Component IDs will be 8 bit unsigned integers.
 //   This means that there can only be 256 component types.
 //   This should be more than enough for most use cases.
-

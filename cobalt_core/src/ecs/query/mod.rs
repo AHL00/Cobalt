@@ -7,6 +7,7 @@ use super::exports::Component;
 mod impls;
 mod iters;
 mod query_entity;
+mod tests;
 
 pub(super) mod exports {
     pub use super::{ParQuery, ParQueryMut, Query, QueryMut};
@@ -63,7 +64,7 @@ mod sealed {
     }
 
     pub trait ParQuerySealed<'a> {
-        type Item;
+        type Item: Send;
         type StorageRef: Sync;
 
         fn type_ids() -> Vec<TypeId>;

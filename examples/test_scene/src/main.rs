@@ -8,6 +8,7 @@ use cobalt::{
     ecs::Entity,
     graphics::TextureType,
     input::{InputEvent, KeyCode, KeyboardEvent},
+    maths::Vec3,
     plugins::debug_gui::DebugGUIPlugin,
     renderer::{camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer},
     runtime::{engine::Engine, plugins::PluginManager, App},
@@ -62,9 +63,9 @@ impl App for Game {
             .add_component(model_ent, Renderable::Mesh(Mesh::new(model_mesh.clone())));
         engine.scene.world.add_component(model_ent, model_material);
 
-        let brick_cube_ent = engine.scene.world.create_entity();
+        let _brick_cube_ent = engine.scene.world.create_entity();
 
-        let brick_cube_transform = Transform::with_position([0.0, 3.0, 0.0].into());
+        let _brick_cube_transform = Transform::with_position([0.0, 0.0, 0.0].into());
 
         let brick_cube_mesh = AssetServer::global_write()
             .load::<MeshAsset>(Path::new("cube.obj"))
@@ -91,12 +92,58 @@ impl App for Game {
 
         log::info!("Brick material: {:#?}", brick_material);
 
-        engine.scene.world.add_component(brick_cube_ent, brick_cube_transform);
-        engine.scene.world.add_component(
-            brick_cube_ent,
-            Renderable::Mesh(Mesh::new(brick_cube_mesh.clone())),
-        );
-        engine.scene.world.add_component(brick_cube_ent, Resource::new(brick_material));
+        let brick_count = (100, 100);
+
+        let brick_material = Resource::new(brick_material);
+
+        for x in 0..brick_count.0 {
+            for z in 0..brick_count.1 {
+                let brick_cube_ent = engine.scene.world.create_entity();
+
+                let x_coord = x as f32 - brick_count.0 as f32 / 2.0;
+                let z_coord = z as f32 - brick_count.1 as f32 / 2.0;
+
+                let mut brick_cube_transform = Transform::with_position([x_coord, 0.0, z_coord].into());
+                *brick_cube_transform.scale_mut() = Vec3::broadcast(0.5);
+
+                engine
+                    .scene
+                    .world
+                    .add_component(brick_cube_ent, brick_cube_transform);
+                engine
+                    .scene
+                    .world
+                    .add_component(brick_cube_ent, Renderable::Mesh(Mesh::new(brick_cube_mesh.clone())));
+                engine
+                    .scene
+                    .world
+                    .add_component(brick_cube_ent, brick_material.clone());
+            }
+        }
+
+        let light_vis_ent = engine.scene.world.create_entity();
+
+        let mut light_vis_transform = Transform::with_position([0.0, 2.0, 2.0].into());
+        *light_vis_transform.scale_mut() = Vec3::broadcast(0.1);
+
+        let light_vis_mesh = AssetServer::global_write()
+            .load::<MeshAsset>(Path::new("cube.obj"))
+            .unwrap();
+
+        let light_vis_material = Resource::new(Material::default());
+
+        engine
+            .scene
+            .world
+            .add_component(light_vis_ent, light_vis_transform);
+        engine
+            .scene
+            .world
+            .add_component(light_vis_ent, Renderable::Mesh(Mesh::new(light_vis_mesh)));
+        engine
+            .scene
+            .world
+            .add_component(light_vis_ent, light_vis_material);
 
         let cam_ent = engine.scene.world.create_entity();
 
@@ -190,11 +237,29 @@ impl App for Game {
 
         transform.translate(movement * 5.0 * _delta_time);
 
-        let _rotate_x = keyboard.is_key_down(KeyCode::ArrowUp) as i32
+        let rotate_x = keyboard.is_key_down(KeyCode::ArrowUp) as i32
             - keyboard.is_key_down(KeyCode::ArrowDown) as i32;
 
-        let _rotate_y = keyboard.is_key_down(KeyCode::ArrowRight) as i32
+        let rotate_y = keyboard.is_key_down(KeyCode::ArrowRight) as i32
             - keyboard.is_key_down(KeyCode::ArrowLeft) as i32;
+
+        // transform.rotate(transform.position(),Vec3::new(0.0, rotate_x as f32 * 0.5 * _delta_time, 0.0));
+
+        transform.pitch(rotate_x as f32 * _delta_time);
+        transform.yaw(rotate_y as f32 * _delta_time);
+
+        // transform.rotate(transform.position(), Vec3::new(rotate_y as f32 * 0.5 * _delta_time, 0.0, 0.0));
+
+        // for (ent, (renderable, transform)) in _engine
+        //     .scene
+        //     .world
+        //     .query_mut::<(Renderable, Transform)>()
+        //     .unwrap()
+        // {
+        //     if let Renderable::Mesh(mesh) = renderable {
+        //         transform.rotate(transform.position(), Vec3::new(0.0, 0.5 * _delta_time, 0.0));
+        //     }
+        // }
     }
 
     fn on_input(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, event: InputEvent) {
@@ -288,7 +353,6 @@ fn main() {
             title: "Test Scene".to_string(),
             size: (1280, 720),
         })
-        // Will be implemented later
         .with_plugin(
             Box::new(cobalt::plugins::debug_gui::DebugGUIPlugin::default()),
             0,

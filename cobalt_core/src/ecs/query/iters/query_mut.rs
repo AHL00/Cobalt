@@ -1,11 +1,10 @@
-
 use super::super::super::{
     component::ComponentId,
     entity::{Entity, EntityData},
     world::World,
 };
 use crate::ecs::query::QueryRestriction;
-use crate::exports::ecs::QueryMut;
+use crate::exports::ecs::query::QueryMut;
 use crate::utils::bit_array::SimdBitArray;
 
 pub struct QueryMutIter<'a, Q: QueryMut<'a>> {
@@ -149,7 +148,6 @@ impl<'a, Q: QueryMut<'a>> QueryMutIter<'a, Q> {
     }
 }
 
-
 impl<'a, Q: QueryMut<'a> + 'a> Iterator for QueryMutIter<'a, Q> {
     type Item = (Entity, Q::Item);
 
@@ -182,7 +180,9 @@ impl<'a, Q: QueryMut<'a> + 'a> Iterator for QueryMutIter<'a, Q> {
                     (QueryRestriction::Exclude(_), comp_id) => {
                         // If component is not registered, automatically not excluded
                         // If the entity has the component, then skip it.
-                        if comp_id.is_some() && entity_data.components.get(comp_id.unwrap().0 as usize) {
+                        if comp_id.is_some()
+                            && entity_data.components.get(comp_id.unwrap().0 as usize)
+                        {
                             continue 'outer;
                         }
                     }

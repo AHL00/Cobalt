@@ -209,26 +209,26 @@ impl Transform {
         self.set_dirty();
     }
 
-    pub fn rotate_x(&mut self, angle: f32) {
+    pub fn roll(&mut self, angle: f32) {
         self.rotation =
-            Rotor3::from_rotation_between(Vec3::unit_x(), self.rotation * Vec3::unit_x())
-                * Rotor3::from_euler_angles(angle, 0.0, 0.0)
+            // Rotor3::from_rotation_between(Vec3::unit_x(), self.rotation * Vec3::unit_x())
+                Rotor3::from_euler_angles(angle, 0.0, 0.0)
                 * self.rotation;
         self.set_dirty();
     }
 
-    pub fn rotate_y(&mut self, angle: f32) {
+    pub fn pitch(&mut self, angle: f32) {
         self.rotation =
-            Rotor3::from_rotation_between(Vec3::unit_y(), self.rotation * Vec3::unit_y())
-                * Rotor3::from_euler_angles(0.0, angle, 0.0)
+            // Rotor3::from_rotation_between(Vec3::unit_y(), self.rotation * Vec3::unit_y())
+                Rotor3::from_euler_angles(0.0, angle, 0.0)
                 * self.rotation;
         self.set_dirty();
     }
 
-    pub fn rotate_z(&mut self, angle: f32) {
+    pub fn yaw(&mut self, angle: f32) {
         self.rotation =
-            Rotor3::from_rotation_between(Vec3::unit_z(), self.rotation * Vec3::unit_z())
-                * Rotor3::from_euler_angles(0.0, 0.0, angle)
+            // Rotor3::from_rotation_between(Vec3::unit_z(), self.rotation * Vec3::unit_z())
+                Rotor3::from_euler_angles(0.0, 0.0, angle)
                 * self.rotation;
         self.set_dirty();
     }

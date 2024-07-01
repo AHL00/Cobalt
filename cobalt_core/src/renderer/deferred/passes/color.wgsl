@@ -68,17 +68,27 @@ fn fs_main(
     }
 
     let position = textureSample(u_position_buffer, u_position_sampler, input.tex_coords).xyz;
-    let normal = textureSample(u_normal_buffer, u_normal_sampler, input.tex_coords).xyz;
     let albedo = textureSample(u_albedo_buffer, u_albedo_sampler, input.tex_coords).xyz;
     let metallic = textureSample(u_metallic_roughness_buffer, u_metallic_roughness_sampler, input.tex_coords).r;
     let roughness = textureSample(u_metallic_roughness_buffer, u_metallic_roughness_sampler, input.tex_coords).g;
 
+    var normal = textureSample(u_normal_buffer, u_normal_sampler, input.tex_coords).xyz;
+    // map normal from [0, 1] to [-1, 1]
+    normal = normal * 2.0 - 1.0;
+
     let cam_position = u_cam_position;
 
     let view_direction = normalize(cam_position - position);
-    let light_direction = normalize(vec3f(0.0, 1.0, 0.0) - position);
-    
-    output.color = vec4<f32>(albedo, 1.0);
+    let light_direction = normalize(vec3f(0.0, 2.0, 2.0) - position);
+
+    let diffuse_strength = max(dot(normal, light_direction), 0.0);
+    let diffuse_color = vec3(1.0, 1.0, 1.0) * diffuse_strength;
+
+    let ambient_color = vec3(1.0, 1.0, 1.0);
+    let ambient = ambient_color * 0.02;
+
+    // output.color = vec4<f32>(albedo * (ambient_color + diffuse_color), 1.0);
+    output.color = vec4<f32>((diffuse_color + ambient) * albedo, 1.0);
 
     return output;
 }

@@ -109,7 +109,15 @@ fn fs_main(input: VertexOutput) -> FragmentOutput {
     // This is done instead of a switch because texture sampling doesn't work in switches for some reason?
     output.albedo = textureSample(u_albedo_texture, u_albedo_sampler, input.tex_coords) * u_albedo_color;
 
-    output.normal = vec4f(input.normal, 1.0) + textureSample(u_normal_texture, u_normal_sampler, input.tex_coords);
+    let world_space_normal = vec4f(input.normal, 1.0) * u_model;
+
+    output.normal = normalize(world_space_normal) * 0.5 + 0.5;
+    
+    // + textureSample(u_normal_texture, u_normal_sampler, input.tex_coords);
+
+    // Normal is stored in a UNORM format, so we need to map it from [-1, 1] to [0, 1]
+    // May not be normalised because of the texture sampling.
+    // output.normal = normalize(output.normal) * 0.5 + 0.5;
 
     // If the texture is not supplied, the texture will be white so this is fine.
     // If the value is not supplied, the value will be 1 by default so this is fine.

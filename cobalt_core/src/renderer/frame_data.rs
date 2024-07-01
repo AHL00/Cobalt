@@ -4,9 +4,8 @@ use super::{proj_view::ProjView, renderable::Renderable, renderer::FramePrepErro
 use crate::{
     assets::exports::{Asset, AssetTrait},
     components::transform::Transform,
-    ecs::entity::Entity,
     exports::{
-        ecs::{query::Optional, World},
+        ecs::{Entity, query::Optional, World},
         types::{
             either::Either,
             resource::{Resource, ResourceTrait},
@@ -54,7 +53,7 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
             )>()
             .map_err(|_| FramePrepError::NoRenderables)?;
 
-        for (ent, (transform, renderable, resource_material, asset_material)) in renderable_query {
+        renderable_query.map(|(ent, (transform, renderable, resource_material, asset_material))| {
             let render_data = RenderData {
                 renderable,
                 transform,
@@ -75,13 +74,18 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
                     } else if let Some(asset) = asset_material {
                         Either::Right(asset.clone())
                     } else {
-                        return Err(FramePrepError::NoMaterial(ent));
+                        return Err(FramePrepError::NoMaterial(ent))
                     }
                 },
             };
 
-            render_data_vec.push(render_data);
-        }
+            Ok(render_data)
+        })
+        // iterate until error found
+        .try_for_each(|x| {
+            render_data_vec.push(x?);
+            Ok(())
+        })?;
 
         #[cfg(feature = "debug_stats")]
         let pre_cull_count = render_data_vec.len();

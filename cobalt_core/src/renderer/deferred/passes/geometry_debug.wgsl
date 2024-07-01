@@ -54,10 +54,10 @@ fn fs_main(
     input: VertexOutput
 ) -> @location(0) vec4f {
     let position = textureSample(u_position_buffer, u_position_sampler, input.tex_coords).xyz;
-    let normal = textureSample(u_normal_buffer, u_normal_sampler, input.tex_coords).xyz;
     let albedo = textureSample(u_albedo_buffer, u_albedo_sampler, input.tex_coords).xyz;
     let metallic = textureSample(u_metallic_roughness_buffer, u_metallic_roughness_sampler, input.tex_coords).r;
     let roughness = textureSample(u_metallic_roughness_buffer, u_metallic_roughness_sampler, input.tex_coords).g;
+    var normal = textureSample(u_normal_buffer, u_normal_sampler, input.tex_coords).xyz;
 
     switch (u_debug_mode) {
         case 0u: {
