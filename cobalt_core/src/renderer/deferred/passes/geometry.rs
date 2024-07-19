@@ -1,3 +1,5 @@
+use ultraviolet::Mat4;
+
 use crate::{
     exports::components::Transform,
     graphics::{
@@ -202,10 +204,16 @@ impl RenderPass<()> for GeometryPass {
 
         for render_data in &mut frame_data.render_data_vec {
             // These are okay being unsafe as the assets/resources are guaranteed to live as long as they aren't dropped, and they are not.
-            let mut material = render_data.material.left().map(|m| unsafe { m.borrow_unsafe() });
+            let mut material = render_data
+                .material
+                .left()
+                .map(|m| unsafe { m.borrow_unsafe() });
 
             if let None = material {
-                material = render_data.material.right().map(|m| unsafe { m.borrow_unsafe() });
+                material = render_data
+                    .material
+                    .right()
+                    .map(|m| unsafe { m.borrow_unsafe() });
             }
 
             let material = material.unwrap();

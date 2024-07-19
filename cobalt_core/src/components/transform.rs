@@ -8,7 +8,7 @@ use std::{
     sync::LazyLock,
 };
 
-use ultraviolet::{Mat4, Rotor3, Vec3};
+use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
 use wgpu::util::DeviceExt;
 
 use crate::{
@@ -16,21 +16,39 @@ use crate::{
     graphics::{context::Graphics, HasBindGroup, HasBindGroupLayout},
 };
 
+fn calculate_normal_matrix(model: &Mat4, view: &Mat4) -> Mat3 {
+    ((*model * *view).inversed().transposed()).truncate()
+}
+
 static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
     Graphics::global_read()
         .device
         .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+            entries: &[
+                // Model matrix
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            }],
+                // Normal matrix, use as vec3 but sent as vec4 as wgsl doesn't want to accept a vec3
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
         })
 });
 
@@ -43,13 +61,17 @@ pub struct Transform {
     rotation: Rotor3,
     scale: Vec3,
     model_matrix: Mat4,
+    normal_matrix: Mat3,
     bind_group: wgpu::BindGroup,
-    buffer: wgpu::Buffer,
+    model_mat_buffer: wgpu::Buffer,
+    /// A normal matrix is the truncated inverse transpose of the model matrix.
+    /// Used for transforming normals in the vertex shader.
+    normal_mat_buffer: wgpu::Buffer,
     /// Whether the model matrix is dirty and needs to be recalculated.
     pub(crate) model_dirty: bool,
     /// This is only processed when actually rendering at the final stage, after all
     /// culling and updating has been done. Only called when it is actually drawn.
-    pub(crate) buffer_dirty: bool,
+    pub(crate) buffers_dirty: bool,
 }
 
 impl Default for Transform {
@@ -60,12 +82,23 @@ impl Default for Transform {
 
 impl Clone for Transform {
     fn clone(&self) -> Self {
-        let buffer =
+        let model_mat_buffer =
             Graphics::global_read()
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: None,
                     contents: bytemuck::cast_slice(self.model_matrix.as_byte_slice()),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let normal_mat_buffer =
+            Graphics::global_read()
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(
+                        self.normal_matrix.into_homogeneous().as_byte_slice(),
+                    ),
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 });
 
@@ -75,10 +108,20 @@ impl Clone for Transform {
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     label: None,
                     layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
-                    }],
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(
+                                model_mat_buffer.as_entire_buffer_binding(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Buffer(
+                                normal_mat_buffer.as_entire_buffer_binding(),
+                            ),
+                        },
+                    ],
                 });
 
         Self {
@@ -86,10 +129,12 @@ impl Clone for Transform {
             rotation: self.rotation,
             scale: self.scale,
             model_matrix: self.model_matrix,
+            normal_matrix: self.normal_matrix,
             bind_group,
-            buffer,
+            model_mat_buffer,
+            normal_mat_buffer,
             model_dirty: self.model_dirty,
-            buffer_dirty: self.buffer_dirty,
+            buffers_dirty: self.buffers_dirty,
         }
     }
 }
@@ -109,12 +154,23 @@ impl Component for Transform {}
 
 impl Transform {
     pub fn new() -> Self {
-        let buffer =
+        let model_mat_buffer =
             Graphics::global_read()
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: None,
                     contents: bytemuck::cast_slice(Mat4::identity().as_byte_slice()),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+        let normal_mat_buffer =
+            Graphics::global_read()
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(
+                        Mat3::identity().into_homogeneous().as_byte_slice(),
+                    ),
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 });
 
@@ -124,10 +180,20 @@ impl Transform {
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     label: None,
                     layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
-                    }],
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(
+                                model_mat_buffer.as_entire_buffer_binding(),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Buffer(
+                                normal_mat_buffer.as_entire_buffer_binding(),
+                            ),
+                        },
+                    ],
                 });
 
         Self {
@@ -135,10 +201,12 @@ impl Transform {
             rotation: Rotor3::identity(),
             scale: Vec3::one(),
             model_matrix: Mat4::identity(),
+            normal_matrix: Mat3::identity(),
             bind_group,
-            buffer,
+            model_mat_buffer,
+            normal_mat_buffer,
             model_dirty: true,
-            buffer_dirty: true,
+            buffers_dirty: true,
         }
     }
 
@@ -250,7 +318,7 @@ impl Transform {
         &mut self.scale
     }
 
-    fn recalculate_model_matrix(&mut self) {
+    fn recalc_model(&mut self) {
         let rot_mat = self.rotation.into_matrix().into_homogeneous();
         let scale_mat = Mat4::from_nonuniform_scale(self.scale);
         let translation_mat = Mat4::from_translation(self.position);
@@ -260,14 +328,19 @@ impl Transform {
         self.model_dirty = false;
     }
 
-    // Gets the model matrix.
-    // If the transform is dirty, it will be recalculated on the fly.
-    pub fn model_matrix(&mut self) -> &Mat4 {
+    /// Gets the model matrix.
+    /// If the transform is dirty, it will be recalculated on the fly.
+    pub(crate) fn model_matrix(&mut self) -> &Mat4 {
         if self.model_dirty {
-            self.recalculate_model_matrix();
+            self.recalc_model();
         }
 
         &self.model_matrix
+    }
+
+    /// Calculates and stores the normal matrix. Next time the bind group is updated, it will be sent to the GPU as a uniform.
+    pub(crate) fn calculate_normal_matrix(&mut self, view: &Mat4) {
+        self.normal_matrix = calculate_normal_matrix(self.model_matrix(), view);
     }
 
     pub fn forward(&self) -> Vec3 {
@@ -275,7 +348,7 @@ impl Transform {
     }
 
     pub fn right(&self) -> Vec3 {
-        self.rotation * - Vec3::unit_x()
+        self.rotation * -Vec3::unit_x()
     }
 
     pub fn up(&self) -> Vec3 {
@@ -284,7 +357,7 @@ impl Transform {
 
     fn set_dirty(&mut self) {
         self.model_dirty = true;
-        self.buffer_dirty = true;
+        self.buffers_dirty = true;
     }
 }
 
@@ -297,19 +370,26 @@ impl HasBindGroupLayout for Transform {
 impl HasBindGroup for Transform {
     fn bind_group(&mut self, graphics: &Graphics) -> &wgpu::BindGroup {
         if self.model_dirty {
-            self.recalculate_model_matrix();
+            self.recalc_model();
         }
 
-        if self.buffer_dirty {
+        if self.buffers_dirty {
             #[cfg(feature = "debug_stats")]
             let start = std::time::Instant::now();
 
             graphics.queue.write_buffer(
-                &self.buffer,
+                &self.model_mat_buffer,
                 0,
                 bytemuck::cast_slice(self.model_matrix.as_byte_slice()),
             );
-            self.buffer_dirty = false;
+
+            graphics.queue.write_buffer(
+                &self.normal_mat_buffer,
+                0,
+                bytemuck::cast_slice(self.normal_matrix.into_homogeneous().as_byte_slice()),
+            );
+
+            self.buffers_dirty = false;
 
             #[cfg(feature = "debug_stats")]
             {

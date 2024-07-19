@@ -1,14 +1,14 @@
 #![feature(downcast_unchecked)]
 
-use std::path::Path;
+use std::{f32::consts::PI, path::Path, time::Duration};
 
 use cobalt::{
     assets::{AssetServer, AssetTrait, MeshAsset, TextureAsset},
     components::{Camera, Renderable, Transform},
-    ecs::Entity,
+    ecs::{Component, Entity},
     graphics::TextureType,
     input::{InputEvent, KeyCode, KeyboardEvent},
-    maths::Vec3,
+    maths::{Rotor3, Vec3},
     plugins::debug_gui::DebugGUIPlugin,
     renderer::{camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer},
     runtime::{engine::Engine, plugins::PluginManager, App},
@@ -18,8 +18,13 @@ use cobalt::{
 struct Game {
     main_camera: Option<Entity>,
     plane_entity: Option<Entity>,
+    last_rotate_time: std::time::Instant,
     current_renderer_debug_mode: Option<GeometryPassDebugMode>,
 }
+
+struct RotateRandom;
+
+impl Component for RotateRandom {}
 
 impl App for Game {
     fn on_start(&mut self, engine: &mut Engine, _plugins: &mut PluginManager) {
@@ -29,10 +34,16 @@ impl App for Game {
 
         let model_ent = engine.scene.world.create_entity();
 
-        let transform = Transform::with_position([0.0, 0.0, 10.0].into());
+        engine.scene.world.add_component(model_ent, RotateRandom);
+
+        // TODO: Improve ECS api by adding <Entity>.add_component<T: Components>(c: T) method
+
+        let mut transform = Transform::with_position([0.0, 2.5, 10.0].into());
+
+        *transform.scale_mut() = Vec3::new(1.0, 1.0, 1.0);
 
         let model_mesh = AssetServer::global_write()
-            .load::<MeshAsset>(Path::new("jet.obj"))
+            .load::<MeshAsset>(Path::new("teapot.obj"))
             .unwrap();
 
         let model_texture = AssetServer::global_write()
@@ -41,10 +52,10 @@ impl App for Game {
 
         let model_material = Resource::new(Material::default());
 
-        model_material
-            .borrow_mut()
-            .set_albedo(None, Some(model_texture.clone()))
-            .unwrap();
+        // model_material
+        //     .borrow_mut()
+        //     .set_albedo(None, Some(model_texture.clone()))
+        //     .unwrap();
 
         model_material.borrow_mut().set_metallic(Either::Left(0.7));
 
@@ -73,12 +84,17 @@ impl App for Game {
 
         let mut brick_material = Material::default();
 
+        let brick_diffuse_texture = TextureAsset::load(Path::new("./brick/diffuse.png")).unwrap();
+
         brick_material
-            .set_albedo(
-                None,
-                Some(TextureAsset::load(Path::new("./brick/diffuse.png")).unwrap()),
-            )
+            .set_albedo(None, Some(brick_diffuse_texture))
             .unwrap();
+
+        let brick_normal_texture =
+            TextureAsset::<{ TextureType::RGBA16Float }>::load(Path::new("./brick/normal.png"))
+                .unwrap();
+
+        brick_material.set_normal(Some(brick_normal_texture));
 
         brick_material.set_metallic(Either::Left(0.0));
 
@@ -86,13 +102,9 @@ impl App for Game {
             TextureAsset::load(Path::new("./brick/roughness.png")).unwrap(),
         ));
 
-        brick_material.set_normal(Some(
-            TextureAsset::load(Path::new("./brick/normal.png")).unwrap(),
-        ));
-
         log::info!("Brick material: {:#?}", brick_material);
 
-        let brick_count = (100, 100);
+        let brick_count = (50, 50);
 
         let brick_material = Resource::new(brick_material);
 
@@ -103,17 +115,27 @@ impl App for Game {
                 let x_coord = x as f32 - brick_count.0 as f32 / 2.0;
                 let z_coord = z as f32 - brick_count.1 as f32 / 2.0;
 
-                let mut brick_cube_transform = Transform::with_position([x_coord, 0.0, z_coord].into());
+                let mut brick_cube_transform =
+                    Transform::with_position([x_coord, 0.0, z_coord].into());
+                *brick_cube_transform.rotation_mut() =
+                    Rotor3::from_euler_angles(0.0, PI / 2.0, 0.0);
                 *brick_cube_transform.scale_mut() = Vec3::broadcast(0.5);
 
                 engine
                     .scene
                     .world
                     .add_component(brick_cube_ent, brick_cube_transform);
+
+                engine.scene.world.add_component(
+                    brick_cube_ent,
+                    Renderable::Mesh(Mesh::new(brick_cube_mesh.clone())),
+                );
+
                 engine
                     .scene
                     .world
-                    .add_component(brick_cube_ent, Renderable::Mesh(Mesh::new(brick_cube_mesh.clone())));
+                    .add_component(brick_cube_ent, RotateRandom);
+
                 engine
                     .scene
                     .world
@@ -180,7 +202,7 @@ impl App for Game {
         }
     }
 
-    fn on_update(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, _delta_time: f32) {
+    fn on_update(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, dt: f32) {
         let transform = self.main_camera.map(|ent| {
             _engine
                 .scene
@@ -235,7 +257,7 @@ impl App for Game {
             movement.normalize();
         }
 
-        transform.translate(movement * 5.0 * _delta_time);
+        transform.translate(movement * 5.0 * dt);
 
         let rotate_x = keyboard.is_key_down(KeyCode::ArrowUp) as i32
             - keyboard.is_key_down(KeyCode::ArrowDown) as i32;
@@ -245,21 +267,23 @@ impl App for Game {
 
         // transform.rotate(transform.position(),Vec3::new(0.0, rotate_x as f32 * 0.5 * _delta_time, 0.0));
 
-        transform.pitch(rotate_x as f32 * _delta_time);
-        transform.yaw(rotate_y as f32 * _delta_time);
+        transform.pitch(rotate_x as f32 * dt);
+        transform.yaw(rotate_y as f32 * dt);
 
         // transform.rotate(transform.position(), Vec3::new(rotate_y as f32 * 0.5 * _delta_time, 0.0, 0.0));
 
-        // for (ent, (renderable, transform)) in _engine
-        //     .scene
-        //     .world
-        //     .query_mut::<(Renderable, Transform)>()
-        //     .unwrap()
-        // {
-        //     if let Renderable::Mesh(mesh) = renderable {
-        //         transform.rotate(transform.position(), Vec3::new(0.0, 0.5 * _delta_time, 0.0));
-        //     }
-        // }
+        if self.last_rotate_time.elapsed() > Duration::from_millis(10) {
+            self.last_rotate_time = std::time::Instant::now();
+
+            for (ent, (_, transform)) in _engine
+                .scene
+                .world
+                .query_mut::<(RotateRandom, Transform)>()
+                .unwrap()
+            {
+                transform.rotate(transform.position(), Vec3::new(0.0, 0.5 * dt, 0.5 * dt));
+            }
+        }
     }
 
     fn on_input(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, event: InputEvent) {
@@ -345,6 +369,7 @@ fn main() {
     let mut game_app = Game {
         main_camera: None,
         plane_entity: None,
+        last_rotate_time: std::time::Instant::now(),
         current_renderer_debug_mode: None,
     };
 

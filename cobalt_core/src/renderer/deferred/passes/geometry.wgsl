@@ -1,9 +1,11 @@
 @group(0) @binding(0)
 var<uniform> u_model: mat4x4<f32>;
 
+@group(0) @binding(1)
+var<uniform> u_normal_matrix: mat3x3<f32>;
+
 @group(1) @binding(0)
 var<uniform> u_proj_view: mat4x4<f32>;
-
 
 // NOTE: All bools are sent as u32
 // Material bind group layout.
@@ -73,6 +75,7 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4f,
     @location(0) tex_coords: vec2f,
+    /// Normalised vertex normal
     @location(1) normal: vec3f,
     @location(2) world_position: vec3f,
 }
@@ -84,7 +87,10 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     output.world_position = (u_model * vec4f(input.position, 1.0)).xyz;
     output.clip_position = u_proj_view * vec4f(output.world_position, 1.0);
     output.tex_coords = input.tex_coords;
-    output.normal = input.normal;
+
+    // Truncated model matrix to 3x3 matrix
+    let truncated_model: mat3x3<f32> = mat3x3<f32>(u_model[0].xyz, u_model[1].xyz, u_model[2].xyz);
+    output.normal = normalize(truncated_model * input.normal);
 
     return output;
 }
@@ -109,15 +115,19 @@ fn fs_main(input: VertexOutput) -> FragmentOutput {
     // This is done instead of a switch because texture sampling doesn't work in switches for some reason?
     output.albedo = textureSample(u_albedo_texture, u_albedo_sampler, input.tex_coords) * u_albedo_color;
 
-    let world_space_normal = vec4f(input.normal, 1.0) * u_model;
+    let normal_texture = textureSample(u_normal_texture, u_normal_sampler, input.tex_coords);
 
-    output.normal = normalize(world_space_normal) * 0.5 + 0.5;
+    // If the normal texture is not supplied, the normal will be white so vec3(1, 1, 1).
+    let tangent_space_fragment_normal = normalize(normal_texture * 2.0 - 1.0);
+
+    // Convert the tangent space normal to world space.
+    // TODO: After implementing tangents and bitangents, we can use them to calculate the world space normal.
+    // Then comes normal mapping 
+    
+    output.normal = vec4(normalize(input.normal), 1.0);
     
     // + textureSample(u_normal_texture, u_normal_sampler, input.tex_coords);
 
-    // Normal is stored in a UNORM format, so we need to map it from [-1, 1] to [0, 1]
-    // May not be normalised because of the texture sampling.
-    // output.normal = normalize(output.normal) * 0.5 + 0.5;
 
     // If the texture is not supplied, the texture will be white so this is fine.
     // If the value is not supplied, the value will be 1 by default so this is fine.

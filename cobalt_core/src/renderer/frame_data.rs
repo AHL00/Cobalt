@@ -54,6 +54,9 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
             .map_err(|_| FramePrepError::NoRenderables)?;
 
         renderable_query.map(|(ent, (transform, renderable, resource_material, asset_material))| {
+            // TODO: Normal matrix being calculated every frame, is this necessary?
+            transform.calculate_normal_matrix(proj_view.view());
+
             let render_data = RenderData {
                 renderable,
                 transform,
