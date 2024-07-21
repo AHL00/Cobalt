@@ -1,0 +1,20 @@
+[package]
+name = "sponza"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ahash = "0.8.7"
+simple_logger = "4.3.3"
+log = "0.4.20"
+serde_yaml = "0.9.30"
+gltf = "1.4.1"
+
+[dependencies.cobalt]
+path = "../../"
+features = ["debug_stats", "debug_gui"]
+
+[profile.release]
+debug = true

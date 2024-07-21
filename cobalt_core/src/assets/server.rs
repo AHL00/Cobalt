@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use super::exports::{AssetTrait, Asset, AssetLoadError};
+use super::{exports::{Asset, AssetLoadError, AssetTrait}, pack::Manifest};
 
 /// Global asset server.
 /// This is in a RwLock to allow for multiple threads to access the asset server.
@@ -20,10 +20,11 @@ pub struct AssetServer {
     /// This is a map of the assets that are currently loaded.
     /// Will only contain Weak<RwLock<dyn Any + Send + Sync + 'static>>.
     /// Not stored as such because of the dynamic size of the type.
-    pub(crate) assets: HashMap<ImString, (Weak<dyn Any + Send + Sync + 'static>, usize)>,
+    pub(crate) loaded_assets: HashMap<ImString, (Weak<dyn Any + Send + Sync + 'static>, usize)>,
     /// NOTE: Do not edit this directly. Use the set_assets_dir method.
     /// It canonicalizes the path and makes it absolute.
     pub(crate) assets_dir: PathBuf,
+    pub(crate) manifest: Option<Manifest>,
 }
 
 pub trait AssetServerInternal {
@@ -71,12 +72,13 @@ impl AssetServer {
     /// The default assets directory is the current directory.
     pub(super) fn new() -> Self {
         Self {
-            assets: HashMap::new(),
+            loaded_assets: HashMap::new(),
             assets_dir: PathBuf::from("./"),
+            manifest: None,
         }
     }
 
-    pub fn set_assets_dir(&mut self, assets_dir: &str) {
+    pub fn set_assets_dir(&mut self, assets_dir: &str) -> Result<(), Box<dyn Error>> {
         let assets_dir_path = PathBuf::from(assets_dir);
 
         let absolute_assets_dir_path = if assets_dir_path.is_absolute() {
@@ -85,9 +87,23 @@ impl AssetServer {
             std::env::current_dir().unwrap().join(assets_dir_path)
         };
 
-        self.assets_dir = absolute_assets_dir_path
+        let assets_dir = absolute_assets_dir_path
             .canonicalize()
             .expect("Failed to canonicalize assets directory");
+
+
+        let manifest_load_res = Manifest::load(&assets_dir);
+
+        if let Ok(manifest) = manifest_load_res {
+            self.manifest = Some(manifest);
+            self.assets_dir = assets_dir;
+            return Ok(());
+        } else if let Err(err) = manifest_load_res {
+            log::warn!("Failed to load manifest file: {}", err);
+            return Err(err.into());
+        }
+
+        Ok(())
     }
 
     /// Load an asset from disk.
@@ -99,7 +115,7 @@ impl AssetServer {
         let relative_path_string = extract_relative_path(&absolute_path, &self.assets_dir);
 
         // Check if the asset is already loaded
-        if let Some((asset, count)) = self.assets.get_mut(relative_path_string.as_str()) {
+        if let Some((asset, count)) = self.loaded_assets.get_mut(relative_path_string.as_str()) {
             // If the asset is loaded, increment the count
             *count += 1;
 
@@ -117,9 +133,8 @@ impl AssetServer {
 
         let buf_reader = BufReader::new(file);
 
-        let asset = Arc::new(RwLock::new(T::read_from_file(
+        let asset = Arc::new(RwLock::new(T::read_from_file_to_buffer(
             buf_reader,
-            &asset_handle_path,
             &absolute_path,
         )?));
 
@@ -127,7 +142,7 @@ impl AssetServer {
             Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
         };
 
-        self.assets
+        self.loaded_assets
             .insert(asset_handle_path.clone(), (Arc::downgrade(&asset_any), 1));
 
         Ok(Asset::new(asset_handle_path, asset_any))

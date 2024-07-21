@@ -1,3 +1,5 @@
+use std::default;
+
 use crate::{
     graphics::{context::Graphics, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout},
     renderer::{
@@ -46,6 +48,7 @@ impl ColorPass {
                     module: &shader,
                     entry_point: "vs_main",
                     buffers: &[ScreenQuadVertexFormat::vertex_buffer_layout()],
+                    compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
@@ -55,6 +58,7 @@ impl ColorPass {
                         write_mask: wgpu::ColorWrites::ALL,
                         format: Graphics::global_read().output_color_format,
                     })],
+                    compilation_options: Default::default(),
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -68,6 +72,7 @@ impl ColorPass {
                 depth_stencil: None,
                 multiview: None,
                 multisample: wgpu::MultisampleState::default(),
+                cache: None,
             },
         );
 

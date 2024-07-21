@@ -706,11 +706,14 @@ impl Default for Material {
 impl ResourceTrait for Material {}
 
 impl AssetTrait for Material {
-    fn read_from_file(
-        _data: std::io::BufReader<std::fs::File>,
-        _name: &imstr::ImString,
-        _path: &std::path::Path,
-    ) -> Result<Self, crate::assets::exports::AssetLoadError> {
+    fn read_from_file_to_buffer(
+        data: std::io::BufReader<std::fs::File>,
+        path: &std::path::Path,
+    ) -> Result<bytes::Bytes, crate::exports::assets::AssetLoadError> {
+        todo!()
+    }
+
+    fn read_from_buffer(data: &bytes::Bytes) -> Result<Self, crate::exports::assets::AssetLoadError> {
         todo!()
     }
 }

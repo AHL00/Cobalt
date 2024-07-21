@@ -54,6 +54,7 @@ impl GeometryDebugPass {
                     module: &shader,
                     entry_point: "vs_main",
                     buffers: &[UvVertex::vertex_buffer_layout()],
+                    compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
@@ -63,6 +64,7 @@ impl GeometryDebugPass {
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
+                    compilation_options: Default::default(),
                 }),
                 depth_stencil: None,
                 primitive: wgpu::PrimitiveState {
@@ -76,6 +78,7 @@ impl GeometryDebugPass {
                 },
                 multisample: wgpu::MultisampleState::default(),
                 multiview: None,
+                cache: None,
             },
         );
 

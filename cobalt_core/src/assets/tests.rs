@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use super::exports::{AssetTrait, AssetLoadError};
+use super::exports::{AssetLoadError, AssetTrait};
 
 #[allow(dead_code)]
 struct Text {
@@ -11,15 +11,19 @@ struct Text {
 }
 
 impl AssetTrait for Text {
-    fn read_from_file(
-        mut reader: BufReader<std::fs::File>,
-        _: &imstr::ImString,
-        _: &Path,
-    ) -> Result<Self, AssetLoadError> {
+    fn read_from_file_to_buffer(
+        mut data: BufReader<std::fs::File>,
+        _path: &Path,
+    ) -> Result<bytes::Bytes, AssetLoadError> {
         let mut text = String::new();
-        reader
-            .read_to_string(&mut text)
+        data.read_to_string(&mut text)
             .map_err(|e| AssetLoadError::ReadError(e))?;
+        Ok(bytes::Bytes::from(text))
+    }
+
+    fn read_from_buffer(data: &bytes::Bytes) -> Result<Self, AssetLoadError> {
+        let text =
+            String::from_utf8(data.to_vec()).map_err(|e| AssetLoadError::LoadError(e.into()))?;
         Ok(Self { text })
     }
 }
@@ -30,7 +34,10 @@ impl AssetTrait for Text {
 mod tests {
     use std::borrow::Borrow;
 
-    use crate::assets::{exports::Asset, server::{AssetServer, AssetServerInternal, ASSET_SERVER}};
+    use crate::assets::{
+        exports::Asset,
+        server::{AssetServer, AssetServerInternal, ASSET_SERVER},
+    };
 
     use super::*;
 
@@ -56,7 +63,7 @@ mod tests {
         drop(asset_ref);
         drop(asset);
 
-        assert_eq!(AssetServer::global_read().assets.len(), 0);
+        assert_eq!(AssetServer::global_read().loaded_assets.len(), 0);
     }
 
     #[test]
@@ -74,7 +81,7 @@ mod tests {
         let asset_ref = deserialized.borrow();
 
         let actual_text = std::fs::read_to_string("Cargo.toml").unwrap();
-        
+
         assert_eq!(asset_ref.text, actual_text);
     }
 
@@ -113,7 +120,7 @@ mod tests {
         drop(asset_ref);
         drop(asset);
 
-        assert_eq!(AssetServer::global_read().assets.len(), 0);
+        assert_eq!(AssetServer::global_read().loaded_assets.len(), 0);
     }
 
     #[test]

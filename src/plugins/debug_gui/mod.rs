@@ -101,6 +101,7 @@ impl Plugin for DebugGUIPlugin {
             graphics.output_color_format,
             None,
             DebugGUIPlugin::MSAA_SAMPLES,
+            true
         ));
 
         Ok(())

@@ -24,6 +24,8 @@ pub mod maths {
     pub use ultraviolet::{rotor, transform, vec, Rotor2, Rotor3, Vec2, Vec3, Vec4};
 }
 
+pub use gltf;
+
 pub mod exports {
     use super::*;
 

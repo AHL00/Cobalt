@@ -1,6 +1,7 @@
 pub mod server;
 pub mod asset;
 pub mod tests;
+pub mod pack;
 
 pub mod exports {
     pub use super::asset::Asset;

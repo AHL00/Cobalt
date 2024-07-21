@@ -93,6 +93,7 @@ impl Graphics {
                     // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
                     required_limits: wgpu::Limits::downlevel_defaults()
                         .using_resolution(adapter.limits()),
+                    memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,
             )

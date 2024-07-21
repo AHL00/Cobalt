@@ -34,118 +34,46 @@ impl App for Game {
 
         let model_ent = engine.scene.world.create_entity();
 
-        engine.scene.world.add_component(model_ent, RotateRandom);
-
         // TODO: Improve ECS api by adding <Entity>.add_component<T: Components>(c: T) method
 
-        let mut transform = Transform::with_position([0.0, 2.5, 10.0].into());
-
-        *transform.scale_mut() = Vec3::new(1.0, 1.0, 1.0);
+        let transform = Transform::with_position([0.0, 0.0, 10.0].into());
 
         let model_mesh = AssetServer::global_write()
             .load::<MeshAsset>(Path::new("teapot.obj"))
             .unwrap();
 
-        let model_texture = AssetServer::global_write()
-            .load::<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>(Path::new("jet.png"))
-            .unwrap();
-
         let model_material = Resource::new(Material::default());
-
-        // model_material
-        //     .borrow_mut()
-        //     .set_albedo(None, Some(model_texture.clone()))
-        //     .unwrap();
 
         model_material.borrow_mut().set_metallic(Either::Left(0.7));
 
-        let test_roughness_texture = AssetServer::global_write()
-            .load::<TextureAsset<{ TextureType::R8Unorm }>>(Path::new("rough.jpg"))
-            .unwrap();
-
-        model_material
-            .borrow_mut()
-            .set_roughness(Either::Right(test_roughness_texture));
-
         engine.scene.world.add_component(model_ent, transform);
+        engine.scene.world.add_component(model_ent, RotateRandom);
         engine
             .scene
             .world
             .add_component(model_ent, Renderable::Mesh(Mesh::new(model_mesh.clone())));
         engine.scene.world.add_component(model_ent, model_material);
 
-        let _brick_cube_ent = engine.scene.world.create_entity();
+        let cat_ent = engine.scene.world.create_entity();
 
-        let _brick_cube_transform = Transform::with_position([0.0, 0.0, 0.0].into());
+        let mut cat_transform = Transform::with_position([0.0, 0.0, 0.0].into());
 
-        let brick_cube_mesh = AssetServer::global_write()
-            .load::<MeshAsset>(Path::new("cube.obj"))
+        let cat_mesh = AssetServer::global_write()
+            .load::<MeshAsset>(Path::new("teapot.obj"))
             .unwrap();
 
-        let mut brick_material = Material::default();
+        let cat_material = Resource::new(Material::default());
 
-        let brick_diffuse_texture = TextureAsset::load(Path::new("./brick/diffuse.png")).unwrap();
-
-        brick_material
-            .set_albedo(None, Some(brick_diffuse_texture))
-            .unwrap();
-
-        let brick_normal_texture =
-            TextureAsset::<{ TextureType::RGBA16Float }>::load(Path::new("./brick/normal.png"))
-                .unwrap();
-
-        brick_material.set_normal(Some(brick_normal_texture));
-
-        brick_material.set_metallic(Either::Left(0.0));
-
-        brick_material.set_roughness(Either::Right(
-            TextureAsset::load(Path::new("./brick/roughness.png")).unwrap(),
-        ));
-
-        log::info!("Brick material: {:#?}", brick_material);
-
-        let brick_count = (50, 50);
-
-        let brick_material = Resource::new(brick_material);
-
-        for x in 0..brick_count.0 {
-            for z in 0..brick_count.1 {
-                let brick_cube_ent = engine.scene.world.create_entity();
-
-                let x_coord = x as f32 - brick_count.0 as f32 / 2.0;
-                let z_coord = z as f32 - brick_count.1 as f32 / 2.0;
-
-                let mut brick_cube_transform =
-                    Transform::with_position([x_coord, 0.0, z_coord].into());
-                *brick_cube_transform.rotation_mut() =
-                    Rotor3::from_euler_angles(0.0, PI / 2.0, 0.0);
-                *brick_cube_transform.scale_mut() = Vec3::broadcast(0.5);
-
-                engine
-                    .scene
-                    .world
-                    .add_component(brick_cube_ent, brick_cube_transform);
-
-                engine.scene.world.add_component(
-                    brick_cube_ent,
-                    Renderable::Mesh(Mesh::new(brick_cube_mesh.clone())),
-                );
-
-                engine
-                    .scene
-                    .world
-                    .add_component(brick_cube_ent, RotateRandom);
-
-                engine
-                    .scene
-                    .world
-                    .add_component(brick_cube_ent, brick_material.clone());
-            }
-        }
+        engine.scene.world.add_component(cat_ent, cat_transform);
+        engine
+            .scene
+            .world
+            .add_component(cat_ent, Renderable::Mesh(Mesh::new(cat_mesh.clone())));
+        engine.scene.world.add_component(cat_ent, cat_material);
 
         let light_vis_ent = engine.scene.world.create_entity();
 
-        let mut light_vis_transform = Transform::with_position([0.0, 2.0, 2.0].into());
+        let mut light_vis_transform = Transform::with_position([0.0, 2.0, 0.0].into());
         *light_vis_transform.scale_mut() = Vec3::broadcast(0.1);
 
         let light_vis_mesh = AssetServer::global_write()

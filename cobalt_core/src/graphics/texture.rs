@@ -1,7 +1,9 @@
 use std::{io::BufReader, marker::ConstParamTy, path::Path, sync::LazyLock};
 
+use bytes::Bytes;
 use half::f16;
 use image::GenericImageView;
+use serde::ser::SerializeSeq;
 
 use crate::{
     assets::exports::{AssetLoadError, AssetTrait},
@@ -10,7 +12,8 @@ use crate::{
 
 use super::{context::Graphics, HasBindGroup};
 
-#[derive(Debug, Clone, Copy, ConstParamTy, PartialEq, Eq)]
+// NOTE: If adding variants to this, change the `gen_empty_texture` function and cobalt_pack
+#[derive(Debug, Clone, Copy, ConstParamTy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TextureType {
     // Color textures
     RGBA32Float,
@@ -89,6 +92,43 @@ impl TextureType {
                     .map(|u| *u as i8)
                     .collect::<Vec<i8>>(),
             )),
+        }
+    }
+
+    pub(crate) fn buffer_to_dyn_image(
+        &self,
+        buffer: Vec<u8>,
+        width: u32,
+        height: u32,
+    ) -> image::DynamicImage {
+        match self {
+            TextureType::RGBA8Unorm => image::DynamicImage::ImageRgba8(
+                image::RgbaImage::from_raw(width, height, buffer).unwrap(),
+            ),
+            TextureType::RGBA8UnormSrgb => image::DynamicImage::ImageRgba8(
+                image::RgbaImage::from_raw(width, height, buffer).unwrap(),
+            ),
+            TextureType::RGBA32Float => image::DynamicImage::ImageRgba32F(
+                image::Rgba32FImage::from_raw(width, height, bytemuck::cast_vec(buffer)).unwrap(),
+            ),
+            TextureType::RGBA16Float => image::DynamicImage::ImageRgba32F(
+                image::Rgba32FImage::from_raw(width, height, bytemuck::cast_vec(buffer)).unwrap(),
+            ),
+            TextureType::R32Float => image::DynamicImage::ImageLuma16(
+                image::ImageBuffer::from_raw(width, height, bytemuck::cast_vec(buffer)).unwrap(),
+            ),
+            TextureType::R16Float => image::DynamicImage::ImageLuma16(
+                image::ImageBuffer::from_raw(width, height, bytemuck::cast_vec(buffer)).unwrap(),
+            ),
+            TextureType::R8Unorm => image::DynamicImage::ImageLuma8(
+                image::ImageBuffer::from_raw(width, height, buffer).unwrap(),
+            ),
+            TextureType::R8Uint => image::DynamicImage::ImageLuma8(
+                image::ImageBuffer::from_raw(width, height, buffer).unwrap(),
+            ),
+            TextureType::R8Snorm => image::DynamicImage::ImageLuma8(
+                image::ImageBuffer::from_raw(width, height, buffer).unwrap(),
+            ),
         }
     }
 }
@@ -235,12 +275,92 @@ fn get_bind_group_layout<const T: TextureType>() -> &'static wgpu::BindGroupLayo
     }
 }
 
+struct TextureAssetBuffer<const T: TextureType> {
+    texture: image::DynamicImage,
+    size: wgpu::Extent3d,
+}
+
+impl<const T: TextureType> serde::Serialize for TextureAssetBuffer<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let data = T.get_image_data(self.texture.clone()).unwrap();
+
+        // Serialise the size
+        let (width, height) = (self.size.width, self.size.height);
+        let mut seq = serializer.serialize_seq(Some(2 + data.len()))?;
+        seq.serialize_element(&width)?;
+        seq.serialize_element(&height)?;
+
+        // Serialise type
+        seq.serialize_element(&T)?;
+
+        // Serialise the data
+        for element in data {
+            seq.serialize_element(&element)?;
+        }
+
+        seq.end()
+    }
+}
+
+impl<'de, const T: TextureType> serde::Deserialize<'de> for TextureAssetBuffer<T> {
+    fn deserialize<D>(deserializer: D) -> Result<TextureAssetBuffer<T>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct TextureAssetBufferVisitor<const T: TextureType> {}
+
+        impl<'de, const T: TextureType> serde::de::Visitor<'de> for TextureAssetBufferVisitor<T> {
+            type Value = TextureAssetBuffer<T>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a sequence of u32, u32, TextureType and Vec<u8>")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let width = seq
+                    .next_element::<u32>()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                let height = seq
+                    .next_element::<u32>()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+                let texture_type = seq
+                    .next_element::<TextureType>()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+
+                let mut data: Vec<u8> =
+                    Vec::with_capacity((width * height) as usize * texture_type.bytes_per_pixel());
+
+                while let Some(el) = seq.next_element().unwrap() {
+                    data.push(el);
+                }
+
+                let size = wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                };
+
+                let texture = image::DynamicImage::new_rgba8(width, height);
+
+                Ok(TextureAssetBuffer { texture, size })
+            }
+        }
+
+        deserializer.deserialize_seq(TextureAssetBufferVisitor::<T> {})
+    }
+}
+
 impl<const T: TextureType> AssetTrait for TextureAsset<T> {
-    fn read_from_file(
+    fn read_from_file_to_buffer(
         reader: BufReader<std::fs::File>,
-        _: &imstr::ImString,
         path: &Path,
-    ) -> Result<Self, AssetLoadError> {
+    ) -> Result<Bytes, AssetLoadError> {
         let file_extension = path.extension().ok_or(AssetLoadError::LoadError(
             "File extension not found".to_string().into(),
         ))?;
@@ -280,6 +400,33 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
             depth_or_array_layers: 1,
         };
 
+        let ser_data = bincode::serialize(&TextureAssetBuffer::<T> {
+            texture: image,
+            size,
+        })
+        .map_err(|e| {
+            log::error!("{}", e);
+            AssetLoadError::LoadError(
+                "Failed to serialise image data into buffer"
+                    .to_string()
+                    .into(),
+            )
+        })?;
+
+        Ok(Bytes::from(ser_data))
+    }
+
+    fn read_from_buffer(data: &Bytes) -> Result<Self, AssetLoadError> {
+        let TextureAssetBuffer::<T> { texture: image, size } =
+            bincode::deserialize(data.as_ref()).map_err(|e| {
+                log::error!("{}", e);
+                AssetLoadError::LoadError(
+                    "Failed to deserialise image data from buffer"
+                        .to_string()
+                        .into(),
+                )
+            })?;
+
         let graphics = Graphics::global_read();
 
         let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
@@ -304,8 +451,8 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
                 .map_err(|e| AssetLoadError::LoadError(e.into()))?,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(T.bytes_per_pixel() as u32 * width),
-                rows_per_image: Some(height),
+                bytes_per_row: Some(T.bytes_per_pixel() as u32 * size.width),
+                rows_per_image: Some(size.height),
             },
             size,
         );
@@ -339,12 +486,12 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
                 ],
             });
 
-        Ok(Self {
+        Ok(TextureAsset {
+            bind_group,
             texture,
             view,
             sampler,
             size,
-            bind_group,
         })
     }
 }

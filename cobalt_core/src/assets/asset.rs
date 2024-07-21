@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use imstr::ImString;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::Serialize;
@@ -17,11 +18,12 @@ use super::server::AssetServer;
 /// Types implementing this trait must be Send + Sync + 'static.
 pub trait AssetTrait: Sized + Send + Sync + 'static {
     /// Reads an asset from a file and parses it.
-    fn read_from_file(
+    fn read_from_file_to_buffer(
         data: BufReader<std::fs::File>,
-        name: &ImString,
         path: &Path,
-    ) -> Result<Self, AssetLoadError>;
+    ) -> Result<Bytes, AssetLoadError>;
+
+    fn read_from_buffer(data: &Bytes) -> Result<Self, AssetLoadError>;
 
     /// Loads an asset into the global asset server.
     fn load(path: &Path) -> Result<Asset<Self>, AssetLoadError> {
@@ -140,7 +142,7 @@ impl<'de, T: AssetTrait> serde::Deserialize<'de> for Asset<T> {
 
 impl<T: AssetTrait> Drop for Asset<T> {
     fn drop(&mut self) {
-        let asset_hashmap_ref = &mut AssetServer::global_write().assets;
+        let asset_hashmap_ref = &mut AssetServer::global_write().loaded_assets;
 
         if let Some((_asset, count)) = asset_hashmap_ref.get_mut(&self.path) {
             if *count == 1 {

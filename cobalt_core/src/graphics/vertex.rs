@@ -57,7 +57,7 @@ impl HasVertexBufferLayout for NormalVertex {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, serde::Serialize, serde::Deserialize)]
 pub struct UvNormalVertex {
     pub position: [f32; 3],
     pub uv: [f32; 2],

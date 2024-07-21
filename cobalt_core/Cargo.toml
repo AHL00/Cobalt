@@ -17,7 +17,8 @@ deferred_renderer = []
 
 [dependencies]
 # Graphics
-wgpu = "0.19.1"
+wgpu = { version = "22.0.0" }
+# wgpu-types = { version = "*", features = ["serde"] }
 winit = "0.29.10"
 bytemuck = { version = "1.14.1", features = ["derive", "must_cast"] }
 image = "0.24.8"
@@ -28,13 +29,7 @@ gltf = { version = "1.4.0", features = [
     "KHR_lights_punctual",
     "KHR_materials_pbrSpecularGlossiness",
     "KHR_materials_unlit",
-    # "KHR_texture_transform",
-    # "KHR_materials_variants",
-    # "KHR_materials_volume",
     "KHR_materials_specular",
-    # "KHR_materials_transmission",
-    # "KHR_materials_ior",
-    # "KHR_materials_emissive_strength",
 ] }
 
 # Misc
@@ -53,7 +48,11 @@ tobj = "4.0.1"
 downcast = "0.11.0"
 mutually_exclusive_features = "0.1.0"
 log-once = "0.4.1"
-half = {version = "2.4.1", features = ["serde", "bytemuck"]}
+half = { version = "2.4.1", features = ["serde", "bytemuck"] }
+bytes = { version = "1.6.1", features = ["serde"] }
+toml = "0.8.15"
+flate2 = "1.0.30"
+bincode = "1.3.3"
 
 # ECS
 serde_closure = "0.3.3"

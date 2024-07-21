@@ -14,9 +14,9 @@ cobalt_core = { path = "cobalt_core" }
 cobalt_runtime = { path = "cobalt_runtime" }
 
 # Dev GUI
-egui = {version = "0.27.2", optional = true}
-egui-winit = {version = "0.27.2", optional = true}
-egui-wgpu = {version = "0.27.2", optional = true}
+egui = {git = "https://github.com/emilk/egui.git", optional = true}
+egui-winit = {git = "https://github.com/emilk/egui.git", optional = true}
+egui-wgpu = {git = "https://github.com/emilk/egui.git", optional = true}
 log = "0.4.21"
 rayon = "1.10.0"
 
@@ -29,6 +29,13 @@ members = [
     "cobalt_core",
     "cobalt_editor",
     "cobalt_runtime",
+    
+    # Binaries
+    "cobalt_pack",
+
     # Examples
     "examples/test_scene",
+    "examples/sponza", "cobalt_pack",
 ]
+
+

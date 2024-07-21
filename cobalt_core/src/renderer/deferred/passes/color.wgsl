@@ -77,7 +77,7 @@ fn fs_main(
     let cam_position = u_cam_position;
 
     let view_direction = normalize(cam_position - position);
-    let light_direction = normalize(vec3f(0.0, 20.0, 0.0) - position);
+    let light_direction = normalize(vec3f(0.0, 2.0, 0.0) - position);
 
     let diffuse_strength = max(dot(normal, light_direction), 0.0);
     let diffuse_color = vec3(1.0, 1.0, 1.0) * diffuse_strength;

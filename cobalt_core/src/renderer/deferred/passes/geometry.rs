@@ -51,6 +51,7 @@ impl GeometryPass {
                     module: &shader,
                     entry_point: "vs_main",
                     buffers: &[UvNormalVertex::vertex_buffer_layout()],
+                    compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
@@ -82,6 +83,7 @@ impl GeometryPass {
                             format: GeometryBuffers::METALLIC_ROUGHNESS_FORMAT,
                         }),
                     ],
+                    compilation_options: Default::default(),
                 }),
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -110,6 +112,7 @@ impl GeometryPass {
                 }),
                 multiview: None,
                 multisample: wgpu::MultisampleState::default(),
+                cache: None,
             },
         );
 

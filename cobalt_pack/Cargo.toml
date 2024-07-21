@@ -1,0 +1,12 @@
+[package]
+name = "cobalt_pack"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = {version = "4.5.9", features = ["derive"]}
+cli-table = "0.4.9"
+cobalt_core = {path = "../cobalt_core"}
+humantime = "2.1.0"
+inquire = "0.7.5"
+toml = "0.8.15"
