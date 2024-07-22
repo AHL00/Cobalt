@@ -1,0 +1,11 @@
+[[assets]]
+asset_id = "b3e7579c-6b5a-4f69-9dbc-25e016782b16"
+relative_path = "/home/khant/Desktop/Cobalt/examples/test_scene/assets/logo_large.asset"
+name = "logo_large"
+type_name = "cobalt_core::graphics::texture::Texture<cobalt_core::graphics::texture::TextureType::RGBA8Unorm>"
+
+[assets.packed]
+
+[assets.timestamp]
+secs_since_epoch = 1721660266
+nanos_since_epoch = 109448695

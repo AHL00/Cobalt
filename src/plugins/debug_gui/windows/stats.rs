@@ -1,10 +1,10 @@
 use cobalt_core::stats::Stats;
 
-pub struct StatsWindow {
+pub struct StatsPanel {
     pub displayed_stats: std::collections::HashMap<String, bool>,
 }
 
-impl StatsWindow {
+impl StatsPanel {
     pub fn new() -> Self {
         Self {
             displayed_stats: std::collections::HashMap::new(),

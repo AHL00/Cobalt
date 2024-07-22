@@ -1,8 +1,6 @@
 
 #[cfg(test)]
 mod tests {
-    use rayon::iter::{ParallelBridge, ParallelIterator};
-
     use crate::exports::ecs::{Component, query::{Exclude, Optional}, World};
 
     use super::*;

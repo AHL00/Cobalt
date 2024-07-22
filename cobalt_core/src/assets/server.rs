@@ -1,16 +1,17 @@
 use hashbrown::HashMap;
-use imstr::ImString;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{
     any::Any,
     error::Error,
-    io::BufReader,
-    path::{Path, PathBuf},
-    str::FromStr,
+    path::PathBuf,
     sync::{Arc, Weak},
 };
 
-use super::{exports::{Asset, AssetLoadError, AssetTrait}, pack::Manifest};
+use super::{
+    asset::AssetID,
+    exports::{Asset, AssetTrait},
+    manifest::{AssetInfo, Manifest},
+};
 
 /// Global asset server.
 /// This is in a RwLock to allow for multiple threads to access the asset server.
@@ -20,10 +21,11 @@ pub struct AssetServer {
     /// This is a map of the assets that are currently loaded.
     /// Will only contain Weak<RwLock<dyn Any + Send + Sync + 'static>>.
     /// Not stored as such because of the dynamic size of the type.
-    pub(crate) loaded_assets: HashMap<ImString, (Weak<dyn Any + Send + Sync + 'static>, usize)>,
+    pub(crate) loaded_assets: HashMap<AssetID, (Weak<dyn Any + Send + Sync + 'static>, usize)>,
     /// NOTE: Do not edit this directly. Use the set_assets_dir method.
-    /// It canonicalizes the path and makes it absolute.
+    /// It canonicalizes the path.
     pub(crate) assets_dir: PathBuf,
+    /// The currently loaded main manifest file.
     pub(crate) manifest: Option<Manifest>,
 }
 
@@ -43,6 +45,34 @@ impl AssetServerInternal for AssetServer {
 
         Ok(())
     }
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Manifest not loaded")]
+pub struct ManifestNotLoaded;
+
+#[derive(thiserror::Error, Debug)]
+pub enum AssetLoadError {
+    #[error("Manifest is not loaded")]
+    ManifestNotLoaded(#[from] ManifestNotLoaded),
+    #[error("Asset not found in manifest")]
+    AssetNotFound,
+    #[error("File IO error")]
+    Io(#[from] std::io::Error),
+    #[error("Asset is already loaded")]
+    AssetAlreadyLoaded,
+    #[error("Failed to load asset")]
+    LoadError(Box<dyn Error>),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum FindAssetByName {
+    #[error("Manifest is not loaded")]
+    ManifestNotLoaded(#[from] ManifestNotLoaded),
+    #[error("Asset with name not found in manifest")]
+    AssetNotFound,
+    #[error("Duplicate asset names found in manifest")]
+    DuplicateAssetNames,
 }
 
 impl AssetServer {
@@ -78,6 +108,18 @@ impl AssetServer {
         }
     }
 
+    pub fn get_manifest(&self) -> Result<&Manifest, ManifestNotLoaded> {
+        if let Some(manifest) = &self.manifest {
+            Ok(manifest)
+        } else {
+            Err(ManifestNotLoaded)
+        }
+    }
+
+    pub fn assets_dir(&self) -> &PathBuf {
+        &self.assets_dir
+    }
+
     pub fn set_assets_dir(&mut self, assets_dir: &str) -> Result<(), Box<dyn Error>> {
         let assets_dir_path = PathBuf::from(assets_dir);
 
@@ -87,10 +129,14 @@ impl AssetServer {
             std::env::current_dir().unwrap().join(assets_dir_path)
         };
 
+        log::info!(
+            "Setting assets directory to: {:?}",
+            absolute_assets_dir_path
+        );
+
         let assets_dir = absolute_assets_dir_path
             .canonicalize()
-            .expect("Failed to canonicalize assets directory");
-
+            .map_err(|e| format!("Failed to canonicalize assets directory: {}", e))?;
 
         let manifest_load_res = Manifest::load(&assets_dir);
 
@@ -100,64 +146,116 @@ impl AssetServer {
             return Ok(());
         } else if let Err(err) = manifest_load_res {
             log::warn!("Failed to load manifest file: {}", err);
-            return Err(err.into());
+            return Err("Failed to load manifest file".into());
         }
 
         Ok(())
     }
 
+    pub fn list_loaded_assets(&self) -> Result<Vec<&AssetInfo>, ManifestNotLoaded> {
+        let manifest = self.get_manifest()?;
+
+        let mut loaded_assets = Vec::new();
+
+        for (asset_id, (_, _)) in &self.loaded_assets {
+            let asset_info = manifest
+                .assets
+                .iter()
+                .find(|asset_info| asset_info.asset_id == *asset_id)
+                .unwrap();
+
+            loaded_assets.push(asset_info);
+        }
+
+        Ok(loaded_assets)
+    }
+
     /// Load an asset from disk.
-    /// If the asset is already loaded, it will not load it again.
-    /// The path is relative to the assets directory.
-    pub fn load<T: AssetTrait>(&mut self, path: &Path) -> Result<Asset<T>, AssetLoadError> {
-        let absolute_path = self.assets_dir.join(path);
-
-        let relative_path_string = extract_relative_path(&absolute_path, &self.assets_dir);
-
+    /// The asset must be present in the manifest file.
+    pub fn load<T: AssetTrait>(&mut self, asset_id: AssetID) -> Result<Asset<T>, AssetLoadError> {
         // Check if the asset is already loaded
-        if let Some((asset, count)) = self.loaded_assets.get_mut(relative_path_string.as_str()) {
-            // If the asset is loaded, increment the count
-            *count += 1;
+        if let Some(_) = self.loaded_assets.get_mut(&asset_id) {
+            return Err(AssetLoadError::AssetAlreadyLoaded);
+        }
 
-            if let Some(asset) = asset.upgrade() {
-                return Ok(Asset::new(
-                    ImString::from_str(relative_path_string.as_str()).unwrap(),
-                    asset,
-                ));
+        let manifest = self.get_manifest()?;
+
+        let asset_info = manifest
+            .assets
+            .iter()
+            .find(|asset_info| asset_info.asset_id == asset_id)
+            .ok_or(AssetLoadError::AssetNotFound)?;
+
+        let relative_path = self.assets_dir.join(&asset_info.relative_path);
+
+        // Check if the asset is packed or not
+        match &asset_info.packed {
+            Some(_) => {}
+            None => {}
+        }
+
+        todo!()
+    }
+
+    /// Get the asset ID from the asset's name.
+    /// If there are duplicate names, it will throw an error.
+    pub fn find_asset_by_name(&self, name: &str) -> Result<AssetID, FindAssetByName> {
+        let manifest = self.get_manifest()?;
+
+        let mut asset_id = None;
+
+        for asset_info in &manifest.assets {
+            if asset_info.name == name {
+                if asset_id.is_some() {
+                    return Err(FindAssetByName::DuplicateAssetNames);
+                }
+
+                asset_id = Some(asset_info.asset_id);
             }
         }
 
-        let asset_handle_path = ImString::from_str(relative_path_string.as_str()).unwrap();
-
-        let file = std::fs::File::open(&absolute_path)?;
-
-        let buf_reader = BufReader::new(file);
-
-        let asset = Arc::new(RwLock::new(T::read_from_file_to_buffer(
-            buf_reader,
-            &absolute_path,
-        )?));
-
-        let asset_any = unsafe {
-            Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
-        };
-
-        self.loaded_assets
-            .insert(asset_handle_path.clone(), (Arc::downgrade(&asset_any), 1));
-
-        Ok(Asset::new(asset_handle_path, asset_any))
-    }
-}
-
-fn extract_relative_path(absolute_path: &Path, assets_dir: &Path) -> String {
-    let relative_path = absolute_path.strip_prefix(assets_dir).unwrap();
-
-    // Make sure the relative path is using unix style path separators
-    let mut relative_path_string = relative_path.to_str().unwrap().replace("\\", "/");
-
-    if relative_path_string.starts_with('/') {
-        relative_path_string = relative_path_string[1..].to_string();
+        asset_id.ok_or(FindAssetByName::AssetNotFound)
     }
 
-    relative_path_string
+    // /// Load an asset from disk.
+    // /// If the asset is already loaded, it will not load it again.
+    // /// The path is relative to the assets directory.
+    // pub fn load<T: AssetTrait>(&mut self, path: &Path) -> Result<Asset<T>, AssetLoadError> {
+    //     let absolute_path = self.assets_dir.join(path);
+
+    //     let relative_path_string = extract_relative_path(&absolute_path, &self.assets_dir);
+
+    //     // Check if the asset is already loaded
+    //     if let Some((asset, count)) = self.loaded_assets.get_mut(relative_path_string.as_str()) {
+    //         // If the asset is loaded, increment the count
+    //         *count += 1;
+
+    //         if let Some(asset) = asset.upgrade() {
+    //             return Ok(Asset::new(
+    //                 ImString::from_str(relative_path_string.as_str()).unwrap(),
+    //                 asset,
+    //             ));
+    //         }
+    //     }
+
+    //     let asset_handle_path = ImString::from_str(relative_path_string.as_str()).unwrap();
+
+    //     let file = std::fs::File::open(&absolute_path)?;
+
+    //     let buf_reader = BufReader::new(file);
+
+    //     let asset = Arc::new(RwLock::new(T::read_from_file_to_buffer(
+    //         buf_reader,
+    //         &absolute_path,
+    //     )?));
+
+    //     let asset_any = unsafe {
+    //         Arc::from_raw(Arc::into_raw(asset) as *const (dyn Any + Send + Sync + 'static))
+    //     };
+
+    //     self.loaded_assets
+    //         .insert(asset_handle_path.clone(), (Arc::downgrade(&asset_any), 1));
+
+    //     Ok(Asset::new(asset_handle_path, asset_any))
+    // }
 }

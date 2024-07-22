@@ -56,8 +56,8 @@ static VIEW_PROJ_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::
         })
 });
 
-impl HasBindGroupLayout for ProjView {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for ProjView {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &*VIEW_PROJ_BIND_GROUP_LAYOUT
     }
 }

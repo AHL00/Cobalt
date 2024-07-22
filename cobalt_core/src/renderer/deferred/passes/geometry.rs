@@ -27,9 +27,9 @@ impl GeometryPass {
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Geometry Pass Pipeline Layout"),
                 bind_group_layouts: &[
-                    &Transform::bind_group_layout(),
-                    &ProjView::bind_group_layout(),
-                    &Material::bind_group_layout(),
+                    &Transform::bind_group_layout(()),
+                    &ProjView::bind_group_layout(()),
+                    &Material::bind_group_layout(()),
                 ],
                 push_constant_ranges: &[],
             },

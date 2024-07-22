@@ -3,7 +3,7 @@
 use std::{f32::consts::PI, path::Path, time::Duration};
 
 use cobalt::{
-    assets::{AssetServer, AssetTrait, MeshAsset, TextureAsset},
+    assets::{AssetServer, AssetTrait, MeshAsset, Texture},
     components::{Camera, Renderable, Transform},
     ecs::{Component, Entity},
     graphics::TextureType,
@@ -30,7 +30,7 @@ impl App for Game {
     fn on_start(&mut self, engine: &mut Engine, _plugins: &mut PluginManager) {
         log::info!("Game started!");
 
-        AssetServer::global_write().set_assets_dir("./assets/");
+        AssetServer::global_write().set_assets_dir("assets").unwrap();
 
         let model_ent = engine.scene.world.create_entity();
 
@@ -38,62 +38,7 @@ impl App for Game {
 
         let transform = Transform::with_position([0.0, 0.0, 10.0].into());
 
-        let model_mesh = AssetServer::global_write()
-            .load::<MeshAsset>(Path::new("teapot.obj"))
-            .unwrap();
-
-        let model_material = Resource::new(Material::default());
-
-        model_material.borrow_mut().set_metallic(Either::Left(0.7));
-
-        engine.scene.world.add_component(model_ent, transform);
-        engine.scene.world.add_component(model_ent, RotateRandom);
-        engine
-            .scene
-            .world
-            .add_component(model_ent, Renderable::Mesh(Mesh::new(model_mesh.clone())));
-        engine.scene.world.add_component(model_ent, model_material);
-
-        let cat_ent = engine.scene.world.create_entity();
-
-        let mut cat_transform = Transform::with_position([0.0, 0.0, 0.0].into());
-
-        let cat_mesh = AssetServer::global_write()
-            .load::<MeshAsset>(Path::new("teapot.obj"))
-            .unwrap();
-
-        let cat_material = Resource::new(Material::default());
-
-        engine.scene.world.add_component(cat_ent, cat_transform);
-        engine
-            .scene
-            .world
-            .add_component(cat_ent, Renderable::Mesh(Mesh::new(cat_mesh.clone())));
-        engine.scene.world.add_component(cat_ent, cat_material);
-
-        let light_vis_ent = engine.scene.world.create_entity();
-
-        let mut light_vis_transform = Transform::with_position([0.0, 2.0, 0.0].into());
-        *light_vis_transform.scale_mut() = Vec3::broadcast(0.1);
-
-        let light_vis_mesh = AssetServer::global_write()
-            .load::<MeshAsset>(Path::new("cube.obj"))
-            .unwrap();
-
-        let light_vis_material = Resource::new(Material::default());
-
-        engine
-            .scene
-            .world
-            .add_component(light_vis_ent, light_vis_transform);
-        engine
-            .scene
-            .world
-            .add_component(light_vis_ent, Renderable::Mesh(Mesh::new(light_vis_mesh)));
-        engine
-            .scene
-            .world
-            .add_component(light_vis_ent, light_vis_material);
+        
 
         let cam_ent = engine.scene.world.create_entity();
 

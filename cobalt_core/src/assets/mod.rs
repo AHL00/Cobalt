@@ -1,14 +1,15 @@
 pub mod server;
 pub mod asset;
 pub mod tests;
-pub mod pack;
+pub mod manifest;
+pub mod types;
 
 pub mod exports {
     pub use super::asset::Asset;
-    pub use super::asset::AssetLoadError;
+    pub use super::server::AssetLoadError;
     pub use super::server::AssetServer;
     pub use super::asset::AssetTrait;
 
     pub use crate::renderer::mesh::MeshAsset;
-    pub use crate::graphics::texture::TextureAsset;
+    pub use crate::graphics::texture::Texture;
 }

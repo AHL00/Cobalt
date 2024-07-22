@@ -263,8 +263,8 @@ static BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
         })
 });
 
-impl HasBindGroupLayout for GeometryBuffers {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for GeometryBuffers {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &*BIND_GROUP_LAYOUT
     }
 }

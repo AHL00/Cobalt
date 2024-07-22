@@ -361,8 +361,8 @@ impl Transform {
     }
 }
 
-impl HasBindGroupLayout for Transform {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for Transform {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &TRANSFORM_BIND_GROUP_LAYOUT
     }
 }

@@ -30,9 +30,9 @@ impl GeometryDebugPass {
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Geometry Debug Pass Pipeline Layout"),
                 bind_group_layouts: &[
-                    &u32::bind_group_layout(),
-                    &GeometryBuffers::bind_group_layout(),
-                    &DepthBuffer::bind_group_layout(),
+                    &u32::bind_group_layout(()),
+                    &GeometryBuffers::bind_group_layout(()),
+                    &DepthBuffer::bind_group_layout(()),
                 ],
                 push_constant_ranges: &[],
             },

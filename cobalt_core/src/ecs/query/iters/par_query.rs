@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use rayon::iter::ParallelIterator;
-
 use crate::{ecs::{component::ComponentId, query::QueryRestriction, storage::ComponentStorage}, exports::ecs::{query::ParQuery, World}, utils::bit_array::SimdBitArray};
 
 pub struct ParQueryIter<'a, Q: ParQuery<'a>> {

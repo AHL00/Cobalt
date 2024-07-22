@@ -15,8 +15,8 @@ pub mod exports {
 }
 
 /// Capable of creating a wgpu::BindGroupLayout.
-pub trait HasBindGroupLayout {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout;
+pub trait HasBindGroupLayout<E> {
+    fn bind_group_layout(extra: E) -> &'static wgpu::BindGroupLayout;
 }
 
 pub trait HasBindGroup {

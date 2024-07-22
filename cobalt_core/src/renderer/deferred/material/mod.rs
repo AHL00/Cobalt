@@ -1,14 +1,15 @@
 use std::sync::{atomic::AtomicUsize, LazyLock};
 
+use bytes::Bytes;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::exports::{Asset, AssetTrait, TextureAsset},
+    assets::exports::{Asset, AssetTrait, Texture},
     exports::types::{either::Either, resource::ResourceTrait},
     graphics::{
         context::Graphics,
         texture::{
-            TextureInternal, TextureType, EMPTY_R8_UNORM, EMPTY_RGBA16_FLOAT, EMPTY_RGBA8_UNORM, EMPTY_RGBA8_UNORM_SRGB,
+            TextureInternal, TextureType, EMPTY_R8_UNORM, EMPTY_RGBA16_FLOAT, EMPTY_RGBA8_UNORM, EMPTY_RGBA8_UNORM_SRGB
         },
         HasBindGroupLayout,
     },
@@ -31,17 +32,17 @@ pub struct Material {
     /// If both are set, the texture's color will be multiplied by the color.
     albedo: (
         Option<[f32; 4]>,
-        Option<Asset<TextureAsset<{ Material::ALBEDO_TEXTURE_TYPE }>>>,
+        Option<Asset<Texture<{ Material::ALBEDO_TEXTURE_TYPE }>>>,
     ),
 
     /// Normal map, adds bumps and details to the surface.
-    normal: Option<Asset<TextureAsset<{ Material::NORMAL_TEXTURE_TYPE }>>>,
+    normal: Option<Asset<Texture<{ Material::NORMAL_TEXTURE_TYPE }>>>,
 
     /// Metallic map or value.
-    metallic: Either<f32, Asset<TextureAsset<{ Material::METALLIC_TEXTURE_TYPE }>>>,
+    metallic: Either<f32, Asset<Texture<{ Material::METALLIC_TEXTURE_TYPE }>>>,
 
     /// Roughness map or value.
-    roughness: Either<f32, Asset<TextureAsset<{ Material::ROUGHNESS_TEXTURE_TYPE }>>>,
+    roughness: Either<f32, Asset<Texture<{ Material::ROUGHNESS_TEXTURE_TYPE }>>>,
 
     bind_group: Option<wgpu::BindGroup>,
 }
@@ -315,11 +316,11 @@ impl Material {
         wireframe: Option<[f32; 4]>,
         albedo: (
             Option<[f32; 4]>,
-            Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
+            Option<Asset<Texture <{ TextureType::RGBA8UnormSrgb }>>>,
         ),
-        normal: Option<Asset<TextureAsset<{ TextureType::RGBA16Float }>>>,
-        metallic: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
-        roughness: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
+        normal: Option<Asset<Texture <{ TextureType::RGBA16Float }>>>,
+        metallic: Either<f32, Asset<Texture <{ TextureType::R8Unorm }>>>,
+        roughness: Either<f32, Asset<Texture <{ TextureType::R8Unorm }>>>,
     ) -> Self {
         let mut m = Material {
             id: MATERIAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -365,7 +366,7 @@ impl Material {
     pub fn set_albedo(
         &mut self,
         color: Option<[f32; 4]>,
-        texture: Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
+        texture: Option<Asset<Texture <{ TextureType::RGBA8UnormSrgb }>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if color.is_none() && texture.is_none() {
             return Err("Both color and texture cannot be None.".into());
@@ -379,7 +380,7 @@ impl Material {
     }
 
     /// Normal map, adds bumrps and details to the surface.
-    pub fn set_normal(&mut self, normal: Option<Asset<TextureAsset<{ TextureType::RGBA16Float }>>>) {
+    pub fn set_normal(&mut self, normal: Option<Asset<Texture <{ TextureType::RGBA16Float }>>>) {
         self.normal = normal;
         
         self.generate_bind_group();
@@ -388,7 +389,7 @@ impl Material {
     /// Metallic map or value.
     pub fn set_metallic(
         &mut self,
-        metallic: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
+        metallic: Either<f32, Asset<Texture <{ TextureType::R8Unorm }>>>,
     ) {
         self.metallic = metallic;
         
@@ -398,7 +399,7 @@ impl Material {
     /// Roughness map or value.
     pub fn set_roughness(
         &mut self,
-        roughness: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
+        roughness: Either<f32, Asset<Texture <{ TextureType::R8Unorm }>>>,
     ) {
         self.roughness = roughness;
         
@@ -417,20 +418,20 @@ impl Material {
         &self,
     ) -> &(
         Option<[f32; 4]>,
-        Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
+        Option<Asset<Texture<{ TextureType::RGBA8UnormSrgb }>>>,
     ) {
         &self.albedo
     }
 
-    pub fn normal(&self) -> &Option<Asset<TextureAsset<{ TextureType::RGBA16Float }>>> {
+    pub fn normal(&self) -> &Option<Asset<Texture<{ TextureType::RGBA16Float }>>> {
         &self.normal
     }
 
-    pub fn metallic(&self) -> &Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>> {
+    pub fn metallic(&self) -> &Either<f32, Asset<Texture<{ TextureType::R8Unorm }>>> {
         &self.metallic
     }
 
-    pub fn roughness(&self) -> &Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>> {
+    pub fn roughness(&self) -> &Either<f32, Asset<Texture<{ TextureType::R8Unorm }>>> {
         &self.roughness
     }
 }
@@ -656,8 +657,8 @@ static MATERIAL_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::n
         })
 });
 
-impl HasBindGroupLayout for Material {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for Material {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &*MATERIAL_BIND_GROUP_LAYOUT
     }
 }
@@ -706,14 +707,15 @@ impl Default for Material {
 impl ResourceTrait for Material {}
 
 impl AssetTrait for Material {
-    fn read_from_file_to_buffer(
-        data: std::io::BufReader<std::fs::File>,
-        path: &std::path::Path,
-    ) -> Result<bytes::Bytes, crate::exports::assets::AssetLoadError> {
+    fn read_packed_buffer(data: &bytes::Bytes) -> Result<Self, crate::exports::assets::AssetLoadError> {
         todo!()
     }
 
-    fn read_from_buffer(data: &bytes::Bytes) -> Result<Self, crate::exports::assets::AssetLoadError> {
+    fn read_unpacked_to_packed_buffer(abs_path: &std::path::Path) -> Result<Bytes, crate::exports::assets::AssetLoadError> {
+        todo!()
+    }
+    
+    fn read_unpacked(abs_path: &std::path::Path) -> Result<Self, crate::exports::assets::AssetLoadError> {
         todo!()
     }
 }

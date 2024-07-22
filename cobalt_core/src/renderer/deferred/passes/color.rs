@@ -24,9 +24,9 @@ impl ColorPass {
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Color Pass Pipeline Layout"),
                 bind_group_layouts: &[
-                    &GeometryBuffers::bind_group_layout(),
-                    &DepthBuffer::bind_group_layout(),
-                    &ultraviolet::Vec3::bind_group_layout(),
+                    &GeometryBuffers::bind_group_layout(()),
+                    &DepthBuffer::bind_group_layout(()),
+                    &ultraviolet::Vec3::bind_group_layout(()),
                 ],
                 push_constant_ranges: &[],
             },

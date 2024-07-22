@@ -57,7 +57,7 @@ impl DepthBuffer {
                 .device
                 .create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Depth Buffer Bind Group"),
-                    layout: Self::bind_group_layout(),
+                    layout: Self::bind_group_layout(()),
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
@@ -118,8 +118,8 @@ static DEPTH_BUFFER_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLoc
         })
 });
 
-impl HasBindGroupLayout for DepthBuffer {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for DepthBuffer {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &DEPTH_BUFFER_BIND_GROUP_LAYOUT
     }
 }

@@ -40,8 +40,8 @@ impl CreateBindGroup for ultraviolet::Mat4 {
     }
 }
 
-impl HasBindGroupLayout for ultraviolet::Mat4 {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for ultraviolet::Mat4 {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &*MAT4X4_BIND_GROUP_LAYOUT
     }
 }
@@ -83,8 +83,8 @@ impl CreateBindGroup for u32 {
     }
 }
 
-impl HasBindGroupLayout for u32 {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for u32 {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &*U32_BIND_GROUP_LAYOUT
     }
 }
@@ -126,8 +126,8 @@ impl CreateBindGroup for ultraviolet::Vec3 {
     }
 }
 
-impl HasBindGroupLayout for ultraviolet::Vec3 {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+impl HasBindGroupLayout<()> for ultraviolet::Vec3 {
+    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
         &*VEC3_BIND_GROUP_LAYOUT
     }
 }

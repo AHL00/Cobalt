@@ -6,7 +6,7 @@ edition = "2021"
 [features]
 default = ["deferred_renderer"]
 debug_stats = ["cobalt_core/debug_stats"]
-debug_gui = ["egui", "egui-winit", "egui-wgpu"]
+debug_gui = ["egui", "egui-winit", "egui-wgpu", "egui_extras", "humantime"]
 deferred_renderer = ["cobalt_core/deferred_renderer"]
 
 [dependencies]
@@ -16,7 +16,10 @@ cobalt_runtime = { path = "cobalt_runtime" }
 # Dev GUI
 egui = {git = "https://github.com/emilk/egui.git", optional = true}
 egui-winit = {git = "https://github.com/emilk/egui.git", optional = true}
+egui_extras = {git = "https://github.com/emilk/egui.git", optional = true}
 egui-wgpu = {git = "https://github.com/emilk/egui.git", optional = true}
+humantime = { version = "2.1.0", optional = true }
+
 log = "0.4.21"
 rayon = "1.10.0"
 
@@ -31,11 +34,11 @@ members = [
     "cobalt_runtime",
     
     # Binaries
-    "cobalt_pack",
+    "cobalt_asset_manager",
 
     # Examples
     "examples/test_scene",
-    "examples/sponza", "cobalt_pack",
+    "examples/sponza",
 ]
 
 

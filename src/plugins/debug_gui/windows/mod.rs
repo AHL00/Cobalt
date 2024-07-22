@@ -2,18 +2,23 @@ use cobalt_core::stats::Stats;
 
 mod entities;
 mod stats;
+mod assets;
 
 /// Persistent data used to store debug menu state.
 pub struct DebugMenu {
     show_stats: bool,
-    stats: stats::StatsWindow,
+    stats: stats::StatsPanel,
+    show_assets: bool,
+    assets: assets::AssetsPanel,
 }
 
 impl DebugMenu {
     pub fn new() -> Self {
         Self {
             show_stats: false,
-            stats: stats::StatsWindow::new(),
+            stats: stats::StatsPanel::new(),
+            show_assets: false,
+            assets: assets::AssetsPanel::new(),
         }
     }
 
@@ -31,6 +36,7 @@ impl DebugMenu {
 
                 ui.menu_button("Windows", |ui| {
                     ui.checkbox(&mut self.show_stats, "Stats");
+                    ui.checkbox(&mut self.show_assets, "Assets");
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -51,6 +57,10 @@ impl DebugMenu {
 
         if self.show_stats {
             self.stats.show(egui_ctx);
+        }
+
+        if self.show_assets {
+            self.assets.show(egui_ctx);
         }
     }
 }
