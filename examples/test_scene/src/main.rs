@@ -10,7 +10,7 @@ use cobalt::{
     input::{InputEvent, KeyCode, KeyboardEvent},
     maths::{Rotor3, Vec3},
     plugins::debug_gui::DebugGUIPlugin,
-    renderer::{camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer},
+    renderer::{camera::Projection, renderables::{Mesh, Plane}, GeometryPassDebugMode, Material, Renderer},
     runtime::{engine::Engine, plugins::PluginManager, App},
     types::{either::Either, resource::Resource},
 };
@@ -32,13 +32,33 @@ impl App for Game {
 
         AssetServer::global_write().set_assets_dir("assets").unwrap();
 
-        let model_ent = engine.scene.world.create_entity();
+        let plane_ent = engine.scene.world.create_entity();
+
+        engine.scene.world.add_component(
+            plane_ent,
+            Renderable::Plane(Plane::new())
+        );
+
+        engine.scene.world.add_component(
+            plane_ent,
+            Transform::with_position([0.0, 0.0, 0.0].into())
+        );
+
+        engine.scene.world.add_component(plane_ent, RotateRandom);
+
+        let mat = Resource::new(Material::default());
+
+        let texture_id = AssetServer::global_write()
+            .find_asset_by_name("logo").unwrap();
+
+        println!("Texture ID: {:?}", texture_id);
+
+        let texture = AssetServer::global_read().load::<Texture<{TextureType::RGBA8UnormSrgb}>>(texture_id).unwrap();
+        mat.borrow_mut().set_albedo(None, Some(texture)).unwrap();
+
+        engine.scene.world.add_component(plane_ent, mat);
 
         // TODO: Improve ECS api by adding <Entity>.add_component<T: Components>(c: T) method
-
-        let transform = Transform::with_position([0.0, 0.0, 10.0].into());
-
-        
 
         let cam_ent = engine.scene.world.create_entity();
 
@@ -61,7 +81,7 @@ impl App for Game {
 
         self.main_camera = Some(cam_ent);
 
-        self.plane_entity = Some(model_ent);
+        self.plane_entity = Some(plane_ent);
 
         // Add debug gui
         let debug_gui = _plugins.try_take_plugin::<DebugGUIPlugin>();

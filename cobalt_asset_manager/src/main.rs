@@ -8,7 +8,27 @@ use clap::Parser;
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    #[clap(name = "pack", long_about = "Add a new asset")]
+    #[clap(name = "add", long_about = "Add a new asset")]
+    Add {
+        handle: String,
+        input_file: String,
+
+        #[clap(
+            short,
+            long,
+            long_help = "Path to the output directory. If empty, the working directory is used."
+        )]
+        relative_out_dir: Option<String>,
+
+        #[clap(
+            short,
+            long,
+            long_help = "Path to the output directory relative to the assets directory. If empty, the root of the assets directory is used."
+        )]
+        assets_dir: Option<String>,
+    },
+
+    #[clap(name = "pack", long_about = "Add a new asset as a packed asset")]
     Pack {
         handle: String,
         input_file: String,
@@ -18,9 +38,9 @@ enum Command {
         #[clap(
             short,
             long,
-            long_help = "Path to the output directory. If empty, the working directory is used."
+            long_help = "Path to the output directory relative to the assets directory. If empty, the root of the assets directory is used."
         )]
-        output_dir: Option<String>,
+        relative_out_dir: Option<String>,
 
         #[clap(
             short,
@@ -79,11 +99,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Command::Pack {
             handle,
-            output_dir,
+            relative_out_dir,
             input_file,
             compression,
             assets_dir,
-        } => pack(assets_dir, handle, output_dir, input_file, compression)?,
+        } => pack(
+            assets_dir,
+            handle,
+            relative_out_dir,
+            input_file,
+            compression,
+        )?,
+
+        Command::Add {
+            handle,
+            input_file,
+            relative_out_dir,
+            assets_dir,
+        } => {
+            todo!()
+        }
 
         Command::Remove { handle, assets_dir } => {
             remove(handle, assets_dir)?;
@@ -136,7 +171,7 @@ fn relative_canonicalize(path: &str) -> PathBuf {
     .unwrap()
 }
 
-fn relative(path: &str) -> PathBuf {
+fn relative(path: &Path) -> PathBuf {
     let path = Path::new(path);
 
     if path.is_absolute() {
@@ -149,15 +184,17 @@ fn relative(path: &str) -> PathBuf {
 fn pack(
     assets_dir: Option<String>,
     handle: String,
-    output_dir: Option<String>,
+    relative_out_dir: Option<String>,
     input_file: String,
     compression: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let assets_dir = relative_canonicalize(&assets_dir.as_ref().unwrap_or(&"./".to_string()));
 
     let input_file = relative_canonicalize(&input_file);
-    let output_file = relative(&output_dir.as_ref().unwrap_or(&assets_dir.to_string_lossy().to_string()))
-        .join(format!("{}.asset", handle));
+
+    let abs_out_dir = assets_dir.join(relative_out_dir.as_ref().unwrap_or(&"./".to_string()));
+
+    let output_file = &abs_out_dir.join(format!("{}.asset", handle));
 
     println!("Input file: {}", input_file.display());
     println!("Output file: {}", output_file.display());
@@ -200,9 +237,15 @@ fn pack(
         ) -> Result<(), Box<dyn std::error::Error>> {
             match self {
                 AssetType::Image => {
-                    pack_texture(abs_input_path, assets_dir, abs_out_path, handle, compression)?;
+                    pack_texture(
+                        abs_input_path,
+                        assets_dir,
+                        abs_out_path,
+                        handle,
+                        compression,
+                    )?;
                 }
-           
+
                 AssetType::GLTF => {
                     let gltf_file = std::fs::File::open(abs_input_path)?;
 
@@ -309,19 +352,13 @@ fn pack_texture(
             match self {
                 TextureType::RGBA32Float => {
                     let asset_data = Texture::<
-                        {
-                            cobalt_core::graphics::texture::TextureType::RGBA32Float
-                        },
-                    >::read_unpacked_to_packed_buffer(
+                        { cobalt_core::graphics::texture::TextureType::RGBA32Float },
+                    >::read_source_file_to_buffer(
                         abs_input_path
                     )?;
 
-                    cobalt_core::assets::manifest::pack_asset::<
-                        Texture<
-                            {
-                                cobalt_core::graphics::texture::TextureType::RGBA32Float
-                            },
-                        >,
+                    cobalt_core::assets::manifest::add_pack_asset::<
+                        Texture<{ cobalt_core::graphics::texture::TextureType::RGBA32Float }>,
                     >(
                         asset_data, assets_dir, abs_out_path, handle, compression
                     )?;
@@ -332,16 +369,28 @@ fn pack_texture(
                 TextureType::RGBA8Unorm => {
                     let asset_data = Texture::<
                         { cobalt_core::graphics::texture::TextureType::RGBA8Unorm },
-                    >::read_unpacked_to_packed_buffer(
+                    >::read_source_file_to_buffer(
                         abs_input_path
                     )?;
 
-                    cobalt_core::assets::manifest::pack_asset::<
-                        Texture<
-                            {
-                                cobalt_core::graphics::texture::TextureType::RGBA8Unorm
-                            },
-                        >,
+                    cobalt_core::assets::manifest::add_pack_asset::<
+                        Texture<{ cobalt_core::graphics::texture::TextureType::RGBA8Unorm }>,
+                    >(
+                        asset_data, assets_dir, abs_out_path, handle, compression
+                    )?;
+
+                    Ok(())
+                }
+
+                TextureType::RGBA8UnormSrgb => {
+                    let asset_data = Texture::<
+                        { cobalt_core::graphics::texture::TextureType::RGBA8UnormSrgb },
+                    >::read_source_file_to_buffer(
+                        abs_input_path
+                    )?;
+
+                    cobalt_core::assets::manifest::add_pack_asset::<
+                        Texture<{ cobalt_core::graphics::texture::TextureType::RGBA8UnormSrgb }>,
                     >(
                         asset_data, assets_dir, abs_out_path, handle, compression
                     )?;
@@ -358,12 +407,17 @@ fn pack_texture(
     }
 
     let texture_type_str =
-        inquire::Select::new("Select texture type", TextureType::str_variants())
-            .prompt()?;
+        inquire::Select::new("Select texture type", TextureType::str_variants()).prompt()?;
 
     let texture_type = TextureType::from_str(&texture_type_str);
 
-    texture_type.pack_asset(abs_input_path, assets_dir, abs_out_path, handle, compression)?;
+    texture_type.pack_asset(
+        abs_input_path,
+        assets_dir,
+        abs_out_path,
+        handle,
+        compression,
+    )?;
 
     Ok(())
 }
@@ -396,7 +450,6 @@ fn remove(handle: String, assets_dir: Option<String>) -> Result<(), Box<dyn std:
         }
     }
 
-
     println!("Removing handle in manifest: {}", handle);
 
     manifest.assets.retain(|a| a.name != handle);
@@ -412,7 +465,11 @@ fn remove(handle: String, assets_dir: Option<String>) -> Result<(), Box<dyn std:
 
 use cli_table::{format::Justify, print_stdout, Table, WithTitle};
 use cobalt_core::{
-    assets::asset::{self, AssetTrait}, exports::assets::Texture, gltf, graphics::texture::TextureType, utils::bytes
+    assets::asset::{self, AssetTrait},
+    exports::assets::Texture,
+    gltf,
+    graphics::texture::TextureType,
+    utils::bytes,
 };
 
 #[derive(Table)]

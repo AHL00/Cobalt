@@ -59,6 +59,10 @@ impl<'a, T: ResourceTrait> Resource<T> {
 
         &mut *ptr
     }
+
+    pub fn replace(&self, data: T) {
+        *self.data.write() = data;
+    }
 }
 
 #[cfg(test)]

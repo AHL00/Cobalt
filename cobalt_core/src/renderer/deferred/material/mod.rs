@@ -366,7 +366,7 @@ impl Material {
     pub fn set_albedo(
         &mut self,
         color: Option<[f32; 4]>,
-        texture: Option<Asset<Texture <{ TextureType::RGBA8UnormSrgb }>>>,
+        texture: Option<Asset<Texture <{ Self::ALBEDO_TEXTURE_TYPE }>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if color.is_none() && texture.is_none() {
             return Err("Both color and texture cannot be None.".into());
@@ -380,7 +380,7 @@ impl Material {
     }
 
     /// Normal map, adds bumrps and details to the surface.
-    pub fn set_normal(&mut self, normal: Option<Asset<Texture <{ TextureType::RGBA16Float }>>>) {
+    pub fn set_normal(&mut self, normal: Option<Asset<Texture <{ Self::NORMAL_TEXTURE_TYPE }>>>) {
         self.normal = normal;
         
         self.generate_bind_group();
@@ -389,7 +389,7 @@ impl Material {
     /// Metallic map or value.
     pub fn set_metallic(
         &mut self,
-        metallic: Either<f32, Asset<Texture <{ TextureType::R8Unorm }>>>,
+        metallic: Either<f32, Asset<Texture <{ Self::METALLIC_TEXTURE_TYPE }>>>,
     ) {
         self.metallic = metallic;
         
@@ -399,7 +399,7 @@ impl Material {
     /// Roughness map or value.
     pub fn set_roughness(
         &mut self,
-        roughness: Either<f32, Asset<Texture <{ TextureType::R8Unorm }>>>,
+        roughness: Either<f32, Asset<Texture <{ Self::ROUGHNESS_TEXTURE_TYPE }>>>,
     ) {
         self.roughness = roughness;
         
@@ -418,20 +418,20 @@ impl Material {
         &self,
     ) -> &(
         Option<[f32; 4]>,
-        Option<Asset<Texture<{ TextureType::RGBA8UnormSrgb }>>>,
+        Option<Asset<Texture<{ Self::ALBEDO_TEXTURE_TYPE }>>>,
     ) {
         &self.albedo
     }
 
-    pub fn normal(&self) -> &Option<Asset<Texture<{ TextureType::RGBA16Float }>>> {
+    pub fn normal(&self) -> &Option<Asset<Texture<{ Self::NORMAL_TEXTURE_TYPE }>>> {
         &self.normal
     }
 
-    pub fn metallic(&self) -> &Either<f32, Asset<Texture<{ TextureType::R8Unorm }>>> {
+    pub fn metallic(&self) -> &Either<f32, Asset<Texture<{ Self::METALLIC_TEXTURE_TYPE }>>> {
         &self.metallic
     }
 
-    pub fn roughness(&self) -> &Either<f32, Asset<Texture<{ TextureType::R8Unorm }>>> {
+    pub fn roughness(&self) -> &Either<f32, Asset<Texture<{ Self::ROUGHNESS_TEXTURE_TYPE }>>> {
         &self.roughness
     }
 }
@@ -707,15 +707,19 @@ impl Default for Material {
 impl ResourceTrait for Material {}
 
 impl AssetTrait for Material {
-    fn read_packed_buffer(data: &bytes::Bytes) -> Result<Self, crate::exports::assets::AssetLoadError> {
+    fn type_name() -> String {
+        "Material".to_owned()
+    }
+
+    fn read_packed_buffer(data: &mut dyn std::io::Read) -> Result<Self, crate::assets::server::AssetLoadError> {
         todo!()
     }
 
-    fn read_unpacked_to_packed_buffer(abs_path: &std::path::Path) -> Result<Bytes, crate::exports::assets::AssetLoadError> {
+    fn read_source_file_to_buffer(abs_path: &std::path::Path) -> Result<Bytes, crate::assets::server::AssetLoadError> {
         todo!()
     }
     
-    fn read_unpacked(abs_path: &std::path::Path) -> Result<Self, crate::exports::assets::AssetLoadError> {
+    fn read_source_file(abs_path: &std::path::Path) -> Result<Self, crate::assets::server::AssetLoadError> {
         todo!()
     }
 }

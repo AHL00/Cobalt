@@ -55,7 +55,7 @@ impl AssetsPanel {
                         for asset in manifest.assets.iter() {
                             body.row(1.0, |mut row| {
                                 row.col(|ui| {
-                                    ui.label(format!("{:?}", asset.asset_id));
+                                    ui.label(format!("{:?}", asset.asset_id.uuid()));
                                 });
 
                                 row.col(|ui| {

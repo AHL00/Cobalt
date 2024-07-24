@@ -33,15 +33,19 @@ pub(crate) struct MeshBuffer {
 }
 
 impl AssetTrait for MeshAsset {
-    fn read_packed_buffer(data: &bytes::Bytes) -> Result<Self, AssetLoadError> {
+    fn type_name() -> String {
+        "Mesh".to_owned()
+    }
+
+    fn read_packed_buffer(data: &mut dyn std::io::Read) -> Result<Self, AssetLoadError> {
         todo!()
     }
 
-    fn read_unpacked_to_packed_buffer(abs_path: &Path) -> Result<Bytes, AssetLoadError> {
+    fn read_source_file_to_buffer(abs_path: &Path) -> Result<Bytes, AssetLoadError> {
         todo!()
     }
     
-    fn read_unpacked(abs_path: &Path) -> Result<Self, AssetLoadError> {
+    fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError> {
         todo!()
     }
 }

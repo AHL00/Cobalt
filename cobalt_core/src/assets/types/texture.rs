@@ -1,8 +1,16 @@
+use std::io::Read;
+
 use image::GenericImageView;
 use serde::ser::SerializeSeq;
+use std::any::Any;
 
-use crate::{exports::{assets::{AssetLoadError, AssetTrait, Texture}, graphics::TextureType}, graphics::{context::Graphics, HasBindGroupLayout}};
-
+use crate::{
+    exports::{
+        assets::{AssetLoadError, AssetTrait, Texture},
+        graphics::TextureType,
+    },
+    graphics::{context::Graphics, HasBindGroupLayout},
+};
 
 /// Texture asset buffer, used when serialising into a packed asset.
 struct TextureAssetBuffer {
@@ -87,18 +95,34 @@ impl<'de> serde::Deserialize<'de> for TextureAssetBuffer {
     }
 }
 
-
 impl<const T: TextureType> AssetTrait for Texture<T> {
-    fn read_packed_buffer(data: &bytes::Bytes) -> Result<Self, crate::exports::assets::AssetLoadError> {
-        let TextureAssetBuffer { texture: image, size, ty } =
-            bincode::deserialize(data.as_ref()).map_err(|e| {
-                log::error!("{}", e);
-                AssetLoadError::LoadError(
-                    "Failed to deserialise image data from buffer"
-                        .to_string()
-                        .into(),
-                )
+    fn type_name() -> String {
+        format!("Texture<{}>", T.to_string())
+    }
+
+    fn read_packed_buffer(
+        data: &mut dyn Read,
+    ) -> Result<Self, crate::exports::assets::AssetLoadError> {
+        let data_slice: Vec<u8> = {
+            let mut data_buffer = Vec::new();
+            data.read_to_end(&mut data_buffer).map_err(|e| {
+                AssetLoadError::LoadError(format!("Failed to read data: {}", e).to_string().into())
             })?;
+            data_buffer
+        };
+
+        let TextureAssetBuffer {
+            texture: image,
+            size,
+            ty,
+        } = bincode::deserialize(&data_slice).map_err(|e| {
+            log::error!("{}", e);
+            AssetLoadError::LoadError(
+                "Failed to deserialise texture asset data from buffer"
+                    .to_string()
+                    .into(),
+            )
+        })?;
 
         let graphics = Graphics::global_read();
 
@@ -168,7 +192,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
         })
     }
 
-    fn read_unpacked_to_packed_buffer(
+    fn read_source_file_to_buffer(
         abs_path: &std::path::Path,
     ) -> Result<bytes::Bytes, crate::exports::assets::AssetLoadError> {
         let file_extension = abs_path.extension().ok_or(AssetLoadError::LoadError(
@@ -231,7 +255,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
         Ok(bytes::Bytes::from(ser_data))
     }
 
-    fn read_unpacked(abs_path: &std::path::Path) -> Result<Self, AssetLoadError> {
+    fn read_source_file(abs_path: &std::path::Path) -> Result<Self, AssetLoadError> {
         let file_extension = abs_path.extension().ok_or(AssetLoadError::LoadError(
             "File extension not found".to_string().into(),
         ))?;
@@ -334,7 +358,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
                 ],
             });
 
-        Ok(Texture {
+        Ok(Self {
             bind_group,
             texture,
             view,

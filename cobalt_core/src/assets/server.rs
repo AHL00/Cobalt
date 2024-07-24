@@ -61,6 +61,12 @@ pub enum AssetLoadError {
     Io(#[from] std::io::Error),
     #[error("Asset is already loaded")]
     AssetAlreadyLoaded,
+    #[error("Type mismatch, tried to load as {load_type} but asset is a {asset_type}")]
+    TypeMismatch {
+        load_type: String,
+        asset_type: String,
+    },
+    // TODO: Replace with proper errors only
     #[error("Failed to load asset")]
     LoadError(Box<dyn Error>),
 }
@@ -172,9 +178,9 @@ impl AssetServer {
 
     /// Load an asset from disk.
     /// The asset must be present in the manifest file.
-    pub fn load<T: AssetTrait>(&mut self, asset_id: AssetID) -> Result<Asset<T>, AssetLoadError> {
+    pub fn load<T: AssetTrait>(&self, asset_id: AssetID) -> Result<Asset<T>, AssetLoadError> {
         // Check if the asset is already loaded
-        if let Some(_) = self.loaded_assets.get_mut(&asset_id) {
+        if let Some(_) = self.loaded_assets.get(&asset_id) {
             return Err(AssetLoadError::AssetAlreadyLoaded);
         }
 
@@ -186,15 +192,52 @@ impl AssetServer {
             .find(|asset_info| asset_info.asset_id == asset_id)
             .ok_or(AssetLoadError::AssetNotFound)?;
 
-        let relative_path = self.assets_dir.join(&asset_info.relative_path);
-
-        // Check if the asset is packed or not
-        match &asset_info.packed {
-            Some(_) => {}
-            None => {}
+        // Type check
+        if asset_info.type_name != T::type_name() {
+            return Err(AssetLoadError::TypeMismatch {
+                load_type: T::type_name().to_string(),
+                asset_type: asset_info.type_name.clone(),
+            });
         }
 
-        todo!()
+        let asset_path = self.assets_dir.join(&asset_info.relative_path);
+
+        
+        // Check if the asset is packed or not
+        match &asset_info.packed {
+            Some(_) => {
+                let file = std::fs::File::open(&asset_path)?;
+        
+                let mut buf_reader = std::io::BufReader::new(file);
+
+                let asset = T::read_packed_buffer(&mut buf_reader)?;
+
+                let asset_arc = Arc::new(RwLock::new(asset));
+
+                // For adding to the loaded assets map
+                let asset_any = unsafe {
+                    Arc::from_raw(
+                        Arc::into_raw(asset_arc) as *const (dyn Any + Send + Sync + 'static)
+                    )
+                };
+
+                Ok(Asset::new(Some(asset_id), asset_any))
+            }
+            None => {
+                let asset = T::read_source_file(&asset_path)?;
+
+                let asset_arc = Arc::new(RwLock::new(asset));
+
+                // For adding to the loaded assets map
+                let asset_any = unsafe {
+                    Arc::from_raw(
+                        Arc::into_raw(asset_arc) as *const (dyn Any + Send + Sync + 'static)
+                    )
+                };
+
+                Ok(Asset::new(Some(asset_id), asset_any))
+            }
+        }
     }
 
     /// Get the asset ID from the asset's name.

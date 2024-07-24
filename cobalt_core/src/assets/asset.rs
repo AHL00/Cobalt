@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::{
     any::Any,
     fmt::{Debug, Formatter},
-    io::BufReader,
+    io::{BufRead, BufReader, Read},
     path::Path,
     sync::Arc,
 };
@@ -32,15 +32,23 @@ use super::server::{AssetLoadError, AssetServer};
 
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
+/// NOTE: When loading, asset server will already type check the asset.
 pub trait AssetTrait: Sized + Send + Sync + 'static {
-    /// Read the asset from a file to a buffer. This is typically from packed asset files.
-    fn read_packed_buffer(data: &bytes::Bytes) -> Result<Self, AssetLoadError>;
+    /// The name of the asset type.
+    /// NOTE: MAKE SURE THIS IS UNIQUE
+    fn type_name() -> String;
 
-    /// Read the asset straight from a file. This is for using unpacked asset files directly.
-    fn read_unpacked(abs_path: &Path) -> Result<Self, AssetLoadError>;
+    /// Read the asset from a file to a buffer. This is typically from packed asset files.
+    fn read_packed_buffer(data: &mut dyn Read) -> Result<Self, AssetLoadError>;
+
+    /// Read the asset from a file. 
+    fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError>;
+
+    // /// Read the asset straight from a file. This is for using unpacked asset source files directly.
+    // fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError>;
 
     /// Read the asset from a normal file such as png, gltf, etc and return a packed buffer.
-    fn read_unpacked_to_packed_buffer(abs_path: &Path) -> Result<Bytes, AssetLoadError>;
+    fn read_source_file_to_buffer(abs_path: &Path) -> Result<Bytes, AssetLoadError>;
 }
 
 /// Handle to an asset.

@@ -1,10 +1,18 @@
 // Asset packing system
 // Main manifest file is `manifest.toml`
 
-use super::{asset::AssetID, exports::AssetTrait};
+use bytes::Bytes;
+
+use crate::graphics::texture::TextureType;
+
+use super::{
+    asset::AssetID,
+    exports::{AssetTrait, Texture},
+    server::AssetLoadError,
+};
 use std::{io::Read, path::PathBuf};
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct PackInfo {
     /// If this is `None`, the asset will not be compressed
     /// If this is `Some`, the asset will be compressed
@@ -55,68 +63,6 @@ pub enum ManifestReadError {
     Toml(#[from] toml::de::Error),
 }
 
-
-#[derive(thiserror::Error, Debug)]
-pub enum AssetAddError {
-    #[error("Failed to read manifest file")]
-    ManifestRead(#[from] ManifestReadError),
-    #[error("Failed to serialise updated manifest")]
-    ManifestSerialize(#[from] toml::ser::Error),
-    #[error("Failed to write manifest file")]
-    ManifestWrite(std::io::Error),
-    #[error("Failed to copy asset into assets directory")]
-    CopyFile(std::io::Error),
-    #[error("Source path is invalid")]
-    InvalidSourcePath(std::io::Error),
-}
-
-pub fn add_asset<T: AssetTrait>(
-    source_path: &std::path::Path,
-    assets_dir: &std::path::Path,
-
-    abs_out_path: &std::path::Path,
-    name: String,
-) -> Result<(), AssetAddError> {
-    let mut manifest = Manifest::load(assets_dir)?;
-
-    let asset_info = AssetInfo {
-        asset_id: AssetID::generate(),
-        relative_path: abs_out_path.into(),
-        packed: None,
-        name,
-        timestamp: std::time::SystemTime::now(),
-        type_name: std::any::type_name::<T>().to_string(),
-    };
-
-    manifest.assets.push(asset_info);
-
-    let new_manifest = toml::to_string(&manifest)?;
-
-    // Create dir if it doesn't exist
-    if let Some(parent) = abs_out_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| AssetAddError::CopyFile(e))?;
-    }
-
-    // Copy the file
-    let source_path = std::fs::canonicalize(source_path).map_err(|e| AssetAddError::InvalidSourcePath(e))?;
-
-    let destination_path = assets_dir.join(abs_out_path);
-
-    std::fs::copy(&source_path, &destination_path).map_err(|e| AssetAddError::CopyFile(e))?;
-
-    std::fs::write(assets_dir.join("manifest.toml"), new_manifest)
-        .map_err(AssetAddError::ManifestWrite)
-        .map_err(|e| {
-            // If writing the manifest fails, remove it
-            std::fs::remove_file(abs_out_path)
-                .expect("Failed to remove copied file after failed manifest write");
-            e
-        })?;
-
-        Ok(())
-}
-
-
 #[derive(thiserror::Error, Debug)]
 pub enum AssetPackError {
     #[error("Failed to read manifest file")]
@@ -127,65 +73,167 @@ pub enum AssetPackError {
     ManifestWrite(std::io::Error),
     #[error("Failed to compress asset")]
     Compression(std::io::Error),
-    #[error("Failed to write packed asset")]
-    WritePacked(std::io::Error),
+
+    #[error("Failed to process source file")]
+    SourceFileProcessError(AssetLoadError),
+
+    #[error("Failed to serialise asset data")]
+    SerialiseAssetData(#[from] bincode::Error),
+
+    #[error("Failed to copy file")]
+    CopyFile(std::io::Error),
+    #[error("Failed to write file")]
+    WriteFile(std::io::Error),
+    #[error("Failed to read file")]
+    ReadFile(std::io::Error),
 }
 
+#[test]
+fn test_add_asset() {
+    let assets_dir = std::path::Path::new("/home/khant/Code/Cobalt/examples/test_scene/assets");
+    let source_path =
+        std::path::Path::new("/home/khant/Code/Cobalt/examples/test_scene/raw_assets/logo.png");
+    let abs_out_path =
+        std::path::Path::new("/home/khant/Code/Cobalt/examples/test_scene/assets/logo.asset");
+    let name = "logo".to_string();
 
-pub fn pack_asset<T: AssetTrait>(
-    mut asset_data: bytes::Bytes,
+    add_or_pack_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(
+        assets_dir,
+        source_path,
+        abs_out_path,
+        name,
+        Some(PackInfo { compression: None }),
+    )
+    .unwrap();
+}
+
+pub fn add_or_pack_asset<T: AssetTrait>(
     assets_dir: &std::path::Path,
-
-    abs_out_path: &std::path::Path,
+    abs_input: &std::path::Path,
+    relative_output: &std::path::Path,
     name: String,
-    compression: Option<u32>,
+    packed: Option<PackInfo>,
 ) -> Result<(), AssetPackError> {
     let mut manifest = Manifest::load(assets_dir)?;
 
     let asset_info = AssetInfo {
         asset_id: AssetID::generate(),
-        relative_path: abs_out_path.into(),
-        packed: Some(PackInfo {
-            compression,
-        }),
+        relative_path: relative_output.into(),
+        packed: packed.clone(),
         name,
         timestamp: std::time::SystemTime::now(),
-        type_name: std::any::type_name::<T>().to_string(),
+        type_name: T::type_name(),
     };
 
     manifest.assets.push(asset_info);
 
     let new_manifest = toml::to_string(&manifest)?;
 
-    if let Some(level) = compression {
-        let mut encoder =
-            flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::new(level));
-        std::io::copy(&mut asset_data.as_ref(), &mut encoder)
-            .map_err(AssetPackError::Compression)?;
-        let compressed_data = encoder.finish().map_err(AssetPackError::Compression)?;
-
-        asset_data = bytes::Bytes::from(compressed_data);
-    }
+    let abs_output = assets_dir.join(relative_output);
 
     // Create dir if it doesn't exist
-    if let Some(parent) = abs_out_path.parent() {
-        std::fs::create_dir_all(parent).map_err(AssetPackError::WritePacked)?;
+    if let Some(parent) = abs_output.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| AssetPackError::WriteFile(e))?;
     }
 
-    // Create the packed file and write the asset data to it
-    std::fs::write(abs_out_path, asset_data).map_err(AssetPackError::WritePacked)?;
+    if let Some(packed) = &packed {
+        let buffer_data = if let Some(level) = packed.compression {
+            let source_data = T::read_source_file_to_buffer(abs_input)
+                .map_err(|e| AssetPackError::SourceFileProcessError(e))?;
+
+            let mut encoder =
+                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::new(level));
+            std::io::copy(&mut source_data.as_ref(), &mut encoder)
+                .map_err(AssetPackError::Compression)?;
+            let compressed = encoder.finish().map_err(AssetPackError::Compression)?;
+
+            Bytes::from(compressed)
+        } else {
+            T::read_source_file_to_buffer(abs_input)
+                .map_err(|e| AssetPackError::SourceFileProcessError(e))?
+        };
+
+        let buffer_data = bincode::serialize(&buffer_data)?;
+
+        std::fs::write(&abs_output, buffer_data).map_err(AssetPackError::WriteFile)?;
+    } else {
+        // Copy source file
+        std::fs::copy(abs_input, &abs_output).map_err(|e| AssetPackError::CopyFile(e))?;
+    };
 
     std::fs::write(assets_dir.join("manifest.toml"), new_manifest)
         .map_err(AssetPackError::ManifestWrite)
         .map_err(|e| {
             // If writing the packed file fails, remove the file
-            std::fs::remove_file(abs_out_path)
-                .expect("Failed to remove packed file after failed manifest write");
+            std::fs::remove_file(abs_output)
+                .expect("Failed to remove asset file after failed manifest write");
             e
         })?;
 
     Ok(())
 }
+
+// pub fn add_pack_asset<T: AssetTrait>(
+//     abs_input_file: &std::path::Path,
+
+//     assets_dir: &std::path::Path,
+
+//     abs_out_path: &std::path::Path,
+//     name: String,
+//     packed: Option<PackInfo>,
+// ) -> Result<(), AssetPackError> {
+//     let mut manifest = Manifest::load(assets_dir)?;
+
+//     let relative_out_path = abs_out_path.strip_prefix(assets_dir).unwrap();
+
+//     let asset_info = AssetInfo {
+//         asset_id: AssetID::generate(),
+//         relative_path: relative_out_path.into(),
+//         packed: packed.clone(),
+//         name,
+//         timestamp: std::time::SystemTime::now(),
+//         type_name: T::type_name().to_string(),
+//     };
+
+//     manifest.assets.push(asset_info);
+
+//     let new_manifest = toml::to_string(&manifest)?;
+
+//     if let Some(packed) = &packed {
+//         if let Some(level) = packed.compression {
+//             let mut encoder =
+//                 flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::new(level));
+//             std::io::copy(&mut asset_data.as_ref(), &mut encoder)
+//                 .map_err(AssetPackError::Compression)?;
+//             let compressed_data = encoder.finish().map_err(AssetPackError::Compression)?;
+
+//             asset_data = bytes::Bytes::from(compressed_data);
+//         } else {
+//             // No compression
+//         }
+//     } else {
+//         // Copy source file
+//     }
+
+//     // Create dir if it doesn't exist
+//     if let Some(parent) = abs_out_path.parent() {
+//         std::fs::create_dir_all(parent).map_err(AssetPackError::WritePacked)?;
+//     }
+
+//     // Create the packed file and write the asset data to it
+//     std::fs::write(abs_out_path, asset_data).map_err(AssetPackError::WritePacked)?;
+
+//     std::fs::write(assets_dir.join("manifest.toml"), new_manifest)
+//         .map_err(AssetPackError::ManifestWrite)
+//         .map_err(|e| {
+//             // If writing the packed file fails, remove the file
+//             std::fs::remove_file(abs_out_path)
+//                 .expect("Failed to remove packed file after failed manifest write");
+//             e
+//         })?;
+
+//     Ok(())
+// }
 
 // pub fn read_asset(
 //     assets_dir: &std::path::Path,

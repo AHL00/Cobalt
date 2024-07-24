@@ -8,13 +8,13 @@ default = ["deferred_renderer"]
 debug_stats = ["cobalt_core/debug_stats"]
 debug_gui = ["egui", "egui-winit", "egui-wgpu", "egui_extras", "humantime"]
 deferred_renderer = ["cobalt_core/deferred_renderer"]
-
+ 
 [dependencies]
 cobalt_core = { path = "cobalt_core" }
 cobalt_runtime = { path = "cobalt_runtime" }
 
 # Dev GUI
-egui = {git = "https://github.com/emilk/egui.git", optional = true}
+egui = {git = "https://github.com/emilk/egui.git", optional = true}     
 egui-winit = {git = "https://github.com/emilk/egui.git", optional = true}
 egui_extras = {git = "https://github.com/emilk/egui.git", optional = true}
 egui-wgpu = {git = "https://github.com/emilk/egui.git", optional = true}

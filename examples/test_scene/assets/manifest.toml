@@ -1,11 +1,21 @@
 [[assets]]
-asset_id = "b3e7579c-6b5a-4f69-9dbc-25e016782b16"
-relative_path = "/home/khant/Desktop/Cobalt/examples/test_scene/assets/logo_large.asset"
+asset_id = "98f517d5-f9a7-42ad-afeb-2fe607e955c0"
+relative_path = "/home/khant/Code/Cobalt/examples/test_scene/assets/ll.png"
 name = "logo_large"
-type_name = "cobalt_core::graphics::texture::Texture<cobalt_core::graphics::texture::TextureType::RGBA8Unorm>"
+type_name = "Texture<RGBA8UnormSrgb>"
+
+[assets.timestamp]
+secs_since_epoch = 1721842217
+nanos_since_epoch = 256447490
+
+[[assets]]
+asset_id = "fda47b41-4e2d-4a5c-afc8-90f6abea5554"
+relative_path = "/home/khant/Code/Cobalt/examples/test_scene/assets/logo.asset"
+name = "logo"
+type_name = "Texture<RGBA8UnormSrgb>"
 
 [assets.packed]
 
 [assets.timestamp]
-secs_since_epoch = 1721660266
-nanos_since_epoch = 109448695
+secs_since_epoch = 1721842435
+nanos_since_epoch = 839276693

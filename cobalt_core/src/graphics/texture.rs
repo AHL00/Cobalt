@@ -40,6 +40,21 @@ impl TextureType {
         }
     }
 
+    pub fn to_string(&self) -> String {
+        match self {
+            TextureType::RGBA32Float => "RGBA32Float".to_string(),
+            TextureType::RGBA16Float => "RGBA16Float".to_string(),
+            TextureType::RGBA8Unorm => "RGBA8Unorm".to_string(),
+            TextureType::RGBA8UnormSrgb => "RGBA8UnormSrgb".to_string(),
+
+            TextureType::R32Float => "R32Float".to_string(),
+            TextureType::R16Float => "R16Float".to_string(),
+            TextureType::R8Unorm => "R8Unorm".to_string(),
+            TextureType::R8Uint => "R8Uint".to_string(),
+            TextureType::R8Snorm => "R8Snorm".to_string(),
+        }
+    }
+
     // Tries to get image data from a dynamic image.
     pub(crate) fn get_image_data(&self, image: image::DynamicImage) -> Result<Vec<u8>, String> {
         match self {
