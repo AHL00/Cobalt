@@ -8,7 +8,7 @@ use serde::Serialize;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::exports::{AssetLoadError, AssetTrait},
+    assets::{asset::AssetFileSystemType, exports::{AssetLoadError, AssetTrait}},
     graphics::{context::Graphics, vertex::UvNormalVertex},
     types::aabb::AABB,
 };
@@ -35,6 +35,10 @@ pub(crate) struct MeshBuffer {
 impl AssetTrait for MeshAsset {
     fn type_name() -> String {
         "Mesh".to_owned()
+    }
+
+    fn fs_type() -> AssetFileSystemType {
+        AssetFileSystemType::File
     }
 
     fn read_packed_buffer(data: &mut dyn std::io::Read) -> Result<Self, AssetLoadError> {

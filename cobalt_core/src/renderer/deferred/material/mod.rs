@@ -4,7 +4,7 @@ use bytes::Bytes;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::exports::{Asset, AssetTrait, Texture},
+    assets::{asset::AssetFileSystemType, exports::{Asset, AssetTrait, Texture}},
     exports::types::{either::Either, resource::ResourceTrait},
     graphics::{
         context::Graphics,
@@ -709,6 +709,10 @@ impl ResourceTrait for Material {}
 impl AssetTrait for Material {
     fn type_name() -> String {
         "Material".to_owned()
+    }
+
+    fn fs_type() -> AssetFileSystemType {
+        AssetFileSystemType::File
     }
 
     fn read_packed_buffer(data: &mut dyn std::io::Read) -> Result<Self, crate::assets::server::AssetLoadError> {

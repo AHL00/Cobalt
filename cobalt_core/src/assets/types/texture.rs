@@ -5,11 +5,10 @@ use serde::ser::SerializeSeq;
 use std::any::Any;
 
 use crate::{
-    exports::{
+    assets::asset::AssetFileSystemType, exports::{
         assets::{AssetLoadError, AssetTrait, Texture},
         graphics::TextureType,
-    },
-    graphics::{context::Graphics, HasBindGroupLayout},
+    }, graphics::{context::Graphics, HasBindGroupLayout}
 };
 
 /// Texture asset buffer, used when serialising into a packed asset.
@@ -145,6 +144,10 @@ impl TextureAssetBuffer {
 impl<const T: TextureType> AssetTrait for Texture<T> {
     fn type_name() -> String {
         format!("Texture<{}>", T.to_string())
+    }
+
+    fn fs_type() -> AssetFileSystemType {
+        AssetFileSystemType::File
     }
 
     fn read_packed_buffer(

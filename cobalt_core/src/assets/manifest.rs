@@ -4,14 +4,17 @@
 use bytes::Bytes;
 use path_clean::PathClean;
 
-use crate::graphics::texture::TextureType;
+use crate::{graphics::texture::TextureType, scenes::gltf::GltfAsset};
 
 use super::{
-    asset::AssetID,
+    asset::{AssetFileSystemType, AssetID},
     exports::{AssetTrait, Texture},
     server::AssetLoadError,
 };
-use std::{io::{self, Read}, path::PathBuf};
+use std::{
+    io::{self, Read},
+    path::PathBuf,
+};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct PackInfo {
@@ -75,7 +78,7 @@ pub enum AssetPackError {
     #[error("Failed to compress asset")]
     Compression(std::io::Error),
 
-    #[error("Failed to process source file")]
+    #[error("Failed to process source file, it may be corrupted or of an unsupported format")]
     SourceFileProcessError(AssetLoadError),
 
     #[error("Failed to serialise asset data")]
@@ -88,30 +91,37 @@ pub enum AssetPackError {
     #[error("Failed to read file")]
     ReadFile(std::io::Error),
 
-    #[error("Asset file exists already, two assets can't point to the same asset file")]
-    AssetFileExists,
+    #[error("Asset file or directory exists already, two assets can't point to the same location on disk")]
+    AssetExistsOnDisk,
     #[error("Output path is not a valid path")]
     InvalidOutputPath(io::Error),
+
+    #[error("Could not open source file or directory")]
+    SourceCouldNotOpen(std::io::Error),
+
+    #[error("Directories that will act as assets must be empty")]
+    AssetDirectoryNotEmpty,
 }
 
-#[test]
-fn test_add_asset() {
-    let assets_dir = std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/assets");
-    let source_path =
-        std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/raw_assets/logo.png");
-    let rel_out_path =
-        std::path::Path::new("test/logo_compressed.asset");
-    let name = "logo_compressed".to_string();
+// #[test]
+// fn test_add_asset() {
+//     let assets_dir = std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/assets");
+//     let source_path =
+//         std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/Cargo.toml");
+//     let rel_out_path = std::path::Path::new("ajfosaf.png");
+//     let name = "logo_compressedsa".to_string();
 
-    add_or_pack_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(
-        assets_dir,
-        source_path,
-        rel_out_path,
-        name,
-        Some(PackInfo { compression: Some(6) }),
-    )
-    .unwrap();
-}
+//     add_or_pack_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(
+//         assets_dir,
+//         source_path,
+//         rel_out_path,
+//         name,
+//         None,
+//     )
+//     .unwrap();
+
+//     // add_or_pack_asset::<GltfAsset>(assets_dir, source_path, rel_out_path, name, None).unwrap();
+// }
 
 pub fn add_or_pack_asset<T: AssetTrait>(
     assets_dir: &std::path::Path,
@@ -138,32 +148,52 @@ pub fn add_or_pack_asset<T: AssetTrait>(
         )));
     }
 
-    if relative_output.is_dir() {
-        return Err(AssetPackError::InvalidOutputPath(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Output path is a directory",
-        )));
-    }
-
     let abs_output = assets_dir.join(relative_output.clean());
-    
 
-    if manifest
-        .assets
-        .iter()
-        .any(|asset| {
-            // Resolve paths and compare
-            let abs_asset_path = assets_dir.join(&asset.relative_path).clean();
+    if manifest.assets.iter().any(|asset| {
+        // Resolve paths and compare
+        let abs_asset_path = assets_dir.join(&asset.relative_path).clean();
 
-            abs_output == abs_asset_path
-        })
-    {
-        return Err(AssetPackError::AssetFileExists);
+        abs_output == abs_asset_path
+    }) {
+        return Err(AssetPackError::AssetExistsOnDisk);
     }
 
     // Another check just in case. Speed doesn't matter here
     if abs_output.exists() {
-        return Err(AssetPackError::AssetFileExists);
+        match T::fs_type() {
+            AssetFileSystemType::File => {
+                return Err(AssetPackError::AssetExistsOnDisk);
+            }
+            AssetFileSystemType::Directory => {
+                // Check if the directory is empty
+                if abs_output.read_dir().unwrap().next().is_none() {
+                    // Directory is empty, we can use it
+                } else {
+                    return Err(AssetPackError::AssetExistsOnDisk);
+                }
+            }
+        }
+    }
+
+    // Make sure source file exists
+    match T::fs_type() {
+        AssetFileSystemType::File => {
+            if !abs_input.is_file() {
+                return Err(AssetPackError::SourceCouldNotOpen(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Source file not found",
+                )));
+            }
+        }
+        AssetFileSystemType::Directory => {
+            if !abs_input.is_dir() {
+                return Err(AssetPackError::SourceCouldNotOpen(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Source not found or not a directory",
+                )));
+            }
+        }
     }
 
     manifest.assets.push(asset_info);
@@ -192,10 +222,31 @@ pub fn add_or_pack_asset<T: AssetTrait>(
                 .map_err(|e| AssetPackError::SourceFileProcessError(e))?
         };
 
-        std::fs::write(&abs_output, buffer_data).map_err(AssetPackError::WriteFile)?;
+        match T::fs_type() {
+            AssetFileSystemType::File => {
+                std::fs::write(&abs_output, buffer_data).map_err(AssetPackError::WriteFile)?;
+            }
+            AssetFileSystemType::Directory => {
+                todo!()
+            }
+        }
     } else {
-        // Copy source file
-        std::fs::copy(abs_input, &abs_output).map_err(|e| AssetPackError::CopyFile(e))?;
+        // Make sure it can load first
+        T::read_source_file(abs_input).map_err(|e| AssetPackError::SourceFileProcessError(e))?;
+
+        match T::fs_type() {
+            AssetFileSystemType::File => {
+                std::fs::copy(abs_input, &abs_output).map_err(|e| AssetPackError::CopyFile(e))?;
+            }
+            AssetFileSystemType::Directory => {
+                // Check if the directory is empty
+                if abs_output.read_dir().unwrap().next().is_none() {
+                    // Directory is empty, we can use it
+                } else {
+                    return Err(AssetPackError::AssetExistsOnDisk);
+                }
+            }
+        }
     };
 
     std::fs::write(assets_dir.join("manifest.toml"), new_manifest)

@@ -30,6 +30,13 @@ use crate::exports::ecs::Component;
 
 use super::server::{AssetLoadError, AssetServer};
 
+/// Whether an asset is to be imported as a directory or a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssetFileSystemType {
+    Directory,
+    File,
+}
+
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
 /// NOTE: When loading, asset server will already type check the asset.
@@ -37,6 +44,9 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
     /// The name of the asset type.
     /// NOTE: MAKE SURE THIS IS UNIQUE
     fn type_name() -> String;
+
+    /// Whether the asset is to be stored as a directory or a file.
+    fn fs_type() -> AssetFileSystemType;
 
     /// Read the asset from a file to a buffer. This is typically from packed asset files.
     fn read_packed_buffer(data: &mut dyn Read) -> Result<Self, AssetLoadError>;
