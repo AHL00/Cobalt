@@ -2,6 +2,7 @@
 // Main manifest file is `manifest.toml`
 
 use bytes::Bytes;
+use path_clean::PathClean;
 
 use crate::graphics::texture::TextureType;
 
@@ -10,7 +11,7 @@ use super::{
     exports::{AssetTrait, Texture},
     server::AssetLoadError,
 };
-use std::{io::Read, path::PathBuf};
+use std::{io::{self, Read}, path::PathBuf};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct PackInfo {
@@ -86,21 +87,26 @@ pub enum AssetPackError {
     WriteFile(std::io::Error),
     #[error("Failed to read file")]
     ReadFile(std::io::Error),
+
+    #[error("Asset file exists already, two assets can't point to the same asset file")]
+    AssetFileExists,
+    #[error("Output path is not a valid path")]
+    InvalidOutputPath(io::Error),
 }
 
 #[test]
 fn test_add_asset() {
-    let assets_dir = std::path::Path::new("/home/khant/Code/Cobalt/examples/test_scene/assets");
+    let assets_dir = std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/assets");
     let source_path =
-        std::path::Path::new("/home/khant/Code/Cobalt/examples/test_scene/raw_assets/logo.png");
-    let abs_out_path =
-        std::path::Path::new("/home/khant/Code/Cobalt/examples/test_scene/assets/logo.asset");
+        std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/raw_assets/logo.png");
+    let rel_out_path =
+        std::path::Path::new("test/logo.asset");
     let name = "logo".to_string();
 
     add_or_pack_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(
         assets_dir,
         source_path,
-        abs_out_path,
+        rel_out_path,
         name,
         Some(PackInfo { compression: None }),
     )
@@ -125,11 +131,44 @@ pub fn add_or_pack_asset<T: AssetTrait>(
         type_name: T::type_name(),
     };
 
+    if !relative_output.is_relative() {
+        return Err(AssetPackError::InvalidOutputPath(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Output path is not relative",
+        )));
+    }
+
+    if relative_output.is_dir() {
+        return Err(AssetPackError::InvalidOutputPath(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Output path is a directory",
+        )));
+    }
+
+    let abs_output = assets_dir.join(relative_output.clean());
+    
+
+    if manifest
+        .assets
+        .iter()
+        .any(|asset| {
+            // Resolve paths and compare
+            let abs_asset_path = assets_dir.join(&asset.relative_path).clean();
+
+            abs_output == abs_asset_path
+        })
+    {
+        return Err(AssetPackError::AssetFileExists);
+    }
+
+    // Another check just in case. Speed doesn't matter here
+    if abs_output.exists() {
+        return Err(AssetPackError::AssetFileExists);
+    }
+
     manifest.assets.push(asset_info);
 
     let new_manifest = toml::to_string(&manifest)?;
-
-    let abs_output = assets_dir.join(relative_output);
 
     // Create dir if it doesn't exist
     if let Some(parent) = abs_output.parent() {
@@ -152,8 +191,6 @@ pub fn add_or_pack_asset<T: AssetTrait>(
             T::read_source_file_to_buffer(abs_input)
                 .map_err(|e| AssetPackError::SourceFileProcessError(e))?
         };
-
-        let buffer_data = bincode::serialize(&buffer_data)?;
 
         std::fs::write(&abs_output, buffer_data).map_err(AssetPackError::WriteFile)?;
     } else {

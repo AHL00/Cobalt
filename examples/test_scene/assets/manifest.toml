@@ -1,6 +1,6 @@
 [[assets]]
 asset_id = "98f517d5-f9a7-42ad-afeb-2fe607e955c0"
-relative_path = "/home/khant/Code/Cobalt/examples/test_scene/assets/ll.png"
+relative_path = "ll.png"
 name = "logo_large"
 type_name = "Texture<RGBA8UnormSrgb>"
 
@@ -9,13 +9,13 @@ secs_since_epoch = 1721842217
 nanos_since_epoch = 256447490
 
 [[assets]]
-asset_id = "fda47b41-4e2d-4a5c-afc8-90f6abea5554"
-relative_path = "/home/khant/Code/Cobalt/examples/test_scene/assets/logo.asset"
+asset_id = "5249c80e-d223-4bc5-9a11-8be7b7f7cabe"
+relative_path = "test/logo.asset"
 name = "logo"
 type_name = "Texture<RGBA8UnormSrgb>"
 
 [assets.packed]
 
 [assets.timestamp]
-secs_since_epoch = 1721842435
-nanos_since_epoch = 839276693
+secs_since_epoch = 1721935183
+nanos_since_epoch = 933068054

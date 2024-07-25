@@ -49,7 +49,7 @@ impl App for Game {
         let mat = Resource::new(Material::default());
 
         let texture_id = AssetServer::global_write()
-            .find_asset_by_name("logo_large").unwrap();
+            .find_asset_by_name("logo").unwrap();
 
         println!("Texture ID: {:?}", texture_id);
 

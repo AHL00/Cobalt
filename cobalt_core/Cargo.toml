@@ -17,7 +17,7 @@ deferred_renderer = []
 
 [dependencies]
 # Graphics
-wgpu = { version = "22.0.0" }
+wgpu = { version = "22.0.0", features = ["serde"] }
 # wgpu-types = { version = "*", features = ["serde"] }
 winit = "0.29.10"
 bytemuck = { version = "1.14.1", features = ["derive", "must_cast"] }
@@ -59,6 +59,7 @@ uuid = { version = "1.10.0", features = ["serde", "v4", "fast-rng"] }
 # ECS
 serde_closure = "0.3.3"
 rayon = "1.10.0"
+path-clean = "1.0.1"
 
 [dev-dependencies]
 simple_logger = "5.0.0"

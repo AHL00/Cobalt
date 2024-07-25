@@ -15,7 +15,7 @@ use crate::{
 /// Texture asset buffer, used when serialising into a packed asset.
 struct TextureAssetBuffer {
     ty: TextureType,
-    texture: image::DynamicImage,
+    image: image::DynamicImage,
     size: wgpu::Extent3d,
 }
 
@@ -24,13 +24,12 @@ impl serde::Serialize for TextureAssetBuffer {
     where
         S: serde::Serializer,
     {
-        let data = self.ty.get_image_data(self.texture.clone()).unwrap();
+        let data = self.ty.get_image_data(self.image.clone()).unwrap();
 
         // Serialise the size
-        let (width, height) = (self.size.width, self.size.height);
         let mut seq = serializer.serialize_seq(Some(2 + data.len()))?;
-        seq.serialize_element(&width)?;
-        seq.serialize_element(&height)?;
+        
+        seq.serialize_element(&self.size)?;
 
         // Serialise type
         seq.serialize_element(&self.ty)?;
@@ -62,36 +61,84 @@ impl<'de> serde::Deserialize<'de> for TextureAssetBuffer {
             where
                 A: serde::de::SeqAccess<'de>,
             {
-                let width = seq
-                    .next_element::<u32>()?
+                let size: wgpu::Extent3d = seq
+                    .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let height = seq
-                    .next_element::<u32>()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
                 let ty = seq
                     .next_element::<TextureType>()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+                    .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
 
                 let mut data: Vec<u8> =
-                    Vec::with_capacity((width * height) as usize * ty.bytes_per_pixel());
+                    Vec::with_capacity((size.width * size.height) as usize * ty.bytes_per_pixel());
 
                 while let Some(el) = seq.next_element().unwrap() {
                     data.push(el);
                 }
 
-                let size = wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                };
+                let texture = ty.buffer_to_dyn_image(
+                    data,
+                    size.width as u32,
+                    size.height as u32,
+                );
 
-                let texture = image::DynamicImage::new_rgba8(width, height);
-
-                Ok(TextureAssetBuffer { ty, texture, size })
+                Ok(TextureAssetBuffer { ty, image: texture, size })
             }
         }
 
         deserializer.deserialize_seq(TextureAssetBufferVisitor {})
+    }
+}
+
+impl TextureAssetBuffer {
+    fn read_from_source(abs_path: &std::path::Path, texture_type: TextureType) -> Result<Self, AssetLoadError> {
+        let file_extension = abs_path.extension().ok_or(AssetLoadError::LoadError(
+            "File extension not found".to_string().into(),
+        ))?;
+
+        let image_format = {
+            let ext = file_extension.to_str().ok_or(AssetLoadError::LoadError(
+                "Failed to convert file extension to string"
+                    .to_string()
+                    .into(),
+            ))?;
+
+            match ext {
+                "png" => image::ImageFormat::Png,
+                "jpg" | "jpeg" => image::ImageFormat::Jpeg,
+                "bmp" => image::ImageFormat::Bmp,
+                "gif" => image::ImageFormat::Gif,
+                "ico" => image::ImageFormat::Ico,
+                "tiff" => image::ImageFormat::Tiff,
+                "webp" => image::ImageFormat::WebP,
+                "hdr" => image::ImageFormat::Hdr,
+                _ => {
+                    return Err(AssetLoadError::LoadError(
+                        "Unsupported image format".to_string().into(),
+                    ))
+                }
+            }
+        };
+
+        let reader = std::io::BufReader::new(std::fs::File::open(abs_path).map_err(|e| {
+            AssetLoadError::LoadError(format!("Failed to open file: {}", e).to_string().into())
+        })?);
+
+        let image = image::load(reader, image_format)
+            .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?;
+
+        let (width, height) = image.dimensions();
+
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+
+        Ok(TextureAssetBuffer {
+            ty: texture_type,
+            image,
+            size,
+        })
     }
 }
 
@@ -112,9 +159,10 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
         };
 
         let TextureAssetBuffer {
-            texture: image,
+            image,
             size,
-            ty,
+            // Can ignore type as type check is already done in the asset server
+            ..
         } = bincode::deserialize(&data_slice).map_err(|e| {
             log::error!("{}", e);
             AssetLoadError::LoadError(
@@ -123,7 +171,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
                     .into(),
             )
         })?;
-
+        
         let graphics = Graphics::global_read();
 
         let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
@@ -195,54 +243,9 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
     fn read_source_file_to_buffer(
         abs_path: &std::path::Path,
     ) -> Result<bytes::Bytes, crate::exports::assets::AssetLoadError> {
-        let file_extension = abs_path.extension().ok_or(AssetLoadError::LoadError(
-            "File extension not found".to_string().into(),
-        ))?;
+        let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_path, T)?;
 
-        let image_format = {
-            let ext = file_extension.to_str().ok_or(AssetLoadError::LoadError(
-                "Failed to convert file extension to string"
-                    .to_string()
-                    .into(),
-            ))?;
-
-            match ext {
-                "png" => image::ImageFormat::Png,
-                "jpg" | "jpeg" => image::ImageFormat::Jpeg,
-                "bmp" => image::ImageFormat::Bmp,
-                "gif" => image::ImageFormat::Gif,
-                "ico" => image::ImageFormat::Ico,
-                "tiff" => image::ImageFormat::Tiff,
-                "webp" => image::ImageFormat::WebP,
-                "hdr" => image::ImageFormat::Hdr,
-                _ => {
-                    return Err(AssetLoadError::LoadError(
-                        "Unsupported image format".to_string().into(),
-                    ))
-                }
-            }
-        };
-
-        let reader = std::io::BufReader::new(std::fs::File::open(abs_path).map_err(|e| {
-            AssetLoadError::LoadError(format!("Failed to open file: {}", e).to_string().into())
-        })?);
-
-        let image = image::load(reader, image_format)
-            .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?;
-
-        let (width, height) = image.dimensions();
-
-        let size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
-
-        let ser_data = bincode::serialize(&TextureAssetBuffer {
-            ty: TextureType::RGBA8Unorm,
-            texture: image,
-            size,
-        })
+        let ser_data = bincode::serialize(&texture_asset_buffer)
         .map_err(|e| {
             log::error!("{}", e);
             AssetLoadError::LoadError(
@@ -256,54 +259,13 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
     }
 
     fn read_source_file(abs_path: &std::path::Path) -> Result<Self, AssetLoadError> {
-        let file_extension = abs_path.extension().ok_or(AssetLoadError::LoadError(
-            "File extension not found".to_string().into(),
-        ))?;
-
-        let image_format = {
-            let ext = file_extension.to_str().ok_or(AssetLoadError::LoadError(
-                "Failed to convert file extension to string"
-                    .to_string()
-                    .into(),
-            ))?;
-
-            match ext {
-                "png" => image::ImageFormat::Png,
-                "jpg" | "jpeg" => image::ImageFormat::Jpeg,
-                "bmp" => image::ImageFormat::Bmp,
-                "gif" => image::ImageFormat::Gif,
-                "ico" => image::ImageFormat::Ico,
-                "tiff" => image::ImageFormat::Tiff,
-                "webp" => image::ImageFormat::WebP,
-                "hdr" => image::ImageFormat::Hdr,
-                _ => {
-                    return Err(AssetLoadError::LoadError(
-                        "Unsupported image format".to_string().into(),
-                    ))
-                }
-            }
-        };
-
-        let reader = std::io::BufReader::new(std::fs::File::open(abs_path).map_err(|e| {
-            AssetLoadError::LoadError(format!("Failed to open file: {}", e).to_string().into())
-        })?);
-
-        let image = image::load(reader, image_format)
-            .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?;
-
-        let (width, height) = image.dimensions();
-
-        let size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
+        let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_path, T)?;
 
         let graphics = Graphics::global_read();
 
         let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
-            size,
+            size: texture_asset_buffer.size,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -319,14 +281,14 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &T.get_image_data(image)
+            &T.get_image_data(texture_asset_buffer.image)
                 .map_err(|e| AssetLoadError::LoadError(e.into()))?,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(T.bytes_per_pixel() as u32 * size.width),
-                rows_per_image: Some(size.height),
+                bytes_per_row: Some(T.bytes_per_pixel() as u32 * texture_asset_buffer.size.width),
+                rows_per_image: Some(texture_asset_buffer.size.height),
             },
-            size,
+            texture_asset_buffer.size,
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -363,7 +325,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
             texture,
             view,
             sampler,
-            size,
+            size: texture_asset_buffer.size,
         })
     }
 }

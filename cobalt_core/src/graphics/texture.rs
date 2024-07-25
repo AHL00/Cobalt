@@ -56,8 +56,8 @@ impl TextureType {
     }
 
     // Tries to get image data from a dynamic image.
-    pub(crate) fn get_image_data(&self, image: image::DynamicImage) -> Result<Vec<u8>, String> {
-        match self {
+    pub(crate) fn get_image_data(&self, image: image::DynamicImage) -> Result<bytes::Bytes, String> {
+        let vec_res: Result<Vec<u8>, String> = match self {
             TextureType::RGBA8Unorm => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA8UnormSrgb => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA32Float => Ok(bytemuck::cast_vec(image.into_rgba32f().into_vec())),
@@ -101,7 +101,9 @@ impl TextureType {
                     .map(|u| *u as i8)
                     .collect::<Vec<i8>>(),
             )),
-        }
+        };
+
+        Ok(bytes::Bytes::from(vec_res?))
     }
 
     pub(crate) fn buffer_to_dyn_image(
