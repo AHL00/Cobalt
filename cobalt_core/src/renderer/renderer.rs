@@ -17,6 +17,7 @@ pub trait Renderer: Any {
         &mut self,
         frame: &mut Frame,
         world: &'a mut World,
+        surface_dimensions: (u32, u32),
     ) -> Result<FrameData<'a, Material>, FramePrepError>;
 
     fn render(

@@ -67,6 +67,7 @@ impl DeferredRenderer {
     fn get_camera(
         &self,
         world: &mut World,
+        surface_dimensions: (u32, u32),
     ) -> Result<(ProjView, ultraviolet::Vec3), FramePrepError> {
         let cam_query = world.query::<Camera>().unwrap();
         let mut enabled_camera_count = 0;
@@ -100,7 +101,7 @@ impl DeferredRenderer {
                 transform.up(),
             );
 
-            let proj_matrix = camera.projection_matrix();
+            let proj_matrix = camera.projection_matrix(surface_dimensions);
 
             Ok((
                 ProjView::new(view_matrix, proj_matrix),
@@ -130,8 +131,9 @@ impl Renderer for DeferredRenderer {
         &mut self,
         _frame: &mut crate::graphics::frame::Frame,
         world: &'a mut World,
+        surface_dimensions: (u32, u32),
     ) -> Result<FrameData<'a, Material>, FramePrepError> {
-        let (proj_view, cam_pos) = self.get_camera(world)?;
+        let (proj_view, cam_pos) = self.get_camera(world, surface_dimensions)?;
 
         let frame_data = FrameData::generate(
             world,

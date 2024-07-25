@@ -10,7 +10,7 @@ use cobalt::{
     input::{InputEvent, KeyCode, KeyboardEvent},
     maths::{Rotor3, Vec3},
     plugins::debug_gui::DebugGUIPlugin,
-    renderer::{camera::Projection, renderables::{Mesh, Plane}, GeometryPassDebugMode, Material, Renderer},
+    renderer::{camera::{Projection, AspectRatio}, renderables::{Mesh, Plane}, GeometryPassDebugMode, Material, Renderer},
     runtime::{engine::Engine, plugins::PluginManager, App},
     types::{either::Either, resource::Resource},
 };
@@ -49,14 +49,14 @@ impl App for Game {
         let mat = Resource::new(Material::default());
 
         let texture_id = AssetServer::global_write()
-            .find_asset_by_name("logo").unwrap();
+            .find_asset_by_name("logo_large").unwrap();
 
         println!("Texture ID: {:?}", texture_id);
 
         let texture = AssetServer::global_read().load::<Texture<{TextureType::RGBA8UnormSrgb}>>(texture_id).unwrap();
         mat.borrow_mut().set_albedo(None, Some(texture)).unwrap();
 
-        engine.scene.world.add_component(plane_ent, mat);
+        engine.scene.world.add_component(plane_ent, mat);   
 
         // TODO: Improve ECS api by adding <Entity>.add_component<T: Components>(c: T) method
 
@@ -67,8 +67,8 @@ impl App for Game {
             Camera::new(
                 true,
                 Projection::Perspective {
-                    fov: 70.0,
-                    aspect: 16.0 / 9.0,
+                    fov: 100.0 * (PI / 180.0),
+                    aspect: AspectRatio::Auto,
                     near: 0.1,
                     far: 100.0,
                 },

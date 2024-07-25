@@ -22,6 +22,7 @@ pub mod exports {
 
     pub mod camera {
         pub use super::super::camera::Projection;
+        pub use super::super::camera::AspectRatio;
     }
 
     // NOTE: Renderers MUST export the following types:

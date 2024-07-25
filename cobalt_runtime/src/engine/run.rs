@@ -222,8 +222,9 @@ pub fn run(
 
                         frame.clear(wgpu::Color::BLACK);
 
-                        let prep_res = engine.renderer.prep_frame(&mut frame, &mut engine.scene.world);
-
+                        let prep_res = engine.renderer.prep_frame(&mut frame, &mut engine.scene.world, 
+                            engine.window.winit().inner_size().into()
+                        );
 
                         let frame_data = match prep_res {
                             Ok(frame_data) => {
