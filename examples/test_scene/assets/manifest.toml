@@ -1,14 +1,4 @@
 [[assets]]
-asset_id = "98f517d5-f9a7-42ad-afeb-2fe607e955c0"
-relative_path = "ll.png"
-name = "logo_large"
-type_name = "Texture<RGBA8UnormSrgb>"
-
-[assets.timestamp]
-secs_since_epoch = 1721842217
-nanos_since_epoch = 256447490
-
-[[assets]]
 asset_id = "5249c80e-d223-4bc5-9a11-8be7b7f7cabe"
 relative_path = "test/logo.asset"
 name = "logo"
@@ -19,3 +9,16 @@ type_name = "Texture<RGBA8UnormSrgb>"
 [assets.timestamp]
 secs_since_epoch = 1721935183
 nanos_since_epoch = 933068054
+
+[[assets]]
+asset_id = "e5a4ec2e-36d1-4d99-960c-d221b95aea3c"
+relative_path = "test/logo_compressed.asset"
+name = "logo_compressed"
+type_name = "Texture<RGBA8UnormSrgb>"
+
+[assets.packed]
+compression = 6
+
+[assets.timestamp]
+secs_since_epoch = 1721935354
+nanos_since_epoch = 392324882

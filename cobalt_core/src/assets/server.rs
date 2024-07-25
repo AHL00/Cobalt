@@ -3,6 +3,7 @@ use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::{
     any::Any,
     error::Error,
+    io::Read,
     path::PathBuf,
     sync::{Arc, Weak},
 };
@@ -202,15 +203,30 @@ impl AssetServer {
 
         let asset_path = self.assets_dir.join(&asset_info.relative_path);
 
-        
         // Check if the asset is packed or not
         match &asset_info.packed {
-            Some(_) => {
+            Some(pack_info) => {
                 let file = std::fs::File::open(&asset_path)?;
-        
-                let mut buf_reader = std::io::BufReader::new(file);
 
-                let asset = T::read_packed_buffer(&mut buf_reader)?;
+                let asset = match pack_info.compression {
+                    Some(_) => {
+                        let mut compressed_data = Vec::new();
+                        std::io::BufReader::new(file).read_to_end(&mut compressed_data)?;
+
+                        let mut decompressed_data = Vec::with_capacity(compressed_data.len());
+                        flate2::read::GzDecoder::new(compressed_data.as_slice())
+                            .read_to_end(&mut decompressed_data)?;
+
+                        let mut buf_reader = std::io::BufReader::new(decompressed_data.as_slice());
+
+                        T::read_packed_buffer(&mut buf_reader)?
+                    }
+                    None => {
+                        let mut buf_reader = std::io::BufReader::new(file);
+
+                        T::read_packed_buffer(&mut buf_reader)?
+                    }
+                };
 
                 let asset_arc = Arc::new(RwLock::new(asset));
 

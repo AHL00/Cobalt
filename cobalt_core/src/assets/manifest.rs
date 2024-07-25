@@ -100,15 +100,15 @@ fn test_add_asset() {
     let source_path =
         std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/raw_assets/logo.png");
     let rel_out_path =
-        std::path::Path::new("test/logo.asset");
-    let name = "logo".to_string();
+        std::path::Path::new("test/logo_compressed.asset");
+    let name = "logo_compressed".to_string();
 
     add_or_pack_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(
         assets_dir,
         source_path,
         rel_out_path,
         name,
-        Some(PackInfo { compression: None }),
+        Some(PackInfo { compression: Some(6) }),
     )
     .unwrap();
 }
