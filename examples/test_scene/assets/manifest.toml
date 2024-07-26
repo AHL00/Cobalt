@@ -1,1 +1,9 @@
-assets = []
+[[assets]]
+asset_id = "ff49c3bc-06e4-438c-9560-dbbe81d210d4"
+relative_path = "logo_compressed.png"
+name = "logo_compressed"
+type_name = "Texture<RGBA8UnormSrgb>"
+
+[assets.timestamp]
+secs_since_epoch = 1722024678
+nanos_since_epoch = 996383598

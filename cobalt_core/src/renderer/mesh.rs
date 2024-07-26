@@ -52,6 +52,10 @@ impl AssetTrait for MeshAsset {
     fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError> {
         todo!()
     }
+    
+    fn verify_source_file(abs_path: &Path) -> Result<(), AssetLoadError> {
+        todo!()
+    }
 }
 //     fn read_from_file_to_buffer(
 //         mut reader: BufReader<std::fs::File>,

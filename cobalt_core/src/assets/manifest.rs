@@ -103,25 +103,25 @@ pub enum AssetPackError {
     AssetDirectoryNotEmpty,
 }
 
-// #[test]
-// fn test_add_asset() {
-//     let assets_dir = std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/assets");
-//     let source_path =
-//         std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/Cargo.toml");
-//     let rel_out_path = std::path::Path::new("ajfosaf.png");
-//     let name = "logo_compressedsa".to_string();
+#[test]
+fn test_add_asset() {
+    let assets_dir = std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/assets");
+    let source_path =
+        std::path::Path::new("/home/khant/Desktop/Cobalt/examples/test_scene/raw_assets/logo_large.png");
+    let rel_out_path = std::path::Path::new("logo_compressed.png");
+    let name = "logo_compressed".to_string();
 
-//     add_or_pack_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(
-//         assets_dir,
-//         source_path,
-//         rel_out_path,
-//         name,
-//         None,
-//     )
-//     .unwrap();
+    add_or_pack_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(
+        assets_dir,
+        source_path,
+        rel_out_path,
+        name,
+        None,
+    )
+    .unwrap();
 
-//     // add_or_pack_asset::<GltfAsset>(assets_dir, source_path, rel_out_path, name, None).unwrap();
-// }
+    // add_or_pack_asset::<GltfAsset>(assets_dir, source_path, rel_out_path, name, None).unwrap();
+}
 
 pub fn add_or_pack_asset<T: AssetTrait>(
     assets_dir: &std::path::Path,
@@ -232,7 +232,7 @@ pub fn add_or_pack_asset<T: AssetTrait>(
         }
     } else {
         // Make sure it can load first
-        T::read_source_file(abs_input).map_err(|e| AssetPackError::SourceFileProcessError(e))?;
+        T::verify_source_file(abs_input).map_err(|e| AssetPackError::SourceFileProcessError(e))?;
 
         match T::fs_type() {
             AssetFileSystemType::File => {

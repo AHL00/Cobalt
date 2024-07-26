@@ -27,4 +27,8 @@ impl AssetTrait for GltfAsset {
     fn read_source_file_to_buffer(abs_path: &std::path::Path) -> Result<bytes::Bytes, crate::assets::server::AssetLoadError> {
         todo!()
     }
+    
+    fn verify_source_file(abs_path: &std::path::Path) -> Result<(), crate::assets::server::AssetLoadError> {
+        todo!()
+    }
 }

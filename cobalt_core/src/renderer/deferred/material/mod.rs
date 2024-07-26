@@ -726,4 +726,8 @@ impl AssetTrait for Material {
     fn read_source_file(abs_path: &std::path::Path) -> Result<Self, crate::assets::server::AssetLoadError> {
         todo!()
     }
+    
+    fn verify_source_file(abs_path: &std::path::Path) -> Result<(), crate::assets::server::AssetLoadError> {
+        todo!()
+    }
 }

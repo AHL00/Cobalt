@@ -5,10 +5,12 @@ use serde::ser::SerializeSeq;
 use std::any::Any;
 
 use crate::{
-    assets::asset::AssetFileSystemType, exports::{
+    assets::asset::AssetFileSystemType,
+    exports::{
         assets::{AssetLoadError, AssetTrait, Texture},
         graphics::TextureType,
-    }, graphics::{context::Graphics, HasBindGroupLayout}
+    },
+    graphics::{context::Graphics, HasBindGroupLayout},
 };
 
 /// Texture asset buffer, used when serialising into a packed asset.
@@ -27,7 +29,7 @@ impl serde::Serialize for TextureAssetBuffer {
 
         // Serialise the size
         let mut seq = serializer.serialize_seq(Some(2 + data.len()))?;
-        
+
         seq.serialize_element(&self.size)?;
 
         // Serialise type
@@ -74,13 +76,13 @@ impl<'de> serde::Deserialize<'de> for TextureAssetBuffer {
                     data.push(el);
                 }
 
-                let texture = ty.buffer_to_dyn_image(
-                    data,
-                    size.width as u32,
-                    size.height as u32,
-                );
+                let texture = ty.buffer_to_dyn_image(data, size.width as u32, size.height as u32);
 
-                Ok(TextureAssetBuffer { ty, image: texture, size })
+                Ok(TextureAssetBuffer {
+                    ty,
+                    image: texture,
+                    size,
+                })
             }
         }
 
@@ -89,7 +91,10 @@ impl<'de> serde::Deserialize<'de> for TextureAssetBuffer {
 }
 
 impl TextureAssetBuffer {
-    fn read_from_source(abs_path: &std::path::Path, texture_type: TextureType) -> Result<Self, AssetLoadError> {
+    fn read_from_source(
+        abs_path: &std::path::Path,
+        texture_type: TextureType,
+    ) -> Result<Self, AssetLoadError> {
         let file_extension = abs_path.extension().ok_or(AssetLoadError::LoadError(
             "File extension not found".to_string().into(),
         ))?;
@@ -174,7 +179,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
                     .into(),
             )
         })?;
-        
+
         let graphics = Graphics::global_read();
 
         let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
@@ -248,8 +253,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
     ) -> Result<bytes::Bytes, crate::exports::assets::AssetLoadError> {
         let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_path, T)?;
 
-        let ser_data = bincode::serialize(&texture_asset_buffer)
-        .map_err(|e| {
+        let ser_data = bincode::serialize(&texture_asset_buffer).map_err(|e| {
             log::error!("{}", e);
             AssetLoadError::LoadError(
                 "Failed to serialise image data into buffer"
@@ -330,5 +334,10 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
             sampler,
             size: texture_asset_buffer.size,
         })
+    }
+
+    fn verify_source_file(abs_path: &std::path::Path) -> Result<(), AssetLoadError> {
+        TextureAssetBuffer::read_from_source(abs_path, T)?;
+        Ok(())
     }
 }

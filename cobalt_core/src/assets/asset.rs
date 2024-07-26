@@ -54,6 +54,9 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
     /// Read the asset from a file. 
     fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError>;
 
+    /// Verify the source file. This is for importing assets.
+    fn verify_source_file(abs_path: &Path) -> Result<(), AssetLoadError>;
+
     // /// Read the asset straight from a file. This is for using unpacked asset source files directly.
     // fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError>;
 
