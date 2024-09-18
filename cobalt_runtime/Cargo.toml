@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bon = "2.3.0"
 cobalt_core = { path = "../cobalt_core" }
 downcast = "0.11.0"
 hashbrown = "0.14.3"
 log = "0.4.21"
 log-once = "0.4.1"
+parking_lot = "0.12.3"

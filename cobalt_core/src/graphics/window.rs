@@ -1,4 +1,4 @@
-use winit::dpi::PhysicalSize;
+use winit::{dpi::PhysicalSize, window::WindowAttributes};
 
 pub struct Window {
     winit: winit::window::Window,
@@ -21,8 +21,8 @@ impl Default for WindowConfig {
 
 pub trait WindowInternal {
     fn new(
-        event_loop: &winit::event_loop::EventLoop<()>,
-        config: WindowConfig,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        config: &WindowConfig,
     ) -> Result<Window, Box<dyn std::error::Error>>;
 
     fn winit(&self) -> &winit::window::Window;
@@ -32,13 +32,14 @@ pub trait WindowInternal {
 
 impl WindowInternal for Window {
     fn new(
-        event_loop: &winit::event_loop::EventLoop<()>,
-        config: WindowConfig,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        config: &WindowConfig,
     ) -> Result<Window, Box<dyn std::error::Error>> {
-        let window = winit::window::WindowBuilder::new()
-            .with_title(config.title)
-            .with_inner_size(winit::dpi::LogicalSize::new(config.size.0, config.size.1))
-            .build(event_loop)?;
+        let window = event_loop.create_window(
+            WindowAttributes::default()
+                .with_title(config.title.clone())
+                .with_inner_size(winit::dpi::LogicalSize::new(config.size.0, config.size.1)),
+        )?;
         Ok(Window { winit: window })
     }
 

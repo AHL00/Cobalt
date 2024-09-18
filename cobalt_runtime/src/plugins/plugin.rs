@@ -31,7 +31,7 @@ pub trait Plugin: Any {
     fn event(
         &mut self,
         _engine: &mut Engine,
-        _event: winit::event::Event<()>,
+        _event: cobalt_core::reexports::winit::event::Event<()>,
         _app: &mut dyn App,
     ) -> Result<bool, PluginError> {
         Ok(false)

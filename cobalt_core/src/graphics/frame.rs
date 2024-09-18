@@ -1,10 +1,9 @@
-pub struct Frame<'a> {
+pub struct Frame {
     pub(super) encoder: wgpu::CommandEncoder,
     pub(super) swap_texture: wgpu::SurfaceTexture,
-    pub(super) _marker: std::marker::PhantomData<&'a ()>,
 }
 
-impl Frame<'_> {
+impl Frame {
     /// TODO: For multithreading, we could make new encoders every time this is called.
     /// Store the encoders in a vec and then submit them all at the end of the frame.
     pub fn get_encoder(&mut self) -> &mut wgpu::CommandEncoder {

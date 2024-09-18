@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::{
     any::Any,
     fmt::{Debug, Formatter},
-    io::{BufRead, BufReader, Read},
+    io::Read,
     path::Path,
     sync::Arc,
 };
@@ -51,7 +51,7 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
     /// Read the asset from a file to a buffer. This is typically from packed asset files.
     fn read_packed_buffer(data: &mut dyn Read) -> Result<Self, AssetLoadError>;
 
-    /// Read the asset from a file. 
+    /// Read the asset from a file.
     fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError>;
 
     /// Verify the source file. This is for importing assets.
@@ -72,6 +72,7 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
 pub struct Asset<T: AssetTrait> {
     pub(crate) asset_id: AssetID,
     data: Arc<RwLock<T>>,
+    asset_server_ref: std::sync::Weak<RwLock<AssetServer>>,
 }
 
 impl<T: AssetTrait> PartialEq for Asset<T> {
@@ -99,7 +100,11 @@ impl<T: AssetTrait + Debug> Debug for Asset<T> {
 impl<T: AssetTrait> Asset<T> {
     /// Any must downcast to T
     /// If id is None, a new id will be generated
-    pub(crate) fn new(id: Option<AssetID>, arc: Arc<dyn Any + Send + Sync + 'static>) -> Self {
+    pub(crate) fn new(
+        asset_server_ref: std::sync::Weak<RwLock<AssetServer>>,
+        id: Option<AssetID>,
+        arc: Arc<dyn Any + Send + Sync + 'static>,
+    ) -> Self {
         // This is safe because we know that the type is T
         // let arc = unsafe { Arc::from_raw(Arc::into_raw(arc) as *const T) };
 
@@ -113,7 +118,11 @@ impl<T: AssetTrait> Asset<T> {
 
         let asset_id = id.unwrap_or_else(AssetID::generate);
 
-        Self { asset_id, data: arc }
+        Self {
+            asset_server_ref,
+            asset_id,
+            data: arc,
+        }
     }
 }
 
@@ -122,6 +131,7 @@ impl<T: AssetTrait> Clone for Asset<T> {
         Self {
             asset_id: self.asset_id,
             data: self.data.clone(),
+            asset_server_ref: self.asset_server_ref.clone(),
         }
     }
 }
@@ -137,12 +147,14 @@ impl<T: AssetTrait> Asset<T> {
         self.data.write()
     }
 
+    #[allow(dead_code)]
     pub(crate) unsafe fn borrow_unsafe(&self) -> &'static T {
         let ptr = &*self.data.read() as *const T;
 
         &*ptr
     }
 
+    #[allow(dead_code)]
     pub(crate) unsafe fn borrow_mut_unsafe(&self) -> &'static mut T {
         let ptr = &mut *self.data.write() as *mut T;
 
@@ -152,7 +164,7 @@ impl<T: AssetTrait> Asset<T> {
 
 impl<T: AssetTrait> Serialize for Asset<T> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.asset_id.serialize(serializer)        
+        self.asset_id.serialize(serializer)
     }
 }
 
@@ -163,22 +175,24 @@ impl<'de, T: AssetTrait> serde::Deserialize<'de> for Asset<T> {
         log::error!("Attempted to deserialise asset with id: {:?}", asset_id);
 
         todo!("Implement Asset<T> deserialization from asset_id")
-        // Ok(AssetServer::global_write()
-        //     .load::<T>(&Path::new(&path))
-        //     .map_err(serde::de::Error::custom)?)
     }
 }
 
 impl<T: AssetTrait> Drop for Asset<T> {
     fn drop(&mut self) {
-        let asset_hashmap_ref = &mut AssetServer::global_write().loaded_assets;
-
-        if let Some((_asset, count)) = asset_hashmap_ref.get_mut(&self.asset_id) {
-            if *count == 1 {
-                asset_hashmap_ref.remove(&self.asset_id);
-            } else {
-                *count -= 1;
+        // If it can't be upgraded, the asset server has been dropped.
+        // This means the entire engine is shutting down or already shut down.
+        // In this case, we don't need to remove the asset from the server.
+        self.asset_server_ref.upgrade().map(|server| {
+            let mut server = server.write();
+            
+            if let Some((_asset, count)) = server.loaded_assets.get_mut(&self.asset_id) {
+                if *count == 1 {
+                    server.loaded_assets.remove(&self.asset_id);
+                } else {
+                    *count -= 1;
+                }
             }
-        }
+        });
     }
 }

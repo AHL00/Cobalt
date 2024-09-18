@@ -89,7 +89,8 @@ impl Plugin for DebugGUIPlugin {
         self.state = Some(egui_winit::State::new(
             ctx.clone(),
             id,
-            engine.window.winit(),
+            engine.window().winit(),
+            None,
             None,
             None,
         ));
@@ -110,7 +111,7 @@ impl Plugin for DebugGUIPlugin {
     fn event(
         &mut self,
         engine: &mut cobalt_runtime::engine::Engine,
-        event: egui_winit::winit::event::Event<()>,
+        event: cobalt_core::reexports::winit::event::Event<()>,
         _app: &mut dyn App,
     ) -> Result<bool, cobalt_runtime::plugins::plugin::PluginError> {
         if !self.enabled {
@@ -121,16 +122,16 @@ impl Plugin for DebugGUIPlugin {
 
         match event {
             egui_winit::winit::event::Event::WindowEvent { event, window_id } => {
-                if window_id == engine.window.winit().id() {
+                if window_id == engine.window().winit().id() {
                     if let Some(state) = self.state.as_mut() {
-                        let res = state.on_window_event(engine.window.winit(), &event);
+                        let res = state.on_window_event(engine.window().winit(), &event);
 
                         match res {
                             EventResponse { consumed, repaint } => {
                                 event_consumed = consumed;
 
                                 if repaint {
-                                    engine.window.winit().request_redraw();
+                                    engine.window().winit().request_redraw();
                                 }
                             }
                         }
@@ -158,7 +159,7 @@ impl Plugin for DebugGUIPlugin {
         let renderer = self.renderer.as_mut().unwrap();
         let graphics = Graphics::global_read();
 
-        let raw_input = state.take_egui_input(&engine.window.winit());
+        let raw_input = state.take_egui_input(&engine.window().winit());
 
         ctx.begin_frame(raw_input);
 
@@ -170,7 +171,7 @@ impl Plugin for DebugGUIPlugin {
 
         let full_output = ctx.end_frame();
 
-        state.handle_platform_output(&engine.window.winit(), full_output.platform_output);
+        state.handle_platform_output(&engine.window().winit(), full_output.platform_output);
 
         let tris = ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
 
@@ -178,7 +179,7 @@ impl Plugin for DebugGUIPlugin {
             renderer.update_texture(&graphics.device, &graphics.queue, id, &image_delta);
         }
 
-        let inner_size = engine.window.winit().inner_size();
+        let inner_size = engine.window().winit().inner_size();
 
         let screen_descriptor = egui_wgpu::ScreenDescriptor {
             pixels_per_point: full_output.pixels_per_point,

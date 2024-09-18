@@ -37,6 +37,14 @@ impl Graphics {
         Ok(())
     }
 
+    pub fn deinitialize() {
+        unsafe {
+            GRAPHICS = None;
+        }
+
+        log::info!("Graphics context deinitialized");
+    }
+
     #[inline]
     pub fn global_read() -> RwLockReadGuard<'static, Self> {
         unsafe {
@@ -189,7 +197,7 @@ impl Graphics {
         self.current_present_mode = present_mode;
     }
 
-    pub fn begin_frame<'a>(&self) -> Result<Frame<'a>, Box<dyn std::error::Error>> {
+    pub fn begin_frame(&self) -> Result<Frame, Box<dyn std::error::Error>> {
         let swap_texture = self
             .surface
             .get_current_texture()
@@ -202,7 +210,6 @@ impl Graphics {
         Ok(Frame {
             encoder,
             swap_texture,
-            _marker: std::marker::PhantomData,
         })
     }
 

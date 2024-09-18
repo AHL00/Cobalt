@@ -1,4 +1,5 @@
 use cobalt_core::assets::server::AssetServer;
+use cobalt_runtime::engine::Engine;
 use egui_extras::Column;
 
 pub struct AssetsPanel {}
@@ -8,9 +9,9 @@ impl AssetsPanel {
         Self {}
     }
 
-    pub fn show(&mut self, egui_ctx: &egui::Context) {
+    pub fn show(&mut self, egui_ctx: &egui::Context, engine: &mut Engine) {
         egui::Window::new("Assets").show(egui_ctx, |ui| {
-            let asset_server = AssetServer::global_read();
+            let asset_server = engine.assets();
 
             ui.label(format!("Assets directory: {:?}", asset_server.assets_dir()));
 

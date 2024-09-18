@@ -19,7 +19,7 @@ deferred_renderer = []
 # Graphics
 wgpu = { version = "22.0.0", features = ["serde"] }
 # wgpu-types = { version = "*", features = ["serde"] }
-winit = "0.29.10"
+winit = "0.30.5"
 bytemuck = { version = "1.14.1", features = ["derive", "must_cast"] }
 image = "0.24.8"
 gltf = { version = "1.4.0", features = [

@@ -1,5 +1,5 @@
 use hashbrown::HashMap;
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::RwLock;
 use std::{
     any::Any,
     error::Error,
@@ -14,10 +14,6 @@ use super::{
     manifest::{AssetInfo, Manifest},
 };
 
-/// Global asset server.
-/// This is in a RwLock to allow for multiple threads to access the asset server.
-pub(super) static mut ASSET_SERVER: Option<Arc<RwLock<AssetServer>>> = None;
-
 pub struct AssetServer {
     /// This is a map of the assets that are currently loaded.
     /// Will only contain Weak<RwLock<dyn Any + Send + Sync + 'static>>.
@@ -28,24 +24,6 @@ pub struct AssetServer {
     pub(crate) assets_dir: PathBuf,
     /// The currently loaded main manifest file.
     pub(crate) manifest: Option<Manifest>,
-}
-
-pub trait AssetServerInternal {
-    /// Initializes the global asset server.
-    fn initialize() -> Result<(), Box<dyn Error>>;
-}
-
-impl AssetServerInternal for AssetServer {
-    /// Initializes the global asset server.
-    fn initialize() -> Result<(), Box<dyn Error>> {
-        unsafe {
-            ASSET_SERVER = Some(Arc::new(RwLock::new(Self::new())));
-        }
-
-        log::info!("Asset server initialized");
-
-        Ok(())
-    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -83,31 +61,11 @@ pub enum FindAssetByName {
 }
 
 impl AssetServer {
-    #[inline]
-    pub fn global_read() -> RwLockReadGuard<'static, Self> {
-        unsafe {
-            ASSET_SERVER
-                .as_ref()
-                .expect("Asset server requested before initialization")
-                .read()
-        }
-    }
-
-    #[inline]
-    pub fn global_write() -> RwLockWriteGuard<'static, Self> {
-        unsafe {
-            ASSET_SERVER
-                .as_ref()
-                .expect("Asset server requested before initialization")
-                .write()
-        }
-    }
-
     /// Create a new asset server
     /// This will create a new asset server with no assets.
     /// To load assets, use the load method.
     /// The default assets directory is the current directory.
-    pub(super) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             loaded_assets: HashMap::new(),
             assets_dir: PathBuf::from("./"),
@@ -179,7 +137,11 @@ impl AssetServer {
 
     /// Load an asset from disk.
     /// The asset must be present in the manifest file.
-    pub fn load<T: AssetTrait>(&self, asset_id: AssetID) -> Result<Asset<T>, AssetLoadError> {
+    pub(crate) fn load<T: AssetTrait>(
+        &self,
+        self_weak_ref: Weak<RwLock<AssetServer>>,
+        asset_id: AssetID,
+    ) -> Result<Asset<T>, AssetLoadError> {
         // Check if the asset is already loaded
         if let Some(_) = self.loaded_assets.get(&asset_id) {
             return Err(AssetLoadError::AssetAlreadyLoaded);
@@ -237,7 +199,7 @@ impl AssetServer {
                     )
                 };
 
-                Ok(Asset::new(Some(asset_id), asset_any))
+                Ok(Asset::new(self_weak_ref, Some(asset_id), asset_any))
             }
             None => {
                 let asset = T::read_source_file(&asset_path)?;
@@ -251,7 +213,7 @@ impl AssetServer {
                     )
                 };
 
-                Ok(Asset::new(Some(asset_id), asset_any))
+                Ok(Asset::new(self_weak_ref, Some(asset_id), asset_any))
             }
         }
     }

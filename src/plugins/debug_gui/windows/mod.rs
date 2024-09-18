@@ -1,8 +1,8 @@
 use cobalt_core::stats::Stats;
 
+mod assets;
 mod entities;
 mod stats;
-mod assets;
 
 /// Persistent data used to store debug menu state.
 pub struct DebugMenu {
@@ -31,7 +31,7 @@ impl DebugMenu {
         egui::TopBottomPanel::top("debug_menu_bar").show(egui_ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("Exit", |_| {
-                        engine.exit();
+                    engine.request_exit();
                 });
 
                 ui.menu_button("Windows", |ui| {
@@ -47,7 +47,7 @@ impl DebugMenu {
                     if let Some((fps, _)) = Stats::global().get("Avg FPS") {
                         ui.label(format!("Avg FPS: {:.2}", fps));
                     }
-    
+
                     if let Some((debug_mode, _)) = Stats::global().get("Geometry Pass Debug Mode") {
                         ui.label(format!("Debug mode: {}", debug_mode));
                     }
@@ -60,7 +60,7 @@ impl DebugMenu {
         }
 
         if self.show_assets {
-            self.assets.show(egui_ctx);
+            self.assets.show(egui_ctx, engine);
         }
     }
 }
