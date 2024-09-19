@@ -1,6 +1,7 @@
 use std::{error::Error, sync::Arc, time::Duration};
 
 use cobalt_core::{
+    assets::server::AssetServer,
     graphics::{
         window::WindowInternal,
         winit::{
@@ -8,9 +9,14 @@ use cobalt_core::{
         },
     },
     input::InputInternal,
-    renderer::Renderer,
+    renderer::{
+        deferred::DeferredRenderer,
+        renderer::{CreateRenderer, CreateRendererClosure},
+        Renderer,
+    },
     stats::{Stat, Stats},
 };
+use downcast::AnySync;
 use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::plugins::{
@@ -22,7 +28,7 @@ pub struct Engine {
     pub scene: cobalt_core::scenes::scene::Scene,
     graphics: Arc<RwLock<cobalt_core::graphics::context::Graphics>>,
     window: cobalt_core::graphics::window::Window,
-    renderer: Arc<Mutex<dyn cobalt_core::renderer::Renderer>>,
+    renderer: Arc<Mutex<Box<dyn cobalt_core::renderer::Renderer>>>,
     input: cobalt_core::input::Input,
     assets: Arc<RwLock<cobalt_core::assets::server::AssetServer>>,
 
@@ -46,11 +52,11 @@ impl Engine {
         &self.window
     }
 
-    pub fn renderer(&self) -> MutexGuard<dyn cobalt_core::renderer::Renderer> {
+    pub fn renderer(&self) -> MutexGuard<Box<dyn cobalt_core::renderer::Renderer>> {
         self.renderer.lock()
     }
 
-    pub fn renderer_arc(&self) -> &Arc<Mutex<dyn cobalt_core::renderer::Renderer>> {
+    pub fn renderer_arc(&self) -> &Arc<Mutex<Box<dyn cobalt_core::renderer::Renderer>>> {
         &self.renderer
     }
 
@@ -75,6 +81,7 @@ impl Engine {
     }
 }
 
+#[derive(Debug)]
 pub struct InitialEngineConfig {
     pub scene: cobalt_core::scenes::scene::Scene,
     pub window_config: cobalt_core::graphics::window::WindowConfig,
@@ -106,28 +113,30 @@ impl EngineRunTiming {
     }
 }
 
-pub struct EngineRunner<'a, R: Renderer> {
+pub struct EngineRunner<'a> {
     // Runtime stuff
     plugin_manager: crate::plugins::PluginManager,
     app: &'a mut dyn crate::app::App,
     timing: EngineRunTiming,
+    create_renderer: CreateRendererClosure,
 
     // To be created later
     engine: Option<Engine>,
-
-    _phantom: std::marker::PhantomData<R>,
 }
 
 #[bon::bon]
-impl<'a, R: Renderer> EngineRunner<'a, R> {
+impl<'a> EngineRunner<'a> {
     #[builder]
-    pub fn new(app: &'a mut dyn crate::app::App) -> Self {
+    pub fn new(
+        with_app: &'a mut dyn crate::app::App,
+        with_renderer: Option<CreateRendererClosure>,
+    ) -> Self {
         Self {
             plugin_manager: crate::plugins::PluginManager::new(),
-            app,
+            app: with_app,
             timing: EngineRunTiming::new(),
+            create_renderer: with_renderer.unwrap_or(DeferredRenderer::create),
             engine: None,
-            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -137,9 +146,13 @@ impl<'a, R: Renderer> EngineRunner<'a, R> {
         // Run initialize callbacks for plugins and app
         let config = self.app.on_start(&mut self.plugin_manager);
 
+        log::info!("Engine configuration: {:#?}", config);
+
         // First run, initialize everything
         let window = cobalt_core::graphics::window::Window::new(event_loop, &config.window_config)
             .expect("Failed to create window");
+
+        log::info!("Window created successfully.");
 
         let output_size = window.winit().inner_size();
 
@@ -148,13 +161,18 @@ impl<'a, R: Renderer> EngineRunner<'a, R> {
                 .expect("Failed to initialize graphics"),
         ));
 
+        log::info!("Graphics initialized successfully.");
+
         let renderer = Arc::new(Mutex::new(
-            R::new(graphics, (output_size.width, output_size.height)).expect("Failed to create renderer"),
+            (self.create_renderer)(&graphics.read(), output_size.into())
+                .expect("Failed to create renderer"),
         ));
 
-        let assets = Arc::new(RwLock::new(cobalt_core::assets::server::AssetServer::new(
-            graphics.clone(),
-        )));
+        log::info!("Renderer initialized successfully.");
+
+        let assets = Arc::new(RwLock::new(AssetServer::new(Arc::downgrade(&graphics))));
+
+        log::info!("Asset server initialized successfully.");
 
         log::info!("Engine initialized successfully.");
 
@@ -169,9 +187,17 @@ impl<'a, R: Renderer> EngineRunner<'a, R> {
             exit_requested: false,
         });
     }
+
+    pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
+        let event_loop = winit::event_loop::EventLoop::new()?;
+
+        event_loop.run_app(self)?;
+
+        Ok(())
+    }
 }
 
-impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
+impl<'a> ApplicationHandler for EngineRunner<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let None = self.engine {
             self.initialize_engine(event_loop);
@@ -290,8 +316,15 @@ impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
                 }
 
                 let cpu_render_start = std::time::Instant::now();
-              
-                let mut frame = self.engine.as_ref().unwrap().graphics.read().begin_frame().unwrap();
+
+                let mut frame = self
+                    .engine
+                    .as_ref()
+                    .unwrap()
+                    .graphics
+                    .read()
+                    .begin_frame()
+                    .unwrap();
 
                 let engine_mut = self.engine.as_mut().unwrap();
 
@@ -327,7 +360,11 @@ impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
                 };
 
                 if let Some(frame_data) = frame_data {
-                    let render_res = engine_mut.renderer.lock().render(&engine_mut.graphics.read(), &mut frame, frame_data);
+                    let render_res = engine_mut.renderer.lock().render(
+                        &engine_mut.graphics.read(),
+                        &mut frame,
+                        frame_data,
+                    );
 
                     match render_res {
                         Ok(_) => {
@@ -354,7 +391,8 @@ impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
                 );
 
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res = plugin.post_render(self.engine.as_mut().unwrap(), &mut frame, self.app);
+                    let res =
+                        plugin.post_render(self.engine.as_mut().unwrap(), &mut frame, self.app);
 
                     if let Err(e) = res {
                         match e {
@@ -390,7 +428,7 @@ impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
                             .winit()
                             .pre_present_notify()
                     }),
-                );   
+                );
 
                 Stats::global().set(
                     "GPU render time",
@@ -445,9 +483,7 @@ impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
                     .unwrap()
                     .renderer
                     .lock()
-                    .resize_callback(
-                        &self.engine.as_ref().unwrap().graphics(),
-                        size.into())
+                    .resize_callback(&self.engine.as_ref().unwrap().graphics(), size.into())
                     .unwrap_or_else(|e| {
                         log::error!("Failed to resize renderer: {:?}", e);
                     });

@@ -95,7 +95,7 @@ impl Plugin for DebugGUIPlugin {
             None,
         ));
 
-        let graphics = Graphics::global_read();
+        let graphics = engine.graphics();
 
         self.renderer = Some(egui_wgpu::Renderer::new(
             &graphics.device,
@@ -157,7 +157,6 @@ impl Plugin for DebugGUIPlugin {
         let ctx = self.ctx.as_ref().unwrap();
         let state = self.state.as_mut().unwrap();
         let renderer = self.renderer.as_mut().unwrap();
-        let graphics = Graphics::global_read();
 
         let raw_input = state.take_egui_input(&engine.window().winit());
 
@@ -174,6 +173,8 @@ impl Plugin for DebugGUIPlugin {
         state.handle_platform_output(&engine.window().winit(), full_output.platform_output);
 
         let tris = ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
+
+        let graphics = engine.graphics();
 
         for (id, image_delta) in full_output.textures_delta.set {
             renderer.update_texture(&graphics.device, &graphics.queue, id, &image_delta);

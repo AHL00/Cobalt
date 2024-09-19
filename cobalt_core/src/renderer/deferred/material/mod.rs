@@ -1,4 +1,4 @@
-use std::sync::{atomic::AtomicUsize, Arc, LazyLock, Weak};
+use std::sync::{atomic::AtomicUsize, Arc, Weak};
 
 use bytes::Bytes;
 use parking_lot::RwLock;
@@ -197,8 +197,11 @@ impl Material {
 
         let roughness_texture = self.roughness.right();
 
-        let layout =
-            graphics.bind_group_layout_cache::<Material>(create_material_bind_group_layout);
+        let layout = graphics
+            .cache
+            .bind_group_layout_cache
+            .material
+            .get_or_init(|| create_material_bind_group_layout(&graphics.device));
 
         self.bind_group = Some(
             graphics
@@ -245,18 +248,30 @@ impl Material {
                         // Albedo texture
                         wgpu::BindGroupEntry {
                             binding: 5,
-                            resource: wgpu::BindingResource::TextureView(albedo_texture.map_or(
-                                graphics.cache.texture_cache.empty_rgba8_unorm_srgb(&graphics).wgpu_texture_view(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
-                            )),
+                            resource: wgpu::BindingResource::TextureView(
+                                albedo_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_rgba8_unorm_srgb(&graphics)
+                                        .wgpu_texture_view(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                ),
+                            ),
                         },
                         // Albedo sampler
                         wgpu::BindGroupEntry {
                             binding: 6,
-                            resource: wgpu::BindingResource::Sampler(albedo_texture.map_or(
-                                graphics.cache.texture_cache.empty_rgba8_unorm(&graphics).wgpu_sampler(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
-                            )),
+                            resource: wgpu::BindingResource::Sampler(
+                                albedo_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_rgba8_unorm(&graphics)
+                                        .wgpu_sampler(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                ),
+                            ),
                         },
                         // Normal supplied
                         wgpu::BindGroupEntry {
@@ -268,18 +283,30 @@ impl Material {
                         // Normal texture
                         wgpu::BindGroupEntry {
                             binding: 8,
-                            resource: wgpu::BindingResource::TextureView(normal_texture.map_or(
-                                graphics.cache.texture_cache.empty_rgba16_float(&graphics).wgpu_texture_view(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
-                            )),
+                            resource: wgpu::BindingResource::TextureView(
+                                normal_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_rgba16_float(&graphics)
+                                        .wgpu_texture_view(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                ),
+                            ),
                         },
                         // Normal sampler
                         wgpu::BindGroupEntry {
                             binding: 9,
-                            resource: wgpu::BindingResource::Sampler(normal_texture.map_or(
-                                graphics.cache.texture_cache.empty_rgba16_float(&graphics).wgpu_sampler(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
-                            )),
+                            resource: wgpu::BindingResource::Sampler(
+                                normal_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_rgba16_float(&graphics)
+                                        .wgpu_sampler(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                ),
+                            ),
                         },
                         // Metallic type
                         wgpu::BindGroupEntry {
@@ -298,18 +325,30 @@ impl Material {
                         // Metallic texture
                         wgpu::BindGroupEntry {
                             binding: 12,
-                            resource: wgpu::BindingResource::TextureView(metallic_texture.map_or(
-                                graphics.cache.texture_cache.empty_r8_unorm(&graphics).wgpu_texture_view(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
-                            )),
+                            resource: wgpu::BindingResource::TextureView(
+                                metallic_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_r8_unorm(&graphics)
+                                        .wgpu_texture_view(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                ),
+                            ),
                         },
                         // Metallic sampler
                         wgpu::BindGroupEntry {
                             binding: 13,
-                            resource: wgpu::BindingResource::Sampler(metallic_texture.map_or(
-                                graphics.cache.texture_cache.empty_r8_unorm(&graphics).wgpu_sampler(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
-                            )),
+                            resource: wgpu::BindingResource::Sampler(
+                                metallic_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_r8_unorm(&graphics)
+                                        .wgpu_sampler(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                ),
+                            ),
                         },
                         // Roughness type
                         wgpu::BindGroupEntry {
@@ -328,18 +367,30 @@ impl Material {
                         // Roughness texture
                         wgpu::BindGroupEntry {
                             binding: 16,
-                            resource: wgpu::BindingResource::TextureView(roughness_texture.map_or(
-                                graphics.cache.texture_cache.empty_r8_unorm(&graphics).wgpu_texture_view(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
-                            )),
+                            resource: wgpu::BindingResource::TextureView(
+                                roughness_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_r8_unorm(&graphics)
+                                        .wgpu_texture_view(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                ),
+                            ),
                         },
                         // Roughness sampler
                         wgpu::BindGroupEntry {
                             binding: 17,
-                            resource: wgpu::BindingResource::Sampler(roughness_texture.map_or(
-                                graphics.cache.texture_cache.empty_r8_unorm(&graphics).wgpu_sampler(),
-                                |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
-                            )),
+                            resource: wgpu::BindingResource::Sampler(
+                                roughness_texture.map_or(
+                                    graphics
+                                        .cache
+                                        .texture_cache
+                                        .empty_r8_unorm(&graphics)
+                                        .wgpu_sampler(),
+                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                ),
+                            ),
                         },
                     ],
                 }),
@@ -694,15 +745,12 @@ fn create_material_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLa
 }
 
 impl HasBindGroupLayout<()> for Material {
-    // fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
-    //     &*MATERIAL_BIND_GROUP_LAYOUT
-    // }
-
-    fn bind_group_layout<'a>(
-        graphics: &'a Graphics,
-        _extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<Material>(create_material_bind_group_layout)
+    fn bind_group_layout<'a>(graphics: &'a Graphics, _extra: ()) -> &'a wgpu::BindGroupLayout {
+        &graphics
+            .cache
+            .bind_group_layout_cache
+            .material
+            .get_or_init(|| create_material_bind_group_layout(&graphics.device))
     }
 }
 

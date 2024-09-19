@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use wgpu::TextureViewDescriptor;
 
 use crate::graphics::{context::Graphics, HasBindGroupLayout, HasStableBindGroup};
@@ -263,8 +261,10 @@ impl HasBindGroupLayout<()> for GeometryBuffers {
     fn bind_group_layout<'a>(
         graphics: &'a Graphics,
         _extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<GeometryBuffers>(create_g_buffer_bind_group_layout)
+    ) -> &'a wgpu::BindGroupLayout {
+        &graphics.cache.bind_group_layout_cache.g_buffer.get_or_init(|| {
+            create_g_buffer_bind_group_layout(&graphics.device)
+        })
     }
 }
 

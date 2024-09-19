@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use crate::{
     graphics::{context::Graphics, HasBindGroupLayout, HasStableBindGroup},
     renderer::renderer::RendererError,
@@ -120,9 +118,11 @@ fn create_depth_buffer_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGro
 impl HasBindGroupLayout<()> for DepthBuffer {
     fn bind_group_layout<'a>(
         graphics: &'a Graphics,
-        extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<DepthBuffer>(create_depth_buffer_bind_group_layout)
+        _extra: (),
+    ) -> &'a wgpu::BindGroupLayout {
+        &graphics.cache.bind_group_layout_cache.depth_buffer.get_or_init(|| {
+            create_depth_buffer_bind_group_layout(&graphics.device)
+        })
     }
 }
 

@@ -20,22 +20,6 @@ fn create_mat4x4_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayo
 }
 
 impl CreateBindGroup for ultraviolet::Mat4 {
-    // fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup {
-    //     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-    //         label: None,
-    //         contents: bytemuck::cast_slice(self.as_byte_slice()),
-    //         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    //     });
-
-    //     device.create_bind_group(&wgpu::BindGroupDescriptor {
-    //         label: None,
-    //         layout:
-    //         entries: &[wgpu::BindGroupEntry {
-    //             binding: 0,
-    //             resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
-    //         }],
-    //     })
-    // }
     fn create_bind_group(&self, graphics: &super::context::Graphics) -> wgpu::BindGroup {
         let buffer = graphics
             .device
@@ -50,7 +34,10 @@ impl CreateBindGroup for ultraviolet::Mat4 {
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: &graphics
-                    .bind_group_layout_cache::<ultraviolet::Mat4>(create_mat4x4_bind_group_layout),
+                    .cache
+                    .bind_group_layout_cache
+                    .mat4
+                    .get_or_init(|| create_mat4x4_bind_group_layout(&graphics.device)),
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
@@ -60,11 +47,12 @@ impl CreateBindGroup for ultraviolet::Mat4 {
 }
 
 impl HasBindGroupLayout<()> for ultraviolet::Mat4 {
-    fn bind_group_layout<'a>(
-        graphics: &'a Graphics,
-        _extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<ultraviolet::Mat4>(create_mat4x4_bind_group_layout)
+    fn bind_group_layout<'a>(graphics: &'a Graphics, _extra: ()) -> &'a wgpu::BindGroupLayout {
+        &graphics
+            .cache
+            .bind_group_layout_cache
+            .mat4
+            .get_or_init(|| create_mat4x4_bind_group_layout(&graphics.device))
     }
 }
 
@@ -98,7 +86,11 @@ impl CreateBindGroup for u32 {
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
-                layout: &graphics.bind_group_layout_cache::<u32>(create_u32_bind_group_layout),
+                layout: &graphics
+                    .cache
+                    .bind_group_layout_cache
+                    .u32
+                    .get_or_init(|| create_u32_bind_group_layout(&graphics.device)),
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
@@ -108,11 +100,12 @@ impl CreateBindGroup for u32 {
 }
 
 impl HasBindGroupLayout<()> for u32 {
-    fn bind_group_layout<'a>(
-        graphics: &'a Graphics,
-        extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<u32>(create_u32_bind_group_layout)
+    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
+        &graphics
+            .cache
+            .bind_group_layout_cache
+            .u32
+            .get_or_init(|| create_u32_bind_group_layout(&graphics.device))
     }
 }
 
@@ -147,7 +140,10 @@ impl CreateBindGroup for ultraviolet::Vec3 {
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: &graphics
-                    .bind_group_layout_cache::<ultraviolet::Vec3>(create_vec3_bind_group_layout),
+                    .cache
+                    .bind_group_layout_cache
+                    .vec3
+                    .get_or_init(|| create_vec3_bind_group_layout(&graphics.device)),
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(buffer.as_entire_buffer_binding()),
@@ -157,10 +153,11 @@ impl CreateBindGroup for ultraviolet::Vec3 {
 }
 
 impl HasBindGroupLayout<()> for ultraviolet::Vec3 {
-    fn bind_group_layout<'a>(
-        graphics: &'a Graphics,
-        extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<ultraviolet::Vec3>(create_vec3_bind_group_layout)
+    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
+        graphics
+            .cache
+            .bind_group_layout_cache
+            .vec3
+            .get_or_init(|| create_vec3_bind_group_layout(&graphics.device))
     }
 }

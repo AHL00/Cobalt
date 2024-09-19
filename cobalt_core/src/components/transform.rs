@@ -10,7 +10,7 @@ use std::{
 
 use parking_lot::MappedRwLockReadGuard;
 use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, BindGroupDescriptor};
 
 use crate::{
     ecs::component::Component,
@@ -117,50 +117,6 @@ impl Transform {
             model_dirty: true,
             buffers_dirty: true,
         }
-    }
-
-    pub(crate) fn initialize_gpu(&mut self, graphics: &mut Graphics) {
-        let model_mat_buffer =
-            graphics
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(Mat4::identity().as_byte_slice()),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-
-        let normal_mat_buffer =
-            graphics
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(
-                        Mat3::identity().into_homogeneous().as_byte_slice(),
-                    ),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-
-        let bind_group_layout =
-            graphics.bind_group_layout_cache::<Transform>(create_tranform_bind_group_layout);
-
-        let bind_group = graphics.create_bind_group::<Transform>(
-            None,
-            &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(
-                        model_mat_buffer.as_entire_buffer_binding(),
-                    ),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Buffer(
-                        normal_mat_buffer.as_entire_buffer_binding(),
-                    ),
-                },
-            ],
-            create_tranform_bind_group_layout,
-        );
     }
 
     pub fn with_position(position: Vec3) -> Self {
@@ -315,11 +271,12 @@ impl Transform {
 }
 
 impl HasBindGroupLayout<()> for Transform {
-    fn bind_group_layout<'a>(
-        graphics: &'a Graphics,
-        _: (),
-    ) -> MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<Transform>(create_tranform_bind_group_layout)
+    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
+        graphics
+            .cache
+            .bind_group_layout_cache
+            .transform
+            .get_or_init(|| create_tranform_bind_group_layout(&graphics.device))
     }
 }
 
@@ -373,9 +330,10 @@ impl HasBindGroup for Transform {
             // Lazy initialize bind group
             if let None = self.bind_group {
                 self.bind_group = Some(
-                    graphics.create_bind_group::<Transform>(
-                        None,
-                        &[
+                    graphics.device.create_bind_group(&BindGroupDescriptor {
+                        label: None,
+                        layout: Transform::bind_group_layout(graphics, ()),
+                        entries: &[
                             wgpu::BindGroupEntry {
                                 binding: 0,
                                 resource: wgpu::BindingResource::Buffer(
@@ -395,8 +353,7 @@ impl HasBindGroup for Transform {
                                 ),
                             },
                         ],
-                        create_tranform_bind_group_layout,
-                    ),
+                    }),
                 );
             }
 

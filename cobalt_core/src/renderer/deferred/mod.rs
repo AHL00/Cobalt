@@ -9,7 +9,7 @@ use ultraviolet::Mat4;
 
 use crate::{
     exports::{components::Transform, ecs::World},
-    graphics::context::Graphics,
+    graphics::{context::Graphics, HasBindGroupLayout},
     stats::Stats,
 };
 
@@ -118,6 +118,7 @@ impl Renderer for DeferredRenderer {
     where
         Self: Sized,
     {
+        log::info!("Creating deferred renderer.");
         Ok(Self {
             geometry_pass: GeometryPass::new(graphics, output_size),
             geometry_debug_pass: GeometryDebugPass::new(graphics),
@@ -188,7 +189,11 @@ impl Renderer for DeferredRenderer {
         Ok(())
     }
 
-    fn resize_callback(&mut self, graphics: &Graphics, size: (u32, u32)) -> Result<(), RendererError> {
+    fn resize_callback(
+        &mut self,
+        graphics: &Graphics,
+        size: (u32, u32),
+    ) -> Result<(), RendererError> {
         self.geometry_pass.resize_callback(graphics, size)?;
         self.depth_buffer = DepthBuffer::new(graphics, size, Self::DEPTH_FORMAT)?;
 

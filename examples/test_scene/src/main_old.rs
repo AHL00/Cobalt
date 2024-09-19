@@ -3,14 +3,14 @@
 use std::{f32::consts::PI, path::Path, time::Duration};
 
 use cobalt::{
-    assets::{AssetServer, AssetTrait, MeshAsset},
+    assets::{AssetServer, AssetTrait, MeshAsset, Texture},
     components::{Camera, Renderable, Transform},
     ecs::{Component, Entity},
     graphics::TextureType,
     input::{InputEvent, KeyCode, KeyboardEvent},
     maths::{Rotor3, Vec3},
     plugins::debug_gui::DebugGUIPlugin,
-    renderer::{camera::Projection, renderables::Mesh, GeometryPassDebugMode, Material, Renderer},
+    renderer::{camera::{Projection, AspectRatio}, renderables::{Mesh, Plane}, GeometryPassDebugMode, Material, Renderer},
     runtime::{engine::Engine, plugins::PluginManager, App},
     types::{either::Either, resource::Resource},
 };
@@ -30,31 +30,35 @@ impl App for Game {
     fn on_start(&mut self, engine: &mut Engine, _plugins: &mut PluginManager) {
         log::info!("Game started!");
 
-        AssetServer::global_write().set_assets_dir("./assets/").unwrap();
+        AssetServer::global_write().set_assets_dir("assets").unwrap();
 
-        let light_vis_ent = engine.scene.world.create_entity();
+        let plane_ent = engine.scene.world.create_entity();
 
-        let mut light_vis_transform = Transform::with_position([0.0, 2.0, 0.0].into());
-        *light_vis_transform.scale_mut() = Vec3::broadcast(0.1);
+        engine.scene.world.add_component(
+            plane_ent,
+            Renderable::Plane(Plane::new())
+        );
 
-        let light_vis_mesh = AssetServer::global_write()
-            .load::<MeshAsset>(Path::new("cube.obj"))
-            .unwrap();
+        engine.scene.world.add_component(
+            plane_ent,
+            Transform::with_position([0.0, 0.0, 0.0].into())
+        );
 
-        let light_vis_material = Resource::new(Material::default());
+        engine.scene.world.add_component(plane_ent, RotateRandom);
 
-        engine
-            .scene
-            .world
-            .add_component(light_vis_ent, light_vis_transform);
-        engine
-            .scene
-            .world
-            .add_component(light_vis_ent, Renderable::Mesh(Mesh::new(light_vis_mesh)));
-        engine
-            .scene
-            .world
-            .add_component(light_vis_ent, light_vis_material);
+        let mat = Resource::new(Material::default());
+
+        let texture_id = AssetServer::global_write()
+            .find_asset_by_name("logo_compressed").unwrap();
+
+        println!("Texture ID: {:?}", texture_id);
+
+        let texture = AssetServer::global_read().load::<Texture<{TextureType::RGBA8UnormSrgb}>>(texture_id).unwrap();
+        mat.borrow_mut().set_albedo(None, Some(texture)).unwrap();
+
+        engine.scene.world.add_component(plane_ent, mat);   
+
+        // TODO: Improve ECS api by adding <Entity>.add_component<T: Components>(c: T) method
 
         let cam_ent = engine.scene.world.create_entity();
 
@@ -63,8 +67,8 @@ impl App for Game {
             Camera::new(
                 true,
                 Projection::Perspective {
-                    fov: 70.0,
-                    aspect: 16.0 / 9.0,
+                    fov: 100.0 * (PI / 180.0),
+                    aspect: AspectRatio::Auto,
                     near: 0.1,
                     far: 100.0,
                 },
@@ -76,6 +80,8 @@ impl App for Game {
         engine.scene.world.add_component(cam_ent, cam_transform);
 
         self.main_camera = Some(cam_ent);
+
+        self.plane_entity = Some(plane_ent);
 
         // Add debug gui
         let debug_gui = _plugins.try_take_plugin::<DebugGUIPlugin>();

@@ -18,3 +18,11 @@ impl Scene {
         }
     }
 }
+
+impl std::fmt::Debug for Scene {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Scene")
+            .field("name", &self.name)
+            .finish()
+    }
+}

@@ -10,7 +10,7 @@ use super::texture::{Texture, TextureType};
 
 /// Storage for various items that are initialized once, static, and reused.
 pub(crate) struct GraphicsCache {
-    pub bind_group_layout_cache: Arc<RwLock<HashMap<TypeId, wgpu::BindGroupLayout>>>,
+    pub bind_group_layout_cache: BindGroupLayoutCache,
     pub texture_cache: TextureCache,
     pub buffer_cache: BufferCache,
 }
@@ -18,9 +18,65 @@ pub(crate) struct GraphicsCache {
 impl GraphicsCache {
     pub fn new() -> Self {
         Self {
-            bind_group_layout_cache: Arc::new(RwLock::new(HashMap::new())),
+            bind_group_layout_cache: BindGroupLayoutCache::new(),
             texture_cache: TextureCache::new(),
             buffer_cache: BufferCache::new(),
+        }
+    }
+}
+
+pub(crate) struct BindGroupLayoutCache {
+    pub transform: OnceLock<wgpu::BindGroupLayout>,
+    pub mat4: OnceLock<wgpu::BindGroupLayout>,
+    pub u32: OnceLock<wgpu::BindGroupLayout>,
+    pub vec3: OnceLock<wgpu::BindGroupLayout>,
+    pub proj_view: OnceLock<wgpu::BindGroupLayout>,
+    pub material: OnceLock<wgpu::BindGroupLayout>,
+    pub depth_buffer: OnceLock<wgpu::BindGroupLayout>,
+    pub g_buffer: OnceLock<wgpu::BindGroupLayout>,
+    pub textures: TexturesBindGroupLayoutCache,
+}
+
+impl BindGroupLayoutCache {
+    pub fn new() -> Self {
+        Self {
+            transform: OnceLock::new(),
+            mat4: OnceLock::new(),
+            u32: OnceLock::new(),
+            vec3: OnceLock::new(),
+            proj_view: OnceLock::new(),
+            material: OnceLock::new(),
+            depth_buffer: OnceLock::new(),
+            g_buffer: OnceLock::new(),
+            textures: TexturesBindGroupLayoutCache::new(),
+        }
+    }
+}
+
+pub(crate) struct TexturesBindGroupLayoutCache {
+    pub rgba32_float: OnceLock<wgpu::BindGroupLayout>,
+    pub rgba16_float: OnceLock<wgpu::BindGroupLayout>,
+    pub rgba8_unorm: OnceLock<wgpu::BindGroupLayout>,
+    pub rgba8_unorm_srgb: OnceLock<wgpu::BindGroupLayout>,
+    pub r32_float: OnceLock<wgpu::BindGroupLayout>,
+    pub r16_float: OnceLock<wgpu::BindGroupLayout>,
+    pub r8_unorm: OnceLock<wgpu::BindGroupLayout>,
+    pub r8_uint: OnceLock<wgpu::BindGroupLayout>,
+    pub r8_snorm: OnceLock<wgpu::BindGroupLayout>,
+}
+
+impl TexturesBindGroupLayoutCache {
+    pub fn new() -> Self {
+        Self {
+            rgba32_float: OnceLock::new(),
+            rgba16_float: OnceLock::new(),
+            rgba8_unorm: OnceLock::new(),
+            rgba8_unorm_srgb: OnceLock::new(),
+            r32_float: OnceLock::new(),
+            r16_float: OnceLock::new(),
+            r8_unorm: OnceLock::new(),
+            r8_uint: OnceLock::new(),
+            r8_snorm: OnceLock::new(),
         }
     }
 }

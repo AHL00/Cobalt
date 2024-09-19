@@ -22,7 +22,7 @@ pub trait HasBindGroupLayout<E> {
     fn bind_group_layout<'a>(
         graphics: &'a Graphics,
         extra: E,
-    ) -> MappedRwLockReadGuard<'a, wgpu::BindGroupLayout>;
+    ) -> &'a wgpu::BindGroupLayout;
 }
 
 pub trait HasBindGroup {

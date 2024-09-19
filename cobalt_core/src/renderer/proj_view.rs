@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use wgpu::util::DeviceExt;
 
 use crate::graphics::{context::Graphics, CreateBindGroup, HasBindGroupLayout};
@@ -58,8 +56,10 @@ impl HasBindGroupLayout<()> for ProjView {
     fn bind_group_layout<'a>(
         graphics: &'a Graphics,
         _extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
-        graphics.bind_group_layout_cache::<ProjView>(create_view_proj_bind_group_layout)
+    ) -> &'a wgpu::BindGroupLayout {
+        &graphics.cache.bind_group_layout_cache.proj_view.get_or_init(|| {
+            create_view_proj_bind_group_layout(&graphics.device)
+        })
     }
 }
 
@@ -77,7 +77,9 @@ impl CreateBindGroup for ProjView {
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
-                layout: &graphics.bind_group_layout_cache::<ProjView>(create_view_proj_bind_group_layout),
+                layout: &graphics.cache.bind_group_layout_cache.proj_view.get_or_init(|| {
+                    create_view_proj_bind_group_layout(&graphics.device)
+                }),
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(

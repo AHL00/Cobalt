@@ -317,47 +317,53 @@ impl<const T: TextureType> HasBindGroup for Texture<T> {
 }
 
 /// Create or retrieve a cached bind group layout for a texture type.
-fn texture_bind_group_layout<const T: TextureType>(
-    graphics: &Graphics,
-) -> MappedRwLockReadGuard<wgpu::BindGroupLayout> {
-    let filterable = match T {
-        TextureType::RGBA32Float
-        | TextureType::RGBA16Float
-        | TextureType::RGBA8Unorm
-        | TextureType::RGBA8UnormSrgb => true,
-        TextureType::R32Float
-        | TextureType::R16Float
-        | TextureType::R8Unorm
-        | TextureType::R8Uint
-        | TextureType::R8Snorm => false,
+fn texture_bind_group_layout<'a, const T: TextureType>(
+    graphics: &'a Graphics,
+) -> &'a wgpu::BindGroupLayout {
+    #[rustfmt::skip]
+    let layout_cache_ref = match T {
+        TextureType::RGBA32Float => &graphics.cache.bind_group_layout_cache.textures.rgba32_float,
+        TextureType::RGBA16Float => &graphics.cache.bind_group_layout_cache.textures.rgba16_float,
+        TextureType::RGBA8Unorm => &graphics.cache.bind_group_layout_cache.textures.rgba8_unorm,
+        TextureType::RGBA8UnormSrgb => &graphics.cache.bind_group_layout_cache.textures.rgba8_unorm_srgb,
+        TextureType::R32Float => &graphics.cache.bind_group_layout_cache.textures.r32_float,
+        TextureType::R16Float => &graphics.cache.bind_group_layout_cache.textures.r16_float,
+        TextureType::R8Unorm => &graphics.cache.bind_group_layout_cache.textures.r8_unorm,
+        TextureType::R8Uint => &graphics.cache.bind_group_layout_cache.textures.r8_uint,
+        TextureType::R8Snorm => &graphics.cache.bind_group_layout_cache.textures.r8_snorm,
     };
 
-    let filtering = match T {
-        TextureType::RGBA32Float
-        | TextureType::RGBA16Float
-        | TextureType::RGBA8Unorm
-        | TextureType::RGBA8UnormSrgb => true,
-        TextureType::R32Float
-        | TextureType::R16Float
-        | TextureType::R8Unorm
-        | TextureType::R8Uint
-        | TextureType::R8Snorm => false,
-    };
+    layout_cache_ref.get_or_init(|| {
+        let filterable = match T {
+            TextureType::RGBA32Float
+            | TextureType::RGBA16Float
+            | TextureType::RGBA8Unorm
+            | TextureType::RGBA8UnormSrgb => true,
+            TextureType::R32Float
+            | TextureType::R16Float
+            | TextureType::R8Unorm
+            | TextureType::R8Uint
+            | TextureType::R8Snorm => false,
+        };
 
-    graphics.bind_group_layout_cache::<Texture<T>>(|device| {
-        create_bind_group_layout(device, filterable, filtering)
+        let filtering = match T {
+            TextureType::RGBA32Float
+            | TextureType::RGBA16Float
+            | TextureType::RGBA8Unorm
+            | TextureType::RGBA8UnormSrgb => true,
+            TextureType::R32Float
+            | TextureType::R16Float
+            | TextureType::R8Unorm
+            | TextureType::R8Uint
+            | TextureType::R8Snorm => false,
+        };
+
+        create_bind_group_layout(&graphics.device, filterable, filtering)
     })
 }
 
 impl<const T: TextureType> HasBindGroupLayout<()> for Texture<T> {
-    // fn bind_group_layout(graphics: &Graphics, _: ()) -> &'static wgpu::BindGroupLayout {
-    //     get_bind_group_layout(T)
-    // }
-
-    fn bind_group_layout<'a>(
-        graphics: &'a Graphics,
-        extra: (),
-    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
+    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
         texture_bind_group_layout::<T>(graphics)
     }
 }
@@ -527,39 +533,75 @@ impl TextureCache {
         }
     }
 
-    pub fn empty_rgba32_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA32Float }> {
-        self.empty_rgba32_float.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_rgba32_float<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::RGBA32Float }> {
+        self.empty_rgba32_float
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_rgba16_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA16Float }> {
-        self.empty_rgba16_float.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_rgba16_float<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::RGBA16Float }> {
+        self.empty_rgba16_float
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_rgba8_unorm<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA8Unorm }> {
-        self.empty_rgba8_unorm.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_rgba8_unorm<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::RGBA8Unorm }> {
+        self.empty_rgba8_unorm
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_rgba8_unorm_srgb<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA8UnormSrgb }> {
-        self.empty_rgba8_unorm_srgb.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_rgba8_unorm_srgb<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::RGBA8UnormSrgb }> {
+        self.empty_rgba8_unorm_srgb
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_r32_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R32Float }> {
-        self.empty_r32_float.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_r32_float<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::R32Float }> {
+        self.empty_r32_float
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_r16_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R16Float }> {
-        self.empty_r16_float.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_r16_float<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::R16Float }> {
+        self.empty_r16_float
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_r8_unorm<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R8Unorm }> {
-        self.empty_r8_unorm.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_r8_unorm<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::R8Unorm }> {
+        self.empty_r8_unorm
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_r8_uint<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R8Uint }> {
-        self.empty_r8_uint.get_or_init(|| gen_empty_texture(graphics))
+    pub fn empty_r8_uint<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::R8Uint }> {
+        self.empty_r8_uint
+            .get_or_init(|| gen_empty_texture(graphics))
     }
 
-    pub fn empty_r8_snorm<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R8Snorm }> {
-        self.empty_r8_snorm.get_or_init(|| gen_empty_texture(graphics))
-    }    
+    pub fn empty_r8_snorm<'a>(
+        &'a self,
+        graphics: &Graphics,
+    ) -> &'a Texture<{ TextureType::R8Snorm }> {
+        self.empty_r8_snorm
+            .get_or_init(|| gen_empty_texture(graphics))
+    }
 }
