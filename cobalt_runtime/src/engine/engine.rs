@@ -14,14 +14,14 @@ use cobalt_core::{
         renderer::{CreateRenderer, CreateRendererClosure},
         Renderer,
     },
-    stats::{Stat, Stats},
+    stats::{Stat, Stats, StatsInternal},
 };
 use downcast::AnySync;
 use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::plugins::{
     manager::{PluginInternal, PluginManagerInternal},
-    PluginError,
+    Plugin, PluginBuilder, PluginError,
 };
 
 pub struct Engine {
@@ -118,7 +118,10 @@ pub struct EngineRunner<'a> {
     plugin_manager: crate::plugins::PluginManager,
     app: &'a mut dyn crate::app::App,
     timing: EngineRunTiming,
+
+    // Configuration
     create_renderer: CreateRendererClosure,
+    initial_plugins: Vec<PluginBuilder>,
 
     // To be created later
     engine: Option<Engine>,
@@ -130,12 +133,14 @@ impl<'a> EngineRunner<'a> {
     pub fn new(
         with_app: &'a mut dyn crate::app::App,
         with_renderer: Option<CreateRendererClosure>,
+        with_plugins: Option<Vec<PluginBuilder>>,
     ) -> Self {
         Self {
             plugin_manager: crate::plugins::PluginManager::new(),
             app: with_app,
             timing: EngineRunTiming::new(),
             create_renderer: with_renderer.unwrap_or(DeferredRenderer::create),
+            initial_plugins: with_plugins.unwrap_or(vec![]),
             engine: None,
         }
     }
@@ -143,9 +148,12 @@ impl<'a> EngineRunner<'a> {
     fn initialize_engine(&mut self, event_loop: &ActiveEventLoop) {
         log::info!("Initializing engine...");
 
-        // Run initialize callbacks for plugins and app
-        let config = self.app.on_start(&mut self.plugin_manager);
+        // TODO: Move Stats to Engine
+        Stats::initialize();
 
+        let config = self.app.config();
+
+        // Run initialize callbacks for plugins and app
         log::info!("Engine configuration: {:#?}", config);
 
         // First run, initialize everything
@@ -201,6 +209,41 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let None = self.engine {
             self.initialize_engine(event_loop);
+
+            while let Some(plugin_builder) = self.initial_plugins.pop() {
+                self.plugin_manager
+                    .add_plugin_dyn(plugin_builder.plugin, plugin_builder.run_priority);
+            }
+
+            for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
+                let res = plugin.startup(self.engine.as_mut().unwrap(), self.app);
+
+                if let Err(e) = res {
+                    match e {
+                        PluginError::Fatal(e) => {
+                            log::error!(
+                                "Plugin '{}' failed to initialize: {:?}. Fatal error, stopping...",
+                                plugin.name(),
+                                e
+                            );
+                            event_loop.exit();
+                        }
+                        PluginError::NonFatal(e) => {
+                            log::error!(
+                                "Plugin '{}' failed to initialize: {:?}. Non-fatal error, continuing...",
+                                plugin.name(),
+                                e
+                            );
+                            continue;
+                        }
+                    }
+                }
+
+                log::info!("Plugin '{}' initialized successfully.", plugin.name());
+            }
+
+            self.app
+                .on_start(self.engine.as_mut().unwrap(), &mut self.plugin_manager);
         } else {
             // Resumed from suspension
             panic!("Resumed from suspension, not implemented yet");
@@ -212,8 +255,8 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
-        window_id: cobalt_core::graphics::winit::window::WindowId,
-        event: cobalt_core::graphics::winit::event::WindowEvent,
+        window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
     ) {
         // If engine is None, it means the engine has not been initialized yet
         // Just ignore the event and log
@@ -225,12 +268,53 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
             return;
         }
 
+        // Let plugins process events before the engine.
+        let mut plugin_consumed_event = false;
+
+        for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
+            let res = plugin.as_mut().window_event(
+                self.engine.as_mut().unwrap(),
+                event.clone(),
+                window_id.clone(),
+                self.app,
+            );
+
+            if let Err(e) = res {
+                match e {
+                    PluginError::Fatal(e) => {
+                        log::error!(
+                            "Plugin '{}' failed in event: {:?}. Fatal error, stopping...",
+                            plugin.name(),
+                            e
+                        );
+                        event_loop.exit();
+                    }
+                    PluginError::NonFatal(e) => {
+                        log::error!(
+                            "Plugin '{}' failed in event: {:?}. Non-fatal error, continuing...",
+                            plugin.name(),
+                            e
+                        );
+                        continue;
+                    }
+                }
+            } else {
+                if res.unwrap() {
+                    plugin_consumed_event = true;
+                    break;
+                }
+            }
+        }
+
+        if plugin_consumed_event {
+            return;
+        }
+
         // If event was consumed, no need to keep matching.
         let (input_new_event, input_consumed_event) =
             self.engine.as_mut().unwrap().input.update(&event);
 
         if let Some(event) = input_new_event {
-            // There are changes in the input
             self.app.on_input(
                 self.engine.as_mut().unwrap(),
                 &mut self.plugin_manager,
@@ -248,7 +332,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
         }
 
         match event {
-            winit::event::WindowEvent::CloseRequested => {
+            WindowEvent::CloseRequested => {
                 self.app
                     .on_stop(self.engine.as_mut().unwrap(), &mut self.plugin_manager);
 
@@ -529,5 +613,14 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
             }
             _ => (),
         }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.engine
+            .as_ref()
+            .unwrap()
+            .window
+            .winit()
+            .request_redraw();
     }
 }

@@ -25,7 +25,11 @@ pub trait PluginManagerInternal {
 
     /// Adds a plugin to the manager.
     /// Not allowed at runtime currently as startup will not be called.
-    fn add_plugin<T: Plugin + 'static>(&mut self, plugin: Box<T>, run_priority: u32);
+    fn add_plugin<T: Plugin>(&mut self, plugin: Box<T>, run_priority: u32);
+
+    /// Adds a plugin to the manager.
+    /// Not allowed at runtime currently as startup will not be called.
+    fn add_plugin_dyn(&mut self, plugin: Box<dyn Plugin>, run_priority: u32);
 }
 
 impl PluginManagerInternal for PluginManager {
@@ -35,9 +39,14 @@ impl PluginManagerInternal for PluginManager {
         }
     }
 
-    fn add_plugin<T: Plugin + 'static>(&mut self, plugin: Box<T>, run_priority: u32) {
+    fn add_plugin<T: Plugin>(&mut self, plugin: Box<T>, run_priority: u32) {
         self.plugins
             .insert(TypeId::of::<T>(), (Some(plugin), run_priority, false));
+    }
+
+    fn add_plugin_dyn(&mut self, plugin: Box<dyn Plugin>, run_priority: u32) {
+        self.plugins
+            .insert(plugin.type_id(), (Some(plugin), run_priority, false));
     }
 }
 

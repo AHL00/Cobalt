@@ -27,7 +27,7 @@ struct RotateRandom;
 impl Component for RotateRandom {}
 
 impl App for Game {
-    fn on_start(&mut self, engine: &mut Engine, _plugins: &mut PluginManager) {
+    fn config(&mut self, engine: &mut Engine, _plugins: &mut PluginManager) {
         log::info!("Game started!");
 
         AssetServer::global_write().set_assets_dir("./assets/").unwrap();

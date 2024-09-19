@@ -7,10 +7,12 @@ use downcast::{downcast, Any};
 
 // TODO: Return Box<dyn Error> from App calls.
 pub trait App: Any {
-    /// Called once when the engine starts.
-    fn on_start(&mut self, _plugins: &mut PluginManager) -> InitialEngineConfig {
+    fn config(&mut self) -> InitialEngineConfig {
         InitialEngineConfig::default()
     }
+
+    /// Called at the start of the application.
+    fn on_start(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager) {}
 
     /// Called every frame.
     fn on_update(&mut self, _engine: &mut Engine, _plugins: &mut PluginManager, _delta_time: f32) {}
@@ -24,8 +26,8 @@ pub trait App: Any {
         &mut self,
         _engine: &mut Engine,
         _plugins: &mut PluginManager,
-        _width: u32,
-        _height: u32,
+        _new_width: u32,
+        _new_height: u32,
     ) {
     }
 

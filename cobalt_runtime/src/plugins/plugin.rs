@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use cobalt_core::graphics::{frame::Frame, winit};
+use cobalt_core::graphics::{frame::Frame, winit::{self, event::WindowEvent}};
 
 use crate::{app::App, engine::Engine};
 
@@ -22,16 +22,22 @@ pub trait Plugin: Any {
 
     /// Called after rendering is done but before frame submission.
     /// A `Frame` struct is passed to allow for more custom rendering.
-    fn post_render(&mut self, _engine: &mut Engine, _frame: &mut Frame, _app: &mut dyn App) -> Result<(), PluginError> {
+    fn post_render(
+        &mut self,
+        _engine: &mut Engine,
+        _frame: &mut Frame,
+        _app: &mut dyn App,
+    ) -> Result<(), PluginError> {
         Ok(())
     }
 
     /// Called when an event is received. Plugins get access to events before the engine does.
     /// If the function returns `true`, the event will be consumed and not processed by the engine.
-    fn event(
+    fn window_event(
         &mut self,
         _engine: &mut Engine,
-        _event: cobalt_core::reexports::winit::event::Event<()>,
+        _window_event: WindowEvent,
+        _window_id: winit::window::WindowId,
         _app: &mut dyn App,
     ) -> Result<bool, PluginError> {
         Ok(false)
@@ -54,6 +60,14 @@ pub trait Plugin: Any {
     }
 
     fn name(&self) -> &'static str;
+}
+
+impl std::fmt::Debug for dyn Plugin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Plugin")
+            .field("name", &self.name())
+            .finish()
+    }
 }
 
 downcast!(dyn Plugin);

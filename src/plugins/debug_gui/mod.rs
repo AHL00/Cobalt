@@ -1,6 +1,9 @@
 use cobalt_core::graphics::{context::Graphics, wgpu, window::WindowInternal};
 use cobalt_runtime::{app::App, plugins::Plugin};
-use egui_winit::EventResponse;
+use egui_winit::{
+    winit::{event::WindowEvent, window::WindowId},
+    EventResponse,
+};
 
 mod windows;
 
@@ -102,16 +105,17 @@ impl Plugin for DebugGUIPlugin {
             graphics.output_color_format,
             None,
             DebugGUIPlugin::MSAA_SAMPLES,
-            true
+            true,
         ));
 
         Ok(())
     }
 
-    fn event(
+    fn window_event(
         &mut self,
         engine: &mut cobalt_runtime::engine::Engine,
-        event: cobalt_core::reexports::winit::event::Event<()>,
+        window_event: WindowEvent,
+        window_id: WindowId,
         _app: &mut dyn App,
     ) -> Result<bool, cobalt_runtime::plugins::plugin::PluginError> {
         if !self.enabled {
@@ -120,25 +124,20 @@ impl Plugin for DebugGUIPlugin {
 
         let mut event_consumed = false;
 
-        match event {
-            egui_winit::winit::event::Event::WindowEvent { event, window_id } => {
-                if window_id == engine.window().winit().id() {
-                    if let Some(state) = self.state.as_mut() {
-                        let res = state.on_window_event(engine.window().winit(), &event);
+        if window_id == engine.window().winit().id() {
+            if let Some(state) = self.state.as_mut() {
+                let res = state.on_window_event(engine.window().winit(), &window_event);
 
-                        match res {
-                            EventResponse { consumed, repaint } => {
-                                event_consumed = consumed;
+                match res {
+                    EventResponse { consumed, repaint } => {
+                        event_consumed = consumed;
 
-                                if repaint {
-                                    engine.window().winit().request_redraw();
-                                }
-                            }
+                        if repaint {
+                            engine.window().winit().request_redraw();
                         }
                     }
                 }
             }
-            _ => {}
         }
 
         Ok(event_consumed)
