@@ -1,4 +1,9 @@
-use std::{error::Error, sync::Arc, time::Duration};
+use std::{
+    error::Error,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use cobalt_core::{
     assets::server::AssetServer,
@@ -85,6 +90,9 @@ impl Engine {
 pub struct InitialEngineConfig {
     pub scene: cobalt_core::scenes::scene::Scene,
     pub window_config: cobalt_core::graphics::window::WindowConfig,
+    /// The directory where assets are stored. If None, the default ./assets/ directory will be used.
+    /// This should contain the manifest file.
+    pub assets_dir: String,
 }
 
 impl Default for InitialEngineConfig {
@@ -92,6 +100,7 @@ impl Default for InitialEngineConfig {
         Self {
             scene: cobalt_core::scenes::scene::Scene::new("Main Scene"),
             window_config: cobalt_core::graphics::window::WindowConfig::default(),
+            assets_dir: String::from("./assets/"),
         }
     }
 }
@@ -145,7 +154,7 @@ impl<'a> EngineRunner<'a> {
         }
     }
 
-    fn initialize_engine(&mut self, event_loop: &ActiveEventLoop) {
+    fn initialize_engine(&mut self, event_loop: &ActiveEventLoop) -> Result<(), Box<dyn Error>> {
         log::info!("Initializing engine...");
 
         // TODO: Move Stats to Engine
@@ -157,30 +166,33 @@ impl<'a> EngineRunner<'a> {
         log::info!("Engine configuration: {:#?}", config);
 
         // First run, initialize everything
-        let window = cobalt_core::graphics::window::Window::new(event_loop, &config.window_config)
-            .expect("Failed to create window");
+        let window = cobalt_core::graphics::window::Window::new(event_loop, &config.window_config)?;
 
         log::info!("Window created successfully.");
 
         let output_size = window.winit().inner_size();
 
-        let graphics = Arc::new(RwLock::new(
-            cobalt_core::graphics::context::Graphics::new(&window)
-                .expect("Failed to initialize graphics"),
-        ));
+        let graphics = Arc::new(RwLock::new(cobalt_core::graphics::context::Graphics::new(
+            &window,
+        )?));
 
         log::info!("Graphics initialized successfully.");
 
-        let renderer = Arc::new(Mutex::new(
-            (self.create_renderer)(&graphics.read(), output_size.into())
-                .expect("Failed to create renderer"),
-        ));
+        let renderer = Arc::new(Mutex::new((self.create_renderer)(
+            &graphics.read(),
+            output_size.into(),
+        )?));
 
         log::info!("Renderer initialized successfully.");
 
         let assets = Arc::new(RwLock::new(AssetServer::new(Arc::downgrade(&graphics))));
 
-        log::info!("Asset server initialized successfully.");
+        assets.write().set_assets_dir(config.assets_dir.as_str())?;
+
+        log::info!(
+            "Asset server initialized successfully with asset directory: {:?}",
+            config.assets_dir
+        );
 
         log::info!("Engine initialized successfully.");
 
@@ -194,6 +206,8 @@ impl<'a> EngineRunner<'a> {
 
             exit_requested: false,
         });
+
+        Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
@@ -208,7 +222,10 @@ impl<'a> EngineRunner<'a> {
 impl<'a> ApplicationHandler for EngineRunner<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let None = self.engine {
-            self.initialize_engine(event_loop);
+            if let Err(e) = self.initialize_engine(event_loop) {
+                log::error!("Failed to initialize engine: {:?}", e);
+                event_loop.exit();
+            };
 
             while let Some(plugin_builder) = self.initial_plugins.pop() {
                 self.plugin_manager
