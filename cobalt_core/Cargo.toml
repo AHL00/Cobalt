@@ -60,6 +60,7 @@ uuid = { version = "1.10.0", features = ["serde", "v4", "fast-rng"] }
 serde_closure = "0.3.3"
 rayon = "1.10.0"
 path-clean = "1.0.1"
+arc-swap = "1.7.1"
 
 [dev-dependencies]
 simple_logger = "5.0.0"

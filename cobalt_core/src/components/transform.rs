@@ -8,6 +8,7 @@ use std::{
     sync::LazyLock,
 };
 
+use parking_lot::MappedRwLockReadGuard;
 use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
 use wgpu::util::DeviceExt;
 
@@ -20,37 +21,35 @@ fn calculate_normal_matrix(model: &Mat4, view: &Mat4) -> Mat3 {
     ((*model * *view).inversed().transposed()).truncate()
 }
 
-static TRANSFORM_BIND_GROUP_LAYOUT: LazyLock<wgpu::BindGroupLayout> = LazyLock::new(|| {
-    Graphics::global_read()
-        .device
-        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                // Model matrix
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+fn create_tranform_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            // Model matrix
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-                // Normal matrix, use as vec3 but sent as vec4 as wgsl doesn't want to accept a vec3
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+                count: None,
+            },
+            // Normal matrix, use as vec3 but sent as vec4 as wgsl doesn't want to accept a vec3
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
-            ],
-        })
-});
+                count: None,
+            },
+        ],
+    })
+}
 
 /// A transform component.
 /// Contains position, rotation, and scale.
@@ -62,11 +61,11 @@ pub struct Transform {
     scale: Vec3,
     model_matrix: Mat4,
     normal_matrix: Mat3,
-    bind_group: wgpu::BindGroup,
-    model_mat_buffer: wgpu::Buffer,
+    bind_group: Option<wgpu::BindGroup>,
+    model_mat_buffer: Option<wgpu::Buffer>,
     /// A normal matrix is the truncated inverse transpose of the model matrix.
     /// Used for transforming normals in the vertex shader.
-    normal_mat_buffer: wgpu::Buffer,
+    normal_mat_buffer: Option<wgpu::Buffer>,
     /// Whether the model matrix is dirty and needs to be recalculated.
     pub(crate) model_dirty: bool,
     /// This is only processed when actually rendering at the final stage, after all
@@ -74,67 +73,19 @@ pub struct Transform {
     pub(crate) buffers_dirty: bool,
 }
 
-impl Default for Transform {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Clone for Transform {
     fn clone(&self) -> Self {
-        let model_mat_buffer =
-            Graphics::global_read()
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(self.model_matrix.as_byte_slice()),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-
-        let normal_mat_buffer =
-            Graphics::global_read()
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(
-                        self.normal_matrix.into_homogeneous().as_byte_slice(),
-                    ),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-
-        let bind_group =
-            Graphics::global_read()
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: None,
-                    layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Buffer(
-                                model_mat_buffer.as_entire_buffer_binding(),
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Buffer(
-                                normal_mat_buffer.as_entire_buffer_binding(),
-                            ),
-                        },
-                    ],
-                });
-
         Self {
             position: self.position,
             rotation: self.rotation,
             scale: self.scale,
             model_matrix: self.model_matrix,
             normal_matrix: self.normal_matrix,
-            bind_group,
-            model_mat_buffer,
-            normal_mat_buffer,
+            bind_group: None,
+            model_mat_buffer: None,
+            normal_mat_buffer: None,
             model_dirty: self.model_dirty,
-            buffers_dirty: self.buffers_dirty,
+            buffers_dirty: true,
         }
     }
 }
@@ -154,8 +105,23 @@ impl Component for Transform {}
 
 impl Transform {
     pub fn new() -> Self {
+        Self {
+            position: Vec3::zero(),
+            rotation: Rotor3::identity(),
+            scale: Vec3::one(),
+            model_matrix: Mat4::identity(),
+            normal_matrix: Mat3::identity(),
+            bind_group: None,
+            model_mat_buffer: None,
+            normal_mat_buffer: None,
+            model_dirty: true,
+            buffers_dirty: true,
+        }
+    }
+
+    pub(crate) fn initialize_gpu(&mut self, graphics: &mut Graphics) {
         let model_mat_buffer =
-            Graphics::global_read()
+            graphics
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: None,
@@ -164,7 +130,7 @@ impl Transform {
                 });
 
         let normal_mat_buffer =
-            Graphics::global_read()
+            graphics
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: None,
@@ -174,40 +140,27 @@ impl Transform {
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 });
 
-        let bind_group =
-            Graphics::global_read()
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: None,
-                    layout: &*TRANSFORM_BIND_GROUP_LAYOUT,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Buffer(
-                                model_mat_buffer.as_entire_buffer_binding(),
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Buffer(
-                                normal_mat_buffer.as_entire_buffer_binding(),
-                            ),
-                        },
-                    ],
-                });
+        let bind_group_layout =
+            graphics.bind_group_layout_cache::<Transform>(create_tranform_bind_group_layout);
 
-        Self {
-            position: Vec3::zero(),
-            rotation: Rotor3::identity(),
-            scale: Vec3::one(),
-            model_matrix: Mat4::identity(),
-            normal_matrix: Mat3::identity(),
-            bind_group,
-            model_mat_buffer,
-            normal_mat_buffer,
-            model_dirty: true,
-            buffers_dirty: true,
-        }
+        let bind_group = graphics.create_bind_group::<Transform>(
+            None,
+            &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(
+                        model_mat_buffer.as_entire_buffer_binding(),
+                    ),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer(
+                        normal_mat_buffer.as_entire_buffer_binding(),
+                    ),
+                },
+            ],
+            create_tranform_bind_group_layout,
+        );
     }
 
     pub fn with_position(position: Vec3) -> Self {
@@ -247,10 +200,10 @@ impl Transform {
 
     /// Gets a mutable reference to the position.
     // Marks the transform as dirty, which means the model matrix will be recalculated.
-    pub fn position_mut(&mut self) -> &mut Vec3 {
-        self.set_dirty();
-        &mut self.position
-    }
+    // pub fn position_mut(&mut self) -> &mut Vec3 {
+    //     self.set_dirty();
+    //     &mut self.position
+    // }
 
     /// Gets the rotation.
     pub fn rotation(&self) -> Rotor3 {
@@ -362,8 +315,11 @@ impl Transform {
 }
 
 impl HasBindGroupLayout<()> for Transform {
-    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
-        &TRANSFORM_BIND_GROUP_LAYOUT
+    fn bind_group_layout<'a>(
+        graphics: &'a Graphics,
+        _: (),
+    ) -> MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
+        graphics.bind_group_layout_cache::<Transform>(create_tranform_bind_group_layout)
     }
 }
 
@@ -377,19 +333,72 @@ impl HasBindGroup for Transform {
             #[cfg(feature = "debug_stats")]
             let start = std::time::Instant::now();
 
+            // Lazy initialize buffers
+            if let None = self.model_mat_buffer {
+                self.model_mat_buffer = Some(graphics.device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label: None,
+                        contents: bytemuck::cast_slice(Mat4::identity().as_byte_slice()),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    },
+                ));
+            }
+
+            if let None = self.normal_mat_buffer {
+                self.normal_mat_buffer = Some(graphics.device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label: None,
+                        contents: bytemuck::cast_slice(
+                            Mat3::identity().into_homogeneous().as_byte_slice(),
+                        ),
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    },
+                ));
+            }
+
             graphics.queue.write_buffer(
-                &self.model_mat_buffer,
+                self.model_mat_buffer.as_ref().unwrap(),
                 0,
                 bytemuck::cast_slice(self.model_matrix.as_byte_slice()),
             );
 
             graphics.queue.write_buffer(
-                &self.normal_mat_buffer,
+                self.normal_mat_buffer.as_ref().unwrap(),
                 0,
                 bytemuck::cast_slice(self.normal_matrix.into_homogeneous().as_byte_slice()),
             );
 
             self.buffers_dirty = false;
+
+            // Lazy initialize bind group
+            if let None = self.bind_group {
+                self.bind_group = Some(
+                    graphics.create_bind_group::<Transform>(
+                        None,
+                        &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Buffer(
+                                    self.model_mat_buffer
+                                        .as_ref()
+                                        .unwrap()
+                                        .as_entire_buffer_binding(),
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Buffer(
+                                    self.normal_mat_buffer
+                                        .as_ref()
+                                        .unwrap()
+                                        .as_entire_buffer_binding(),
+                                ),
+                            },
+                        ],
+                        create_tranform_bind_group_layout,
+                    ),
+                );
+            }
 
             #[cfg(feature = "debug_stats")]
             {
@@ -413,6 +422,6 @@ impl HasBindGroup for Transform {
             }
         }
 
-        &self.bind_group
+        self.bind_group.as_ref().unwrap()
     }
 }

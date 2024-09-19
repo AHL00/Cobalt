@@ -1,9 +1,7 @@
 use crate::{
-    components::transform::Transform,
-    ecs::component::Component,
+    components::transform::Transform, ecs::component::Component, graphics::context::Graphics,
     types::aabb::AABB,
 };
-
 
 pub mod mesh;
 pub mod plane;
@@ -23,14 +21,14 @@ impl Component for Renderable {}
 /// The renderable's AABB are in local space.
 pub(super) trait RenderableTrait {
     /// Assume that the uniforms and shader are already set
-    fn render(&self, render_pass: &mut wgpu::RenderPass);
+    fn render(&self, graphics: &Graphics, render_pass: &mut wgpu::RenderPass);
 }
 
 impl Renderable {
-    pub(crate) fn render(&self, render_pass: &mut wgpu::RenderPass) {
+    pub(crate) fn render(&self, graphics: &Graphics, render_pass: &mut wgpu::RenderPass) {
         match self {
-            Self::Plane(plane) => plane.render(render_pass),
-            Self::Mesh(mesh) => mesh.render(render_pass),
+            Self::Plane(plane) => plane.render(graphics, render_pass),
+            Self::Mesh(mesh) => mesh.render(graphics, render_pass),
         }
     }
 

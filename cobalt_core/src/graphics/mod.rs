@@ -1,22 +1,28 @@
+pub mod bind_groups;
 pub mod context;
 pub mod frame;
 pub mod texture;
 pub mod vertex;
 pub mod window;
-pub mod bind_groups;
+pub mod cache;
 
-pub use winit;
+use context::Graphics;
+use parking_lot::MappedRwLockReadGuard;
 pub use wgpu;
+pub use winit;
 
 pub mod exports {
+    pub use super::texture::TextureType;
     pub use super::wgpu;
     pub use super::window;
-    pub use super::texture::TextureType;
 }
 
 /// Capable of creating a wgpu::BindGroupLayout.
 pub trait HasBindGroupLayout<E> {
-    fn bind_group_layout(extra: E) -> &'static wgpu::BindGroupLayout;
+    fn bind_group_layout<'a>(
+        graphics: &'a Graphics,
+        extra: E,
+    ) -> MappedRwLockReadGuard<'a, wgpu::BindGroupLayout>;
 }
 
 pub trait HasBindGroup {
@@ -29,11 +35,12 @@ pub trait HasBindGroup {
 pub trait HasStableBindGroup {
     /// Returns a reference to the bind group.
     /// The bind group is guaranteed to be stable and not need to be recreated.
+    /// Therefore, it does not require a &Graphics reference.
     fn stable_bind_group(&self) -> &wgpu::BindGroup;
 }
 
 pub trait CreateBindGroup {
-    fn create_bind_group(&self, device: &wgpu::Device) -> wgpu::BindGroup;
+    fn create_bind_group(&self, graphics: &self::context::Graphics) -> wgpu::BindGroup;
 }
 
 pub trait HasVertexBufferLayout {

@@ -38,7 +38,7 @@ impl Engine {
         self.graphics.write()
     }
 
-    pub fn graphics_rwlock(&self) -> &Arc<RwLock<cobalt_core::graphics::context::Graphics>> {
+    pub fn graphics_arc(&self) -> &Arc<RwLock<cobalt_core::graphics::context::Graphics>> {
         &self.graphics
     }
 
@@ -50,7 +50,7 @@ impl Engine {
         self.renderer.lock()
     }
 
-    pub fn renderer_mutex(&self) -> &Arc<Mutex<dyn cobalt_core::renderer::Renderer>> {
+    pub fn renderer_arc(&self) -> &Arc<Mutex<dyn cobalt_core::renderer::Renderer>> {
         &self.renderer
     }
 
@@ -66,7 +66,7 @@ impl Engine {
         self.assets.write()
     }
 
-    pub fn assets_rwlock(&self) -> &Arc<RwLock<cobalt_core::assets::server::AssetServer>> {
+    pub fn assets_arc(&self) -> &Arc<RwLock<cobalt_core::assets::server::AssetServer>> {
         &self.assets
     }
 
@@ -149,10 +149,12 @@ impl<'a, R: Renderer> EngineRunner<'a, R> {
         ));
 
         let renderer = Arc::new(Mutex::new(
-            R::new((output_size.width, output_size.height)).expect("Failed to create renderer"),
+            R::new(graphics, (output_size.width, output_size.height)).expect("Failed to create renderer"),
         ));
 
-        let assets = Arc::new(RwLock::new(cobalt_core::assets::server::AssetServer::new()));
+        let assets = Arc::new(RwLock::new(cobalt_core::assets::server::AssetServer::new(
+            graphics.clone(),
+        )));
 
         log::info!("Engine initialized successfully.");
 
@@ -325,7 +327,7 @@ impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
                 };
 
                 if let Some(frame_data) = frame_data {
-                    let render_res = engine_mut.renderer.lock().render(&mut frame, frame_data);
+                    let render_res = engine_mut.renderer.lock().render(&engine_mut.graphics.read(), &mut frame, frame_data);
 
                     match render_res {
                         Ok(_) => {
@@ -439,11 +441,13 @@ impl<'a, R: Renderer> ApplicationHandler for EngineRunner<'a, R> {
                     .configure_surface(size.into(), current_present_mode);
 
                 self.engine
-                    .as_mut()
+                    .as_ref()
                     .unwrap()
                     .renderer
                     .lock()
-                    .resize_callback(size.into())
+                    .resize_callback(
+                        &self.engine.as_ref().unwrap().graphics(),
+                        size.into())
                     .unwrap_or_else(|e| {
                         log::error!("Failed to resize renderer: {:?}", e);
                     });

@@ -157,6 +157,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
 
     fn read_packed_buffer(
         data: &mut dyn Read,
+        graphics: &Graphics,
     ) -> Result<Self, crate::exports::assets::AssetLoadError> {
         let data_slice: Vec<u8> = {
             let mut data_buffer = Vec::new();
@@ -179,8 +180,6 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
                     .into(),
             )
         })?;
-
-        let graphics = Graphics::global_read();
 
         let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
@@ -226,7 +225,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
-                layout: Texture::<T>::bind_group_layout(()),
+                layout: &Texture::<T>::bind_group_layout(graphics, ()),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -265,10 +264,8 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
         Ok(bytes::Bytes::from(ser_data))
     }
 
-    fn read_source_file(abs_path: &std::path::Path) -> Result<Self, AssetLoadError> {
+    fn read_source_file(abs_path: &std::path::Path, graphics: &Graphics,) -> Result<Self, AssetLoadError> {
         let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_path, T)?;
-
-        let graphics = Graphics::global_read();
 
         let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
@@ -314,7 +311,7 @@ impl<const T: TextureType> AssetTrait for Texture<T> {
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
-                layout: Texture::<T>::bind_group_layout(()),
+                layout: &Texture::<T>::bind_group_layout(graphics, ()),
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,

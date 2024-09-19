@@ -1,13 +1,18 @@
 use half::f16;
-use image::GenericImageView;
-use std::{marker::ConstParamTy, sync::LazyLock};
+use parking_lot::{MappedRwLockReadGuard, RwLock, RwLockReadGuard};
+use std::{
+    marker::ConstParamTy,
+    sync::{LazyLock, OnceLock},
+};
 
-use crate::{exports::assets::{AssetLoadError, AssetTrait}, graphics::HasBindGroupLayout};
+use crate::graphics::HasBindGroupLayout;
 
-use super::{context::Graphics, HasBindGroup};
+use super::{cache::TextureCache, context::Graphics, HasBindGroup};
 
 // NOTE: If adding variants to this, change the `gen_empty_texture` function and cobalt_pack
-#[derive(Debug, Clone, Copy, PartialEq, ConstParamTy, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, ConstParamTy, Eq, serde::Serialize, serde::Deserialize, Hash,
+)]
 pub enum TextureType {
     // Color textures
     RGBA32Float,
@@ -56,7 +61,10 @@ impl TextureType {
     }
 
     // Tries to get image data from a dynamic image.
-    pub(crate) fn get_image_data(&self, image: image::DynamicImage) -> Result<bytes::Bytes, String> {
+    pub(crate) fn get_image_data(
+        &self,
+        image: image::DynamicImage,
+    ) -> Result<bytes::Bytes, String> {
         let vec_res: Result<Vec<u8>, String> = match self {
             TextureType::RGBA8Unorm => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA8UnormSrgb => Ok(image.into_rgba8().into_vec()),
@@ -250,54 +258,56 @@ impl<const T: TextureType> Texture<T> {
     }
 }
 
-static TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE: LazyLock<wgpu::BindGroupLayout> =
-    LazyLock::new(|| create_bind_group_layout(true, true));
+// static TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE: LazyLock<wgpu::BindGroupLayout> =
+//     LazyLock::new(|| create_bind_group_layout(true, true));
 
-static TEXTURE_BIND_GROUP_LAYOUT_NON_FILTERING_NON_FILTERABLE: LazyLock<wgpu::BindGroupLayout> =
-    LazyLock::new(|| create_bind_group_layout(false, false));
+// static TEXTURE_BIND_GROUP_LAYOUT_NON_FILTERING_NON_FILTERABLE: LazyLock<wgpu::BindGroupLayout> =
+//     LazyLock::new(|| create_bind_group_layout(false, false));
 
-fn create_bind_group_layout(filterable: bool, filtering: bool) -> wgpu::BindGroupLayout {
-    Graphics::global_read()
-        .device
-        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable },
-                    },
-                    count: None,
+fn create_bind_group_layout(
+    device: &wgpu::Device,
+    filterable: bool,
+    filtering: bool,
+) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable },
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(match filtering {
-                        true => wgpu::SamplerBindingType::Filtering,
-                        false => wgpu::SamplerBindingType::NonFiltering,
-                    }),
-                    count: None,
-                },
-            ],
-        })
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(match filtering {
+                    true => wgpu::SamplerBindingType::Filtering,
+                    false => wgpu::SamplerBindingType::NonFiltering,
+                }),
+                count: None,
+            },
+        ],
+    })
 }
 
-fn get_bind_group_layout(ty: TextureType) -> &'static wgpu::BindGroupLayout {
-    match ty {
-        TextureType::RGBA32Float
-        | TextureType::RGBA16Float
-        | TextureType::RGBA8Unorm
-        | TextureType::RGBA8UnormSrgb => &TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE,
-        TextureType::R32Float
-        | TextureType::R16Float
-        | TextureType::R8Unorm
-        | TextureType::R8Uint
-        | TextureType::R8Snorm => &TEXTURE_BIND_GROUP_LAYOUT_NON_FILTERING_NON_FILTERABLE,
-    }
-}
+// fn get_bind_group_layout(ty: TextureType) -> MappedRwLockReadGuard<wgpu::BindGroupLayout> {
+//     match ty {
+//         TextureType::RGBA32Float
+//         | TextureType::RGBA16Float
+//         | TextureType::RGBA8Unorm
+//         | TextureType::RGBA8UnormSrgb => &TEXTURE_BIND_GROUP_LAYOUT_FILTERING_FILTERABLE,
+//         TextureType::R32Float
+//         | TextureType::R16Float
+//         | TextureType::R8Unorm
+//         | TextureType::R8Uint
+//         | TextureType::R8Snorm => &TEXTURE_BIND_GROUP_LAYOUT_NON_FILTERING_NON_FILTERABLE,
+//     }
+// }
 
 impl<const T: TextureType> HasBindGroup for Texture<T> {
     // TODO: Handle texture changes
@@ -306,51 +316,87 @@ impl<const T: TextureType> HasBindGroup for Texture<T> {
     }
 }
 
+/// Create or retrieve a cached bind group layout for a texture type.
+fn texture_bind_group_layout<const T: TextureType>(
+    graphics: &Graphics,
+) -> MappedRwLockReadGuard<wgpu::BindGroupLayout> {
+    let filterable = match T {
+        TextureType::RGBA32Float
+        | TextureType::RGBA16Float
+        | TextureType::RGBA8Unorm
+        | TextureType::RGBA8UnormSrgb => true,
+        TextureType::R32Float
+        | TextureType::R16Float
+        | TextureType::R8Unorm
+        | TextureType::R8Uint
+        | TextureType::R8Snorm => false,
+    };
+
+    let filtering = match T {
+        TextureType::RGBA32Float
+        | TextureType::RGBA16Float
+        | TextureType::RGBA8Unorm
+        | TextureType::RGBA8UnormSrgb => true,
+        TextureType::R32Float
+        | TextureType::R16Float
+        | TextureType::R8Unorm
+        | TextureType::R8Uint
+        | TextureType::R8Snorm => false,
+    };
+
+    graphics.bind_group_layout_cache::<Texture<T>>(|device| {
+        create_bind_group_layout(device, filterable, filtering)
+    })
+}
+
 impl<const T: TextureType> HasBindGroupLayout<()> for Texture<T> {
-    fn bind_group_layout(_: ()) -> &'static wgpu::BindGroupLayout {
-        get_bind_group_layout(T)
+    // fn bind_group_layout(graphics: &Graphics, _: ()) -> &'static wgpu::BindGroupLayout {
+    //     get_bind_group_layout(T)
+    // }
+
+    fn bind_group_layout<'a>(
+        graphics: &'a Graphics,
+        extra: (),
+    ) -> parking_lot::MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
+        texture_bind_group_layout::<T>(graphics)
     }
 }
 
-fn gen_empty_texture<const T: TextureType>() -> Texture<T> {
+pub(crate) fn gen_empty_texture<const T: TextureType>(graphics: &Graphics) -> Texture<T> {
     let size = wgpu::Extent3d {
         width: 1,
         height: 1,
         depth_or_array_layers: 1,
     };
 
-    let texture = Graphics::global_read()
-        .device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: T.into(),
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[T.into()],
-        });
+    let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
+        label: None,
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: T.into(),
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[T.into()],
+    });
 
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-    let sampler = Graphics::global_read()
-        .device
-        .create_sampler(&wgpu::SamplerDescriptor {
-            label: None,
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
+    let sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
+        label: None,
+        address_mode_u: wgpu::AddressMode::ClampToEdge,
+        address_mode_v: wgpu::AddressMode::ClampToEdge,
+        address_mode_w: wgpu::AddressMode::ClampToEdge,
+        mag_filter: wgpu::FilterMode::Nearest,
+        min_filter: wgpu::FilterMode::Nearest,
+        ..Default::default()
+    });
 
-    let bind_group = Graphics::global_read()
+    let bind_group = graphics
         .device
         .create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: Texture::<{ T }>::bind_group_layout(()),
+            layout: &Texture::<{ T }>::bind_group_layout(graphics, ()),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -364,12 +410,13 @@ fn gen_empty_texture<const T: TextureType>() -> Texture<T> {
         });
 
     fn write_texture(
+        graphics: &Graphics,
         data: &[u8],
         bytes_per_row: u32,
         texture: &wgpu::Texture,
         size: wgpu::Extent3d,
     ) {
-        Graphics::global_read().queue.write_texture(
+        graphics.queue.write_texture(
             wgpu::ImageCopyTexture {
                 texture: &texture,
                 mip_level: 0,
@@ -389,6 +436,7 @@ fn gen_empty_texture<const T: TextureType>() -> Texture<T> {
     match T {
         TextureType::RGBA32Float => {
             write_texture(
+                graphics,
                 bytemuck::cast_slice(&[1.0f32, 1.0, 1.0, 1.0]),
                 16,
                 &texture,
@@ -397,6 +445,7 @@ fn gen_empty_texture<const T: TextureType>() -> Texture<T> {
         }
         TextureType::RGBA16Float => {
             write_texture(
+                graphics,
                 bytemuck::cast_slice(&[
                     f16::from_f32(1.0),
                     f16::from_f32(1.0),
@@ -409,16 +458,17 @@ fn gen_empty_texture<const T: TextureType>() -> Texture<T> {
             );
         }
         TextureType::RGBA8Unorm => {
-            write_texture(&[255u8, 255, 255, 255], 4, &texture, size);
+            write_texture(graphics, &[255u8, 255, 255, 255], 4, &texture, size);
         }
         TextureType::RGBA8UnormSrgb => {
-            write_texture(&[255u8, 255, 255, 255], 4, &texture, size);
+            write_texture(graphics, &[255u8, 255, 255, 255], 4, &texture, size);
         }
         TextureType::R32Float => {
-            write_texture(bytemuck::cast_slice(&[1.0f32]), 4, &texture, size);
+            write_texture(graphics, bytemuck::cast_slice(&[1.0f32]), 4, &texture, size);
         }
         TextureType::R16Float => {
             write_texture(
+                graphics,
                 bytemuck::cast_slice(&[f16::from_f32(1.0)]),
                 2,
                 &texture,
@@ -426,13 +476,13 @@ fn gen_empty_texture<const T: TextureType>() -> Texture<T> {
             );
         }
         TextureType::R8Unorm => {
-            write_texture(&[255u8], 1, &texture, size);
+            write_texture(graphics, &[255u8], 1, &texture, size);
         }
         TextureType::R8Uint => {
-            write_texture(&[255u8], 1, &texture, size);
+            write_texture(graphics, &[255u8], 1, &texture, size);
         }
         TextureType::R8Snorm => {
-            write_texture(bytemuck::cast_slice(&[127i8]), 1, &texture, size);
+            write_texture(graphics, bytemuck::cast_slice(&[127i8]), 1, &texture, size);
         }
     }
 
@@ -445,30 +495,71 @@ fn gen_empty_texture<const T: TextureType>() -> Texture<T> {
     }
 }
 
-/// White 1x1 texture
-pub static EMPTY_RGBA32_FLOAT: LazyLock<Texture<{ TextureType::RGBA32Float }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_RGBA16_FLOAT: LazyLock<Texture<{ TextureType::RGBA16Float }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_RGBA8_UNORM: LazyLock<Texture<{ TextureType::RGBA8Unorm }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_RGBA8_UNORM_SRGB: LazyLock<Texture<{ TextureType::RGBA8UnormSrgb }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_R32_FLOAT: LazyLock<Texture<{ TextureType::R32Float }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_R16_FLOAT: LazyLock<Texture<{ TextureType::R16Float }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_R8_UNORM: LazyLock<Texture<{ TextureType::R8Unorm }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_R8_UINT: LazyLock<Texture<{ TextureType::R8Uint }>> =
-    LazyLock::new(|| gen_empty_texture());
-/// White 1x1 texture
-pub static EMPTY_R8_SNORM: LazyLock<Texture<{ TextureType::R8Snorm }>> =
-    LazyLock::new(|| gen_empty_texture());
+static EMPTY_RGBA32_FLOAT_TEXTURE: LazyLock<RwLock<Option<Texture<{ TextureType::RGBA32Float }>>>> =
+    LazyLock::new(|| RwLock::new(None));
+
+pub fn empty_rgba32_float_texture(
+    graphics: &Graphics,
+) -> MappedRwLockReadGuard<'static, Texture<{ TextureType::RGBA32Float }>> {
+    if EMPTY_RGBA32_FLOAT_TEXTURE.read().is_none() {
+        EMPTY_RGBA32_FLOAT_TEXTURE
+            .write()
+            .replace(gen_empty_texture(graphics));
+    }
+
+    RwLockReadGuard::map(EMPTY_RGBA32_FLOAT_TEXTURE.read(), |opt| {
+        opt.as_ref().unwrap()
+    })
+}
+
+impl TextureCache {
+    pub fn new() -> Self {
+        Self {
+            empty_rgba32_float: OnceLock::new(),
+            empty_rgba16_float: OnceLock::new(),
+            empty_rgba8_unorm: OnceLock::new(),
+            empty_rgba8_unorm_srgb: OnceLock::new(),
+            empty_r32_float: OnceLock::new(),
+            empty_r16_float: OnceLock::new(),
+            empty_r8_unorm: OnceLock::new(),
+            empty_r8_uint: OnceLock::new(),
+            empty_r8_snorm: OnceLock::new(),
+        }
+    }
+
+    pub fn empty_rgba32_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA32Float }> {
+        self.empty_rgba32_float.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_rgba16_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA16Float }> {
+        self.empty_rgba16_float.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_rgba8_unorm<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA8Unorm }> {
+        self.empty_rgba8_unorm.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_rgba8_unorm_srgb<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::RGBA8UnormSrgb }> {
+        self.empty_rgba8_unorm_srgb.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_r32_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R32Float }> {
+        self.empty_r32_float.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_r16_float<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R16Float }> {
+        self.empty_r16_float.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_r8_unorm<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R8Unorm }> {
+        self.empty_r8_unorm.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_r8_uint<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R8Uint }> {
+        self.empty_r8_uint.get_or_init(|| gen_empty_texture(graphics))
+    }
+
+    pub fn empty_r8_snorm<'a>(&'a self, graphics: &Graphics) -> &'a Texture<{ TextureType::R8Snorm }> {
+        self.empty_r8_snorm.get_or_init(|| gen_empty_texture(graphics))
+    }    
+}

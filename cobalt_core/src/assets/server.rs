@@ -8,6 +8,8 @@ use std::{
     sync::{Arc, Weak},
 };
 
+use crate::graphics::context::Graphics;
+
 use super::{
     asset::AssetID,
     exports::{Asset, AssetTrait},
@@ -24,6 +26,7 @@ pub struct AssetServer {
     pub(crate) assets_dir: PathBuf,
     /// The currently loaded main manifest file.
     pub(crate) manifest: Option<Manifest>,
+    pub(crate) graphics_weak_ref: Weak<RwLock<Graphics>>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -48,6 +51,10 @@ pub enum AssetLoadError {
     // TODO: Replace with proper errors only
     #[error("Failed to load asset")]
     LoadError(Box<dyn Error>),
+    #[error(
+        "Asset load was attempted but the Graphics context was either dropped or never created"
+    )]
+    GraphicsContextDoesNotExist,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -65,11 +72,14 @@ impl AssetServer {
     /// This will create a new asset server with no assets.
     /// To load assets, use the load method.
     /// The default assets directory is the current directory.
-    pub fn new() -> Self {
+    pub fn new(
+        graphics_weak_ref: Weak<RwLock<Graphics>>,
+    ) -> Self {
         Self {
             loaded_assets: HashMap::new(),
             assets_dir: PathBuf::from("./"),
             manifest: None,
+            graphics_weak_ref,
         }
     }
 
@@ -165,6 +175,10 @@ impl AssetServer {
 
         let asset_path = self.assets_dir.join(&asset_info.relative_path);
 
+        let graphics_ref = self.graphics_weak_ref
+            .upgrade()
+            .ok_or(AssetLoadError::GraphicsContextDoesNotExist)?;
+
         // Check if the asset is packed or not
         match &asset_info.packed {
             Some(pack_info) => {
@@ -181,12 +195,12 @@ impl AssetServer {
 
                         let mut buf_reader = std::io::BufReader::new(decompressed_data.as_slice());
 
-                        T::read_packed_buffer(&mut buf_reader)?
+                        T::read_packed_buffer(&mut buf_reader, &graphics_ref.read())?
                     }
                     None => {
                         let mut buf_reader = std::io::BufReader::new(file);
 
-                        T::read_packed_buffer(&mut buf_reader)?
+                        T::read_packed_buffer(&mut buf_reader, &graphics_ref.read())?
                     }
                 };
 
@@ -202,7 +216,7 @@ impl AssetServer {
                 Ok(Asset::new(self_weak_ref, Some(asset_id), asset_any))
             }
             None => {
-                let asset = T::read_source_file(&asset_path)?;
+                let asset = T::read_source_file(&asset_path, &graphics_ref.read())?;
 
                 let asset_arc = Arc::new(RwLock::new(asset));
 

@@ -18,7 +18,11 @@ pub trait RenderPass<T> {
         extra_data: T,
     ) -> Result<(), RendererError>;
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), RendererError>;
+    fn resize_callback(
+        &mut self,
+        graphics: &crate::graphics::context::Graphics,
+        size: (u32, u32),
+    ) -> Result<(), RendererError>;
 
     fn name(&self) -> &str {
         std::any::type_name::<Self>()

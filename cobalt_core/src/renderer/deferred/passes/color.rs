@@ -1,7 +1,10 @@
 use std::default;
 
 use crate::{
-    graphics::{context::Graphics, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout},
+    graphics::{
+        context::Graphics, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup,
+        HasVertexBufferLayout,
+    },
     renderer::{
         deferred::{
             depth_buffer::DepthBuffer,
@@ -9,6 +12,7 @@ use crate::{
             screen_quad::{ScreenQuad, ScreenQuadVertexFormat},
         },
         render_pass::RenderPass,
+        renderable::RenderableTrait,
         renderer::RendererError,
     },
 };
@@ -19,29 +23,29 @@ pub struct ColorPass {
 }
 
 impl ColorPass {
-    pub fn new(_output_size: (u32, u32)) -> Self {
-        let layout = Graphics::global_read().device.create_pipeline_layout(
-            &wgpu::PipelineLayoutDescriptor {
+    pub fn new(graphics: &Graphics, _output_size: (u32, u32)) -> Self {
+        let layout = graphics
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Color Pass Pipeline Layout"),
                 bind_group_layouts: &[
-                    &GeometryBuffers::bind_group_layout(()),
-                    &DepthBuffer::bind_group_layout(()),
-                    &ultraviolet::Vec3::bind_group_layout(()),
+                    &GeometryBuffers::bind_group_layout(graphics, ()),
+                    &DepthBuffer::bind_group_layout(graphics, ()),
+                    &ultraviolet::Vec3::bind_group_layout(graphics, ()),
                 ],
                 push_constant_ranges: &[],
-            },
-        );
+            });
 
-        let shader =
-            Graphics::global_read()
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Color Shader"),
-                    source: wgpu::ShaderSource::Wgsl(include_str!("color.wgsl").into()),
-                });
+        let shader = graphics
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Color Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("color.wgsl").into()),
+            });
 
-        let pipeline = Graphics::global_read().device.create_render_pipeline(
-            &wgpu::RenderPipelineDescriptor {
+        let pipeline = graphics
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Color Pass Pipeline"),
                 layout: Some(&layout),
                 vertex: wgpu::VertexState {
@@ -56,7 +60,7 @@ impl ColorPass {
                     targets: &[Some(wgpu::ColorTargetState {
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
-                        format: Graphics::global_read().output_color_format,
+                        format: graphics.output_color_format,
                     })],
                     compilation_options: Default::default(),
                 }),
@@ -73,8 +77,7 @@ impl ColorPass {
                 multiview: None,
                 multisample: wgpu::MultisampleState::default(),
                 cache: None,
-            },
-        );
+            });
 
         Self {
             pipeline,
@@ -119,8 +122,8 @@ impl<'a> RenderPass<ColorPassInput<'a>> for ColorPass {
         };
 
         let encoder = frame.get_encoder();
-        
-        let cam_pos_bind_group = extra_data.cam_position.create_bind_group(&graphics.device);
+
+        let cam_pos_bind_group = extra_data.cam_position.create_bind_group(&graphics);
 
         let mut render_pass = encoder.begin_render_pass(&descriptor);
 
@@ -135,12 +138,16 @@ impl<'a> RenderPass<ColorPassInput<'a>> for ColorPass {
 
         render_pass.set_pipeline(&self.pipeline);
 
-        self.screen_quad.render(&mut render_pass);
+        self.screen_quad.render(graphics, &mut render_pass);
 
         Ok(())
     }
 
-    fn resize_callback(&mut self, _size: (u32, u32)) -> Result<(), RendererError> {
+    fn resize_callback(
+        &mut self,
+        graphics: &Graphics,
+        _size: (u32, u32),
+    ) -> Result<(), RendererError> {
         Ok(())
     }
 }

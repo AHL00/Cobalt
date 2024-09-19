@@ -41,7 +41,7 @@ impl AssetTrait for MeshAsset {
         AssetFileSystemType::File
     }
 
-    fn read_packed_buffer(data: &mut dyn std::io::Read) -> Result<Self, AssetLoadError> {
+    fn read_packed_buffer(data: &mut dyn std::io::Read, graphics: &Graphics) -> Result<Self, AssetLoadError> {
         todo!()
     }
 
@@ -49,7 +49,7 @@ impl AssetTrait for MeshAsset {
         todo!()
     }
     
-    fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError> {
+    fn read_source_file(abs_path: &Path, graphics: &Graphics) -> Result<Self, AssetLoadError> {
         todo!()
     }
     

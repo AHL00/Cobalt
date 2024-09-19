@@ -1,4 +1,4 @@
-use crate::assets::asset::{AssetFileSystemType, AssetTrait};
+use crate::{assets::asset::{AssetFileSystemType, AssetTrait}, graphics::context::Graphics};
 
 
 
@@ -16,11 +16,11 @@ impl AssetTrait for GltfAsset {
         AssetFileSystemType::Directory
     }
 
-    fn read_packed_buffer(data: &mut dyn std::io::Read) -> Result<Self, crate::assets::server::AssetLoadError> {
+    fn read_packed_buffer(data: &mut dyn std::io::Read, graphics: &Graphics) -> Result<Self, crate::assets::server::AssetLoadError> {
         todo!()
     }
 
-    fn read_source_file(abs_path: &std::path::Path) -> Result<Self, crate::assets::server::AssetLoadError> {
+    fn read_source_file(abs_path: &std::path::Path, graphics: &Graphics) -> Result<Self, crate::assets::server::AssetLoadError> {
         todo!()
     }
 

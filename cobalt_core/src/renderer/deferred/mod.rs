@@ -114,15 +114,15 @@ impl DeferredRenderer {
 }
 
 impl Renderer for DeferredRenderer {
-    fn new(output_size: (u32, u32)) -> Result<Self, RendererError>
+    fn new(graphics: &Graphics, output_size: (u32, u32)) -> Result<Self, RendererError>
     where
         Self: Sized,
     {
         Ok(Self {
-            geometry_pass: GeometryPass::new(output_size),
-            geometry_debug_pass: GeometryDebugPass::new(),
-            color_pass: ColorPass::new(output_size),
-            depth_buffer: DepthBuffer::new(output_size, Self::DEPTH_FORMAT)?,
+            geometry_pass: GeometryPass::new(graphics, output_size),
+            geometry_debug_pass: GeometryDebugPass::new(graphics),
+            color_pass: ColorPass::new(graphics, output_size),
+            depth_buffer: DepthBuffer::new(graphics, output_size, Self::DEPTH_FORMAT)?,
             current_output_size: output_size,
         })
     }
@@ -147,11 +147,12 @@ impl Renderer for DeferredRenderer {
 
     fn render(
         &mut self,
+        graphics: &Graphics,
         frame: &mut crate::graphics::frame::Frame,
         mut frame_data: FrameData<Material>,
     ) -> Result<(), RendererError> {
         self.geometry_pass
-            .draw(frame, &Graphics::global_read(), &mut frame_data, ())?;
+            .draw(frame, graphics, &mut frame_data, ())?;
 
         #[cfg(feature = "debug_stats")]
         {
@@ -165,7 +166,7 @@ impl Renderer for DeferredRenderer {
         if let Some(_) = self.geometry_debug_pass.mode {
             self.geometry_debug_pass.draw(
                 frame,
-                &Graphics::global_read(),
+                graphics,
                 &mut frame_data,
                 (&self.geometry_pass.g_buffers, &self.depth_buffer),
             )?;
@@ -174,7 +175,7 @@ impl Renderer for DeferredRenderer {
 
             self.color_pass.draw(
                 frame,
-                &Graphics::global_read(),
+                graphics,
                 &mut frame_data,
                 ColorPassInput {
                     geometry_buffers: &self.geometry_pass.g_buffers,
@@ -187,9 +188,9 @@ impl Renderer for DeferredRenderer {
         Ok(())
     }
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), RendererError> {
-        self.geometry_pass.resize_callback(size)?;
-        self.depth_buffer = DepthBuffer::new(size, Self::DEPTH_FORMAT)?;
+    fn resize_callback(&mut self, graphics: &Graphics, size: (u32, u32)) -> Result<(), RendererError> {
+        self.geometry_pass.resize_callback(graphics, size)?;
+        self.depth_buffer = DepthBuffer::new(graphics, size, Self::DEPTH_FORMAT)?;
 
         self.current_output_size = size;
 

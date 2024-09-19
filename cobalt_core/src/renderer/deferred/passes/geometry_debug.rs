@@ -1,11 +1,15 @@
-use crate::{graphics::{context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup, HasVertexBufferLayout}, renderer::{
-    deferred::{
-        depth_buffer::DepthBuffer, exports::Material, g_buffers::GeometryBuffers,
-        screen_quad::ScreenQuad,
+use crate::{
+    graphics::{
+        context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout,
+        HasStableBindGroup, HasVertexBufferLayout,
     },
-    render_pass::RenderPass,
-    renderer::RendererError,
-}};
+    renderer::{
+        deferred::{
+            depth_buffer::DepthBuffer, exports::Material, g_buffers::GeometryBuffers,
+            screen_quad::ScreenQuad,
+        }, render_pass::RenderPass, renderable::RenderableTrait, renderer::RendererError
+    },
+};
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
@@ -25,29 +29,30 @@ pub struct GeometryDebugPass {
 }
 
 impl GeometryDebugPass {
-    pub fn new() -> Self {
-        let pipeline_layout = Graphics::global_read().device.create_pipeline_layout(
-            &wgpu::PipelineLayoutDescriptor {
-                label: Some("Geometry Debug Pass Pipeline Layout"),
-                bind_group_layouts: &[
-                    &u32::bind_group_layout(()),
-                    &GeometryBuffers::bind_group_layout(()),
-                    &DepthBuffer::bind_group_layout(()),
-                ],
-                push_constant_ranges: &[],
-            },
-        );
-
-        let shader =
-            Graphics::global_read()
+    pub fn new(graphics: &Graphics) -> Self {
+        let pipeline_layout =
+            graphics
                 .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Geometry Debug Shader"),
-                    source: wgpu::ShaderSource::Wgsl(include_str!("geometry_debug.wgsl").into()),
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Geometry Debug Pass Pipeline Layout"),
+                    bind_group_layouts: &[
+                        &u32::bind_group_layout(graphics, ()),
+                        &GeometryBuffers::bind_group_layout(graphics, ()),
+                        &DepthBuffer::bind_group_layout(graphics, ()),
+                    ],
+                    push_constant_ranges: &[],
                 });
 
-        let pipeline = Graphics::global_read().device.create_render_pipeline(
-            &wgpu::RenderPipelineDescriptor {
+        let shader = graphics
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Geometry Debug Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("geometry_debug.wgsl").into()),
+            });
+
+        let pipeline = graphics
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Geometry Debug Pass Pipeline"),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
@@ -60,7 +65,7 @@ impl GeometryDebugPass {
                     module: &shader,
                     entry_point: "fs_main",
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: Graphics::global_read().output_color_format,
+                        format: graphics.output_color_format,
                         blend: None,
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
@@ -79,8 +84,7 @@ impl GeometryDebugPass {
                 multisample: wgpu::MultisampleState::default(),
                 multiview: None,
                 cache: None,
-            },
-        );
+            });
 
         Self {
             mode: None,
@@ -106,7 +110,7 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
 
         let encoder = frame.get_encoder();
 
-        let mode_bind_group = (self.mode.unwrap() as u32).create_bind_group(&graphics.device);
+        let mode_bind_group = (self.mode.unwrap() as u32).create_bind_group(&graphics);
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Geometry Debug Pass"),
@@ -140,12 +144,19 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
 
         render_pass.set_pipeline(&self.pipeline);
 
-        self.screen_quad.render(&mut render_pass);
+        self.screen_quad.render(graphics, &mut render_pass);
 
         Ok(())
     }
 
-    fn resize_callback(&mut self, _size: (u32, u32)) -> Result<(), RendererError> {
+    fn resize_callback(
+        &mut self,
+        graphics: &crate::graphics::context::Graphics,
+        size: (u32, u32),
+    ) -> Result<(), RendererError> {
+        // TODO: Resize screen quad
+        // self.screen_quad.resize_callback(graphics, size)?;
+
         Ok(())
     }
 }

@@ -1,14 +1,12 @@
-use std::{error::Error, sync::Arc};
+use std::any::TypeId;
 
-use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::{MappedRwLockReadGuard, RwLockReadGuard};
 use pollster::FutureExt;
 use wgpu::{PresentMode, SurfaceTargetUnsafe};
 
 use crate::graphics::GraphicsError;
 
-use super::{exports::window::WindowInternal, frame::Frame, window::Window};
-
-static mut GRAPHICS: Option<Arc<RwLock<Graphics>>> = None;
+use super::{cache::GraphicsCache, exports::window::WindowInternal, frame::Frame, window::Window};
 
 /// A global graphics context that manages the window, device, and other wgpu resources.
 /// This is marked as public but not exported to the user, it should not be necessary to access this outside of the renderer.
@@ -23,53 +21,85 @@ pub struct Graphics {
     pub output_color_format: wgpu::TextureFormat,
     pub output_depth_format: Option<wgpu::TextureFormat>,
     pub current_present_mode: PresentMode,
+
+    pub cache: GraphicsCache,
 }
 
 impl Graphics {
-    /// Initializes the global graphics context.
-    pub fn initialize(window: &super::window::Window) -> Result<(), Box<dyn Error>> {
-        unsafe {
-            GRAPHICS = Some(Arc::new(RwLock::new(Self::new(window)?)));
-        }
+    /// Get a bind group layout from the cache, or create a new one if it doesn't exist.
+    /// If a new layout is created, it is inserted into the cache.
+    /// Layouts are unique to a type, so the type of the layout must be specified.
+    /// The hashmap uses the layout's type id as the key.
+    pub fn bind_group_layout_cache<'a, T: 'static>(
+        &'a self,
+        create_layout: impl FnOnce(&wgpu::Device) -> wgpu::BindGroupLayout,
+    ) -> MappedRwLockReadGuard<'a, wgpu::BindGroupLayout> {
+        let type_id = TypeId::of::<T>();
 
-        log::info!("Graphics context initialized");
-
-        Ok(())
-    }
-
-    pub fn deinitialize() {
-        unsafe {
-            GRAPHICS = None;
-        }
-
-        log::info!("Graphics context deinitialized");
-    }
-
-    #[inline]
-    pub fn global_read() -> RwLockReadGuard<'static, Self> {
-        unsafe {
-            GRAPHICS
-                .as_ref()
-                .expect("Graphics context requested before initialization")
-                .read()
-        }
-    }
-
-    #[inline]
-    pub fn global_write() -> RwLockWriteGuard<'static, Self> {
-        unsafe {
-            GRAPHICS
-                .as_ref()
-                .expect("Graphics context requested before initialization")
+        if self
+            .cache
+            .bind_group_layout_cache
+            .read()
+            .contains_key(&type_id)
+        {
+            RwLockReadGuard::map(self.cache.bind_group_layout_cache.read(), |x| {
+                x.get(&type_id).unwrap()
+            })
+        } else {
+            let layout = create_layout(&self.device);
+            self.cache
+                .bind_group_layout_cache
                 .write()
+                .insert(type_id, layout);
+            RwLockReadGuard::map(self.cache.bind_group_layout_cache.read(), |x| {
+                x.get(&type_id).unwrap()
+            })
         }
+    }
+
+    /// create_layout: Function to create the layout for `T` does not exist.
+    /// This is required because of lifetime issues with borrowing the entire
+    /// Graphics context if using `bind_group_layout` and the wgpu api directly.
+    pub fn create_bind_group<T: 'static>(
+        &self,
+        label: Option<&str>,
+        entries: &[wgpu::BindGroupEntry],
+        create_layout: impl FnOnce(&wgpu::Device) -> wgpu::BindGroupLayout,
+    ) -> wgpu::BindGroup {
+        let type_id = TypeId::of::<T>();
+
+        let layout = if self
+            .cache
+            .bind_group_layout_cache
+            .read()
+            .contains_key(&type_id)
+        {
+            RwLockReadGuard::map(self.cache.bind_group_layout_cache.read(), |x| {
+                x.get(&type_id).unwrap()
+            })
+        } else {
+            let layout = create_layout(&self.device);
+            self.cache
+                .bind_group_layout_cache
+                .write()
+                .insert(type_id, layout);
+            RwLockReadGuard::map(self.cache.bind_group_layout_cache.read(), |x| {
+                x.get(&type_id).unwrap()
+            })
+        };
+
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &layout,
+            entries,
+            label,
+        })
     }
 
     pub fn new(window: &Window) -> Result<Self, Box<dyn std::error::Error>> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            #[cfg(debug)]
+            #[cfg(debug_assertions)]
             flags: wgpu::InstanceFlags::debugging(),
-            #[cfg(not(debug))]
+            #[cfg(not(debug_assertions))]
             flags: wgpu::InstanceFlags::empty(),
             backends: wgpu::Backends::PRIMARY,
             ..Default::default()
@@ -162,6 +192,7 @@ impl Graphics {
             output_color_format,
             output_depth_format,
             current_present_mode: PresentMode::AutoNoVsync,
+            cache: GraphicsCache::new(),
         };
 
         res.configure_surface(window.winit().inner_size().into(), PresentMode::AutoNoVsync);

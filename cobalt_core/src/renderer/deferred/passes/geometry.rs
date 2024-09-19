@@ -22,28 +22,28 @@ pub struct GeometryPass {
 }
 
 impl GeometryPass {
-    pub fn new(output_size: (u32, u32)) -> Self {
-        let layout = Graphics::global_read().device.create_pipeline_layout(
+    pub fn new(graphics: &Graphics, output_size: (u32, u32)) -> Self {
+        let layout = graphics.device.create_pipeline_layout(
             &wgpu::PipelineLayoutDescriptor {
                 label: Some("Geometry Pass Pipeline Layout"),
                 bind_group_layouts: &[
-                    &Transform::bind_group_layout(()),
-                    &ProjView::bind_group_layout(()),
-                    &Material::bind_group_layout(()),
+                    &Transform::bind_group_layout(graphics, ()),
+                    &ProjView::bind_group_layout(graphics, ()),
+                    &Material::bind_group_layout(graphics, ()),
                 ],
                 push_constant_ranges: &[],
             },
         );
 
         let shader =
-            Graphics::global_read()
+            graphics
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("Geometry Shader"),
                     source: wgpu::ShaderSource::Wgsl(include_str!("geometry.wgsl").into()),
                 });
 
-        let pipeline = Graphics::global_read().device.create_render_pipeline(
+        let pipeline = graphics.device.create_render_pipeline(
             &wgpu::RenderPipelineDescriptor {
                 label: Some("Geometry Pass Pipeline"),
                 layout: Some(&layout),
@@ -95,7 +95,7 @@ impl GeometryPass {
                     conservative: false,
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: Graphics::global_read().output_depth_format.unwrap(),
+                    format: graphics.output_depth_format.unwrap(),
                     depth_write_enabled: true,
                     depth_compare: wgpu::CompareFunction::Less,
                     stencil: wgpu::StencilState {
@@ -118,7 +118,7 @@ impl GeometryPass {
 
         Self {
             pipeline,
-            g_buffers: GeometryBuffers::generate(output_size),
+            g_buffers: GeometryBuffers::generate(graphics, output_size),
         }
     }
 
@@ -193,7 +193,7 @@ impl RenderPass<()> for GeometryPass {
 
         let encoder = frame.get_encoder();
 
-        let proj_view_bind_group = frame_data.proj_view.create_bind_group(&graphics.device);
+        let proj_view_bind_group = frame_data.proj_view.create_bind_group(&graphics);
 
         let mut render_pass = encoder.begin_render_pass(&descriptor);
 
@@ -237,14 +237,14 @@ impl RenderPass<()> for GeometryPass {
             render_pass.set_bind_group(0, &render_data.transform.bind_group(graphics), &[]);
 
             // Let the renderable handle the drawing
-            render_data.renderable.render(&mut render_pass);
+            render_data.renderable.render(graphics, &mut render_pass);
         }
 
         Ok(())
     }
 
-    fn resize_callback(&mut self, size: (u32, u32)) -> Result<(), RendererError> {
-        self.g_buffers = GeometryBuffers::generate(size);
+    fn resize_callback(&mut self, graphics: &Graphics, size: (u32, u32)) -> Result<(), RendererError> {
+        self.g_buffers = GeometryBuffers::generate(graphics, size);
         Ok(())
     }
 }

@@ -26,7 +26,7 @@ impl AssetID {
     }
 }
 
-use crate::exports::ecs::Component;
+use crate::{exports::ecs::Component, graphics::context::Graphics};
 
 use super::server::{AssetLoadError, AssetServer};
 
@@ -40,6 +40,7 @@ pub enum AssetFileSystemType {
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
 /// NOTE: When loading, asset server will already type check the asset.
+/// NOTE: The graphics context is required for loading assets that need to be uploaded to the GPU.
 pub trait AssetTrait: Sized + Send + Sync + 'static {
     /// The name of the asset type.
     /// NOTE: MAKE SURE THIS IS UNIQUE
@@ -49,10 +50,10 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
     fn fs_type() -> AssetFileSystemType;
 
     /// Read the asset from a file to a buffer. This is typically from packed asset files.
-    fn read_packed_buffer(data: &mut dyn Read) -> Result<Self, AssetLoadError>;
+    fn read_packed_buffer(data: &mut dyn Read, graphics: &Graphics) -> Result<Self, AssetLoadError>;
 
     /// Read the asset from a file.
-    fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError>;
+    fn read_source_file(abs_path: &Path, graphics: &Graphics) -> Result<Self, AssetLoadError>;
 
     /// Verify the source file. This is for importing assets.
     fn verify_source_file(abs_path: &Path) -> Result<(), AssetLoadError>;

@@ -1,8 +1,4 @@
-use crate::{
-    assets::asset::Asset,
-    types::aabb::AABB,
-    assets,
-};
+use crate::{assets::{self, asset::Asset}, graphics::context::Graphics, types::aabb::AABB};
 
 use super::RenderableTrait;
 
@@ -23,7 +19,7 @@ impl Mesh {
 }
 
 impl RenderableTrait for Mesh {
-    fn render(&self, render_pass: &mut wgpu::RenderPass) {
+    fn render(&self, graphics: &Graphics, render_pass: &mut wgpu::RenderPass) {
         let mesh_asset = unsafe { self.mesh.borrow_unsafe() };
 
         render_pass.set_vertex_buffer(0, mesh_asset.vertex_buffer.slice(..));
