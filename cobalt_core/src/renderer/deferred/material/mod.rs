@@ -4,17 +4,15 @@ use bytes::Bytes;
 use parking_lot::RwLock;
 use wgpu::util::DeviceExt;
 
-use crate::{
-    assets::{
-        asset::AssetFileSystemType,
-        exports::{Asset, AssetTrait, Texture},
-    },
-    exports::types::{either::Either, resource::ResourceTrait},
-    graphics::{
-        context::Graphics,
-        texture::{TextureInternal, TextureType},
-        HasBindGroupLayout,
-    },
+use crate::{assets_types::texture::TextureAsset, exports::types::{either::Either, resource::ResourceTrait}};
+use cobalt_assets::{
+    asset::AssetFileSystemType,
+    exports::{Asset, AssetTrait},
+};
+use cobalt_graphics::{
+    context::Graphics,
+    texture::{TextureInternal, TextureType},
+    HasBindGroupLayout,
 };
 
 static MATERIAL_ID: AtomicUsize = AtomicUsize::new(0);
@@ -29,22 +27,22 @@ pub struct Material {
     /// If a color is set, the material will be rendered as a wireframe with that color.
     wireframe: Option<[f32; 4]>,
 
-    /// The base color of the material.
+    /// The base color of th`e material.
     /// If only one of either the texture or color are set, it will be used.
     /// If both are set, the texture's color will be multiplied by the color.
     albedo: (
         Option<[f32; 4]>,
-        Option<Asset<Texture<{ Material::ALBEDO_TEXTURE_TYPE }>>>,
+        Option<Asset<TextureAsset<{ Material::ALBEDO_TEXTURE_TYPE }>>>,
     ),
 
     /// Normal map, adds bumps and details to the surface.
-    normal: Option<Asset<Texture<{ Material::NORMAL_TEXTURE_TYPE }>>>,
+    normal: Option<Asset<TextureAsset<{ Material::NORMAL_TEXTURE_TYPE }>>>,
 
     /// Metallic map or value.
-    metallic: Either<f32, Asset<Texture<{ Material::METALLIC_TEXTURE_TYPE }>>>,
+    metallic: Either<f32, Asset<TextureAsset<{ Material::METALLIC_TEXTURE_TYPE }>>>,
 
     /// Roughness map or value.
-    roughness: Either<f32, Asset<Texture<{ Material::ROUGHNESS_TEXTURE_TYPE }>>>,
+    roughness: Either<f32, Asset<TextureAsset<{ Material::ROUGHNESS_TEXTURE_TYPE }>>>,
 
     bind_group: Option<wgpu::BindGroup>,
 
@@ -255,7 +253,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba8_unorm_srgb(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -269,7 +267,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba8_unorm(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -290,7 +288,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba16_float(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -304,7 +302,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba16_float(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -332,7 +330,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -346,7 +344,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -374,7 +372,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -388,7 +386,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -404,11 +402,11 @@ impl Material {
         wireframe: Option<[f32; 4]>,
         albedo: (
             Option<[f32; 4]>,
-            Option<Asset<Texture<{ TextureType::RGBA8UnormSrgb }>>>,
+            Option<Asset<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>>,
         ),
-        normal: Option<Asset<Texture<{ TextureType::RGBA16Float }>>>,
-        metallic: Either<f32, Asset<Texture<{ TextureType::R8Unorm }>>>,
-        roughness: Either<f32, Asset<Texture<{ TextureType::R8Unorm }>>>,
+        normal: Option<Asset<TextureAsset<{ TextureType::RGBA16Float }>>>,
+        metallic: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
+        roughness: Either<f32, Asset<TextureAsset<{ TextureType::R8Unorm }>>>,
     ) -> Self {
         let mut m = Material {
             id: MATERIAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -455,7 +453,7 @@ impl Material {
     pub fn set_albedo(
         &mut self,
         color: Option<[f32; 4]>,
-        texture: Option<Asset<Texture<{ Self::ALBEDO_TEXTURE_TYPE }>>>,
+        texture: Option<Asset<TextureAsset<{ Self::ALBEDO_TEXTURE_TYPE }>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if color.is_none() && texture.is_none() {
             return Err("Both color and texture cannot be None.".into());
@@ -469,7 +467,7 @@ impl Material {
     }
 
     /// Normal map, adds bumrps and details to the surface.
-    pub fn set_normal(&mut self, normal: Option<Asset<Texture<{ Self::NORMAL_TEXTURE_TYPE }>>>) {
+    pub fn set_normal(&mut self, normal: Option<Asset<TextureAsset<{ Self::NORMAL_TEXTURE_TYPE }>>>) {
         self.normal = normal;
 
         self.generate_bind_group();
@@ -478,7 +476,7 @@ impl Material {
     /// Metallic map or value.
     pub fn set_metallic(
         &mut self,
-        metallic: Either<f32, Asset<Texture<{ Self::METALLIC_TEXTURE_TYPE }>>>,
+        metallic: Either<f32, Asset<TextureAsset<{ Self::METALLIC_TEXTURE_TYPE }>>>,
     ) {
         self.metallic = metallic;
 
@@ -488,7 +486,7 @@ impl Material {
     /// Roughness map or value.
     pub fn set_roughness(
         &mut self,
-        roughness: Either<f32, Asset<Texture<{ Self::ROUGHNESS_TEXTURE_TYPE }>>>,
+        roughness: Either<f32, Asset<TextureAsset<{ Self::ROUGHNESS_TEXTURE_TYPE }>>>,
     ) {
         self.roughness = roughness;
 
@@ -507,20 +505,20 @@ impl Material {
         &self,
     ) -> &(
         Option<[f32; 4]>,
-        Option<Asset<Texture<{ Self::ALBEDO_TEXTURE_TYPE }>>>,
+        Option<Asset<TextureAsset<{ Self::ALBEDO_TEXTURE_TYPE }>>>,
     ) {
         &self.albedo
     }
 
-    pub fn normal(&self) -> &Option<Asset<Texture<{ Self::NORMAL_TEXTURE_TYPE }>>> {
+    pub fn normal(&self) -> &Option<Asset<TextureAsset<{ Self::NORMAL_TEXTURE_TYPE }>>> {
         &self.normal
     }
 
-    pub fn metallic(&self) -> &Either<f32, Asset<Texture<{ Self::METALLIC_TEXTURE_TYPE }>>> {
+    pub fn metallic(&self) -> &Either<f32, Asset<TextureAsset<{ Self::METALLIC_TEXTURE_TYPE }>>> {
         &self.metallic
     }
 
-    pub fn roughness(&self) -> &Either<f32, Asset<Texture<{ Self::ROUGHNESS_TEXTURE_TYPE }>>> {
+    pub fn roughness(&self) -> &Either<f32, Asset<TextureAsset<{ Self::ROUGHNESS_TEXTURE_TYPE }>>> {
         &self.roughness
     }
 }
@@ -810,26 +808,26 @@ impl AssetTrait for Material {
     fn read_packed_buffer(
         data: &mut dyn std::io::Read,
         graphics: &Graphics,
-    ) -> Result<Self, crate::assets::server::AssetLoadError> {
+    ) -> Result<Self, cobalt_assets::server::AssetLoadError> {
         todo!()
     }
 
     fn read_source_file_to_buffer(
         abs_path: &std::path::Path,
-    ) -> Result<Bytes, crate::assets::server::AssetLoadError> {
+    ) -> Result<Bytes, cobalt_assets::server::AssetLoadError> {
         todo!()
     }
 
     fn read_source_file(
         abs_path: &std::path::Path,
         graphics: &Graphics,
-    ) -> Result<Self, crate::assets::server::AssetLoadError> {
+    ) -> Result<Self, cobalt_assets::server::AssetLoadError> {
         todo!()
     }
 
     fn verify_source_file(
         abs_path: &std::path::Path,
-    ) -> Result<(), crate::assets::server::AssetLoadError> {
+    ) -> Result<(), cobalt_assets::server::AssetLoadError> {
         todo!()
     }
 }

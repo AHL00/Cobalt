@@ -9,9 +9,9 @@ use ultraviolet::Mat4;
 
 use crate::{
     exports::{components::Transform, ecs::World},
-    graphics::{context::Graphics, HasBindGroupLayout},
     stats::Stats,
 };
+use cobalt_graphics::{context::Graphics, HasBindGroupLayout};
 
 use self::{
     depth_buffer::DepthBuffer,
@@ -130,7 +130,7 @@ impl Renderer for DeferredRenderer {
 
     fn prep_frame<'a>(
         &mut self,
-        _frame: &mut crate::graphics::frame::Frame,
+        _frame: &mut cobalt_graphics::frame::Frame,
         world: &'a mut World,
         surface_dimensions: (u32, u32),
     ) -> Result<FrameData<'a, Material>, FramePrepError> {
@@ -149,7 +149,7 @@ impl Renderer for DeferredRenderer {
     fn render(
         &mut self,
         graphics: &Graphics,
-        frame: &mut crate::graphics::frame::Frame,
+        frame: &mut cobalt_graphics::frame::Frame,
         mut frame_data: FrameData<Material>,
     ) -> Result<(), RendererError> {
         self.geometry_pass

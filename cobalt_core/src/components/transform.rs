@@ -3,19 +3,13 @@
 // Maybe make world a thread safe globa?
 // This is work for later, for now just hardcode updating camera data.
 
-use std::{
-    fmt::{Debug, Formatter},
-    sync::LazyLock,
-};
+use std::fmt::{Debug, Formatter};
 
-use parking_lot::MappedRwLockReadGuard;
-use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
+use ultraviolet::{Mat3, Mat4, Rotor3, Vec3};
 use wgpu::{util::DeviceExt, BindGroupDescriptor};
 
-use crate::{
-    ecs::component::Component,
-    graphics::{context::Graphics, HasBindGroup, HasBindGroupLayout},
-};
+use cobalt_ecs::component::Component;
+use cobalt_graphics::{context::Graphics, HasBindGroup, HasBindGroupLayout};
 
 fn calculate_normal_matrix(model: &Mat4, view: &Mat4) -> Mat3 {
     ((*model * *view).inversed().transposed()).truncate()

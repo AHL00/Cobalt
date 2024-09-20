@@ -1,0 +1,17 @@
+[package]
+name = "cobalt_ecs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.196", features = ["derive"] }
+hashbrown = { version = "0.14.3", features = [
+    "serde",
+    "ahash",
+], default-features = false }
+downcast = "0.11.0"
+rayon = "1.10.0"
+serde_closure = "0.3.3"
+
+[dev-dependencies]
+serde_yaml = "0.9.34"

@@ -12,15 +12,15 @@ pub trait RenderPass<T> {
     /// NOTE: `FrameData` is only mutable to allow for bind groups to be updated, e.g. `Transform::bind_group()`.
     fn draw(
         &mut self,
-        frame: &mut crate::graphics::frame::Frame,
-        graphics: &crate::graphics::context::Graphics,
+        frame: &mut cobalt_graphics::frame::Frame,
+        graphics: &cobalt_graphics::context::Graphics,
         frame_data: &mut crate::renderer::FrameData<crate::renderer::exports::Material>,
         extra_data: T,
     ) -> Result<(), RendererError>;
 
     fn resize_callback(
         &mut self,
-        graphics: &crate::graphics::context::Graphics,
+        graphics: &cobalt_graphics::context::Graphics,
         size: (u32, u32),
     ) -> Result<(), RendererError>;
 

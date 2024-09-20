@@ -1,6 +1,6 @@
 use wgpu::util::DeviceExt;
 
-use crate::graphics::{context::Graphics, CreateBindGroup, HasBindGroupLayout};
+use cobalt_graphics::{context::Graphics, CreateBindGroup, HasBindGroupLayout};
 
 pub struct ProjView {
     multiplied: ultraviolet::Mat4,
@@ -64,7 +64,7 @@ impl HasBindGroupLayout<()> for ProjView {
 }
 
 impl CreateBindGroup for ProjView {
-    fn create_bind_group(&self, graphics: &crate::graphics::context::Graphics) -> wgpu::BindGroup {
+    fn create_bind_group(&self, graphics: &cobalt_graphics::context::Graphics) -> wgpu::BindGroup {
         let proj_view_buffer = graphics
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {

@@ -1,6 +1,6 @@
 use wgpu::TextureViewDescriptor;
 
-use crate::graphics::{context::Graphics, HasBindGroupLayout, HasStableBindGroup};
+use cobalt_graphics::{context::Graphics, HasBindGroupLayout, HasStableBindGroup};
 
 pub struct GeometryBuffers {
     pub position_buffer: wgpu::Texture,

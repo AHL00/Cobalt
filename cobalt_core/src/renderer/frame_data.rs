@@ -2,7 +2,6 @@ use wgpu::TextureView;
 
 use super::{proj_view::ProjView, renderable::Renderable, renderer::FramePrepError};
 use crate::{
-    assets::exports::{Asset, AssetTrait},
     components::transform::Transform,
     exports::{
         ecs::{Entity, query::Optional, World},
@@ -13,6 +12,7 @@ use crate::{
     },
     stats::Stats,
 };
+use cobalt_assets::exports::{Asset, AssetTrait};
 
 /// Holds the data required to render a renderable.
 pub struct RenderData<'a, M: ResourceTrait + AssetTrait> {

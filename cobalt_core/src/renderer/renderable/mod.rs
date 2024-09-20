@@ -1,7 +1,5 @@
-use crate::{
-    components::transform::Transform, ecs::component::Component, graphics::context::Graphics,
-    types::aabb::AABB,
-};
+use cobalt_graphics::context::Graphics;
+use crate::{components::transform::Transform, types::aabb::AABB};
 
 pub mod mesh;
 pub mod plane;
@@ -14,7 +12,7 @@ pub enum Renderable {
     Mesh(mesh::Mesh),
 }
 
-impl Component for Renderable {}
+impl cobalt_ecs::exports::Component for Renderable {}
 
 /// A trait implemented by all renderable objects
 /// It allows for easy rendering of all renderable objects without needing to know the actual type.

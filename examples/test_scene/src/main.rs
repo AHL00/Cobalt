@@ -1,23 +1,15 @@
 use std::f32::consts::PI;
 
 use cobalt::{
-    assets::Texture,
-    components::{Camera, Renderable, Transform},
-    ecs::Entity,
-    graphics::{window::WindowConfig, TextureType},
-    input::KeyCode,
-    plugins::debug_gui::DebugGUIPlugin,
-    renderer::{
+    asset_types::TextureAsset, components::{Camera, Renderable, Transform}, ecs::Entity, graphics::{window::WindowConfig, TextureType}, input::KeyCode, plugins::debug_gui::DebugGUIPlugin, renderer::{
         camera::{AspectRatio, Projection},
         renderables::Plane,
         Material,
-    },
-    runtime::{
+    }, runtime::{
         engine::{EngineRunner, InitialEngineConfig},
         plugins::PluginBuilder,
         App,
-    },
-    types::resource::Resource,
+    }, types::resource::Resource
 };
 use simple_logger::SimpleLogger;
 
@@ -81,7 +73,7 @@ impl App for Game {
         println!("texture_asset_id: {:?}", texture_asset_id);
 
         let texture = engine
-            .load_asset::<Texture<{ TextureType::RGBA8UnormSrgb }>>(texture_asset_id)
+            .load_asset::<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>(texture_asset_id)
             .unwrap();
 
         mat.borrow_mut().set_albedo(None, Some(texture)).unwrap();

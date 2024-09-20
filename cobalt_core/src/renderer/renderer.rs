@@ -1,12 +1,10 @@
 use downcast::{downcast, Any};
 
-use crate::{
-    exports::{
-        ecs::{Entity, World},
-        renderer::Material,
-    },
-    graphics::{context::Graphics, frame::Frame},
+use crate::exports::{
+    ecs::{Entity, World},
+    renderer::Material,
 };
+use cobalt_graphics::{context::Graphics, frame::Frame};
 
 use super::FrameData;
 
@@ -14,10 +12,7 @@ pub type CreateRendererClosure =
     fn(&Graphics, (u32, u32)) -> Result<Box<dyn Renderer>, RendererError>;
 
 pub trait CreateRenderer: Renderer {
-    fn create(
-        graphics: &Graphics,
-        size: (u32, u32),
-    ) -> Result<Box<dyn Renderer>, RendererError>
+    fn create(graphics: &Graphics, size: (u32, u32)) -> Result<Box<dyn Renderer>, RendererError>
     where
         Self: Sized,
     {

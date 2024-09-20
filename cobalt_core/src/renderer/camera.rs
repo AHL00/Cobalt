@@ -1,4 +1,4 @@
-use crate::ecs::component::Component;
+use cobalt_ecs::component::Component;
 
 #[derive(Debug, Clone, Copy)]
 pub enum AspectRatio {

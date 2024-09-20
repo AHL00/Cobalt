@@ -1,15 +1,15 @@
 use crate::{
     exports::components::Transform,
-    graphics::{
-        context::Graphics, vertex::UvNormalVertex, CreateBindGroup, HasBindGroup,
-        HasBindGroupLayout, HasVertexBufferLayout,
-    },
     renderer::{
         deferred::{exports::Material, g_buffers::GeometryBuffers},
         proj_view::ProjView,
         render_pass::RenderPass,
         renderer::RendererError,
     },
+};
+use cobalt_graphics::{
+    context::Graphics, vertex::UvNormalVertex, CreateBindGroup, HasBindGroup,
+    HasBindGroupLayout, HasVertexBufferLayout,
 };
 
 /// This pass will clear the geometry buffers and draw the scene to them.
@@ -128,8 +128,8 @@ impl GeometryPass {
 impl RenderPass<()> for GeometryPass {
     fn draw(
         &mut self,
-        frame: &mut crate::graphics::frame::Frame,
-        graphics: &crate::graphics::context::Graphics,
+        frame: &mut cobalt_graphics::frame::Frame,
+        graphics: &cobalt_graphics::context::Graphics,
         frame_data: &mut crate::renderer::FrameData<Material>,
         _extra_data: (),
     ) -> Result<(), RendererError> {

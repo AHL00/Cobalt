@@ -36,6 +36,9 @@ members = [
     "cobalt_core",
     "cobalt_editor",
     "cobalt_runtime",
+    "cobalt_assets",
+    "cobalt_graphics",
+    "cobalt_ecs",
 
     # Binaries
     "cobalt_asset_manager",

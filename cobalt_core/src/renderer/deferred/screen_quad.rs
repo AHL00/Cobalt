@@ -1,11 +1,7 @@
-use std::sync::LazyLock;
-
 use wgpu::util::DeviceExt;
 
-use crate::{
-    graphics::{context::Graphics, vertex::UvVertex},
-    renderer::renderable::RenderableTrait,
-};
+use crate::renderer::renderable::RenderableTrait;
+use cobalt_graphics::{context::Graphics, vertex::UvVertex};
 
 pub type ScreenQuadVertexFormat = UvVertex;
 

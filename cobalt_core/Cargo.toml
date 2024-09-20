@@ -16,12 +16,9 @@ debug_stats = []
 deferred_renderer = []
 
 [dependencies]
-# Graphics
-wgpu = { version = "22.0.0", features = ["serde"] }
-# wgpu-types = { version = "*", features = ["serde"] }
-winit = "0.30.5"
-bytemuck = { version = "1.14.1", features = ["derive", "must_cast"] }
-image = "0.24.8"
+# Asset types
+cobalt_assets = { path = "../cobalt_assets" }
+image = "0.25.2"
 gltf = { version = "1.4.0", features = [
     "extras",
     "names",
@@ -32,8 +29,15 @@ gltf = { version = "1.4.0", features = [
     "KHR_materials_specular",
 ] }
 
+# Graphics
+cobalt_graphics = { path = "../cobalt_graphics" }
+wgpu = { version = "22.0.0", features = ["serde"] }
+# wgpu-types = { version = "*", features = ["serde"] }
+winit = "0.30.5"
+bytemuck = { version = "1.14.1", features = ["derive", "must_cast"] }
+
+
 # Misc
-path-clean = "1.0.1"
 serde = { version = "1.0.196", features = ["derive"] }
 hashbrown = { version = "0.14.3", features = [
     "serde",
@@ -50,16 +54,12 @@ downcast = "0.11.0"
 mutually_exclusive_features = "0.1.0"
 log-once = "0.4.1"
 half = { version = "2.4.1", features = ["serde", "bytemuck"] }
-bytes = { version = "1.6.1", features = ["serde"] }
+bytes = { version = "1.7.2", features = ["serde"] }
 toml = "0.8.15"
-flate2 = "1.0.30"
-bincode = "1.3.3"
 ron = "0.8.1"
-uuid = { version = "1.10.0", features = ["serde", "v4", "fast-rng"] }
+bincode = "1.3.3"
 
-# ECS
-serde_closure = "0.3.3"
-rayon = "1.10.0"
+cobalt_ecs = { path = "../cobalt_ecs" }
 
 [dev-dependencies]
 simple_logger = "5.0.0"

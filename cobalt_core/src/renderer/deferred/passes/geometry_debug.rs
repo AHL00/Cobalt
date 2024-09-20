@@ -1,14 +1,15 @@
-use crate::{
-    graphics::{
-        context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout,
-        HasStableBindGroup, HasVertexBufferLayout,
+use crate::renderer::{
+    deferred::{
+        depth_buffer::DepthBuffer, exports::Material, g_buffers::GeometryBuffers,
+        screen_quad::ScreenQuad,
     },
-    renderer::{
-        deferred::{
-            depth_buffer::DepthBuffer, exports::Material, g_buffers::GeometryBuffers,
-            screen_quad::ScreenQuad,
-        }, render_pass::RenderPass, renderable::RenderableTrait, renderer::RendererError
-    },
+    render_pass::RenderPass,
+    renderable::RenderableTrait,
+    renderer::RendererError,
+};
+use cobalt_graphics::{
+    context::Graphics, vertex::UvVertex, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup,
+    HasVertexBufferLayout,
 };
 
 #[repr(u32)]
@@ -98,8 +99,8 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
     /// Only called when debug mode is not `None`.
     fn draw(
         &mut self,
-        frame: &mut crate::graphics::frame::Frame,
-        graphics: &crate::graphics::context::Graphics,
+        frame: &mut cobalt_graphics::frame::Frame,
+        graphics: &cobalt_graphics::context::Graphics,
         _frame_data: &mut crate::renderer::FrameData<Material>,
         extra_data: (&GeometryBuffers, &DepthBuffer),
     ) -> Result<(), RendererError> {
@@ -151,7 +152,7 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
 
     fn resize_callback(
         &mut self,
-        graphics: &crate::graphics::context::Graphics,
+        graphics: &cobalt_graphics::context::Graphics,
         size: (u32, u32),
     ) -> Result<(), RendererError> {
         // TODO: Resize screen quad

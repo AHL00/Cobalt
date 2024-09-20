@@ -1,20 +1,17 @@
-use std::default;
+use crate::renderer::{
+    deferred::{
+        depth_buffer::DepthBuffer,
+        g_buffers::GeometryBuffers,
+        screen_quad::{ScreenQuad, ScreenQuadVertexFormat},
+    },
+    render_pass::RenderPass,
+    renderable::RenderableTrait,
+    renderer::RendererError,
+};
 
-use crate::{
-    graphics::{
-        context::Graphics, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup,
-        HasVertexBufferLayout,
-    },
-    renderer::{
-        deferred::{
-            depth_buffer::DepthBuffer,
-            g_buffers::GeometryBuffers,
-            screen_quad::{ScreenQuad, ScreenQuadVertexFormat},
-        },
-        render_pass::RenderPass,
-        renderable::RenderableTrait,
-        renderer::RendererError,
-    },
+use cobalt_graphics::{
+    context::Graphics, CreateBindGroup, HasBindGroupLayout, HasStableBindGroup,
+    HasVertexBufferLayout,
 };
 
 pub struct ColorPass {
@@ -95,8 +92,8 @@ pub struct ColorPassInput<'a> {
 impl<'a> RenderPass<ColorPassInput<'a>> for ColorPass {
     fn draw(
         &mut self,
-        frame: &mut crate::graphics::frame::Frame,
-        graphics: &crate::graphics::context::Graphics,
+        frame: &mut cobalt_graphics::frame::Frame,
+        graphics: &cobalt_graphics::context::Graphics,
         _frame_data: &mut crate::renderer::FrameData<super::super::Material>,
         extra_data: ColorPassInput<'a>,
     ) -> Result<(), crate::renderer::renderer::RendererError> {

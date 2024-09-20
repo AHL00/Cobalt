@@ -1,4 +1,4 @@
-use crate::ecs::world::World;
+use cobalt_ecs::world::World;
 
 /// A scene is a collection of entities.
 pub struct Scene {

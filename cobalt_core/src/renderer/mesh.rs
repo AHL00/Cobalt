@@ -1,17 +1,13 @@
-use std::{
-    io::{BufReader, Cursor},
-    path::Path,
-};
+use std::path::Path;
 
 use bytes::Bytes;
-use serde::Serialize;
-use wgpu::util::DeviceExt;
 
-use crate::{
-    assets::{asset::AssetFileSystemType, exports::{AssetLoadError, AssetTrait}},
-    graphics::{context::Graphics, vertex::UvNormalVertex},
-    types::aabb::AABB,
+use crate::types::aabb::AABB;
+use cobalt_assets::{
+    asset::AssetFileSystemType,
+    exports::{AssetLoadError, AssetTrait},
 };
+use cobalt_graphics::{context::Graphics, vertex::UvNormalVertex};
 
 #[allow(dead_code)]
 pub struct MeshAsset {
@@ -41,18 +37,21 @@ impl AssetTrait for MeshAsset {
         AssetFileSystemType::File
     }
 
-    fn read_packed_buffer(data: &mut dyn std::io::Read, graphics: &Graphics) -> Result<Self, AssetLoadError> {
+    fn read_packed_buffer(
+        data: &mut dyn std::io::Read,
+        graphics: &Graphics,
+    ) -> Result<Self, AssetLoadError> {
         todo!()
     }
 
     fn read_source_file_to_buffer(abs_path: &Path) -> Result<Bytes, AssetLoadError> {
         todo!()
     }
-    
+
     fn read_source_file(abs_path: &Path, graphics: &Graphics) -> Result<Self, AssetLoadError> {
         todo!()
     }
-    
+
     fn verify_source_file(abs_path: &Path) -> Result<(), AssetLoadError> {
         todo!()
     }

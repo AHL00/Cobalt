@@ -11,7 +11,8 @@ use cobalt_core::{
         server::{AssetLoadError, AssetServer},
     },
     graphics::{
-        window::WindowInternal,
+        context::Graphics,
+        window::{Window, WindowInternal},
         winit::{
             self, application::ApplicationHandler, event::WindowEvent, event_loop::ActiveEventLoop,
         },
@@ -37,37 +38,37 @@ use crate::{
 
 pub struct Engine {
     pub scene: cobalt_core::scenes::scene::Scene,
-    pub graphics: Arc<RwLock<cobalt_core::graphics::context::Graphics>>,
-    pub window: cobalt_core::graphics::window::Window,
+    pub graphics: Arc<RwLock<Graphics>>,
+    pub window: Window,
     pub renderer: Arc<Mutex<Box<dyn cobalt_core::renderer::Renderer>>>,
     pub input: cobalt_core::input::Input,
-    pub assets: Arc<RwLock<cobalt_core::assets::server::AssetServer>>,
+    pub assets: Arc<RwLock<AssetServer>>,
 
     exit_requested: bool,
 }
 
 impl Engine {
-    pub fn graphics(&self) -> RwLockReadGuard<cobalt_core::graphics::context::Graphics> {
+    pub fn graphics(&self) -> RwLockReadGuard<Graphics> {
         self.graphics.read()
     }
 
-    pub fn graphics_mut(&mut self) -> RwLockWriteGuard<cobalt_core::graphics::context::Graphics> {
+    pub fn graphics_mut(&mut self) -> RwLockWriteGuard<Graphics> {
         self.graphics.write()
     }
 
-    pub fn graphics_arc(&self) -> &Arc<RwLock<cobalt_core::graphics::context::Graphics>> {
+    pub fn graphics_arc(&self) -> &Arc<RwLock<Graphics>> {
         &self.graphics
     }
 
-    pub fn window(&self) -> &cobalt_core::graphics::window::Window {
+    pub fn window(&self) -> &Window {
         &self.window
     }
 
-    pub fn renderer(&self) -> MutexGuard<Box<dyn cobalt_core::renderer::Renderer>> {
+    pub fn renderer(&self) -> MutexGuard<Box<dyn Renderer>> {
         self.renderer.lock()
     }
 
-    pub fn renderer_arc(&self) -> &Arc<Mutex<Box<dyn cobalt_core::renderer::Renderer>>> {
+    pub fn renderer_arc(&self) -> &Arc<Mutex<Box<dyn Renderer>>> {
         &self.renderer
     }
 
@@ -75,15 +76,15 @@ impl Engine {
         &self.input
     }
 
-    pub fn assets(&self) -> RwLockReadGuard<cobalt_core::assets::server::AssetServer> {
+    pub fn assets(&self) -> RwLockReadGuard<AssetServer> {
         self.assets.read()
     }
 
-    pub fn assets_mut(&mut self) -> RwLockWriteGuard<cobalt_core::assets::server::AssetServer> {
+    pub fn assets_mut(&mut self) -> RwLockWriteGuard<AssetServer> {
         self.assets.write()
     }
 
-    pub fn assets_arc(&self) -> &Arc<RwLock<cobalt_core::assets::server::AssetServer>> {
+    pub fn assets_arc(&self) -> &Arc<RwLock<AssetServer>> {
         &self.assets
     }
 
@@ -96,7 +97,9 @@ impl Engine {
         asset_id: AssetID,
     ) -> Result<Asset<T>, AssetLoadError> {
         let assets_weak = Arc::downgrade(&self.assets);
-        self.assets_mut().load::<T>(assets_weak, asset_id)
+        self.assets
+            .write()
+            .load::<T>(assets_weak, &self.graphics.read(), asset_id)
     }
 }
 
@@ -188,9 +191,7 @@ impl<A: App> EngineRunner<A> {
 
         let output_size = window.winit().inner_size();
 
-        let graphics = Arc::new(RwLock::new(cobalt_core::graphics::context::Graphics::new(
-            &window,
-        )?));
+        let graphics = Arc::new(RwLock::new(Graphics::new(&window)?));
 
         log::info!("Graphics initialized successfully.");
 
@@ -201,7 +202,7 @@ impl<A: App> EngineRunner<A> {
 
         log::info!("Renderer initialized successfully.");
 
-        let assets = Arc::new(RwLock::new(AssetServer::new(Arc::downgrade(&graphics))));
+        let assets = Arc::new(RwLock::new(AssetServer::new()));
 
         assets.write().set_assets_dir(config.assets_dir.as_str())?;
 
@@ -251,7 +252,10 @@ impl<A: App> ApplicationHandler for EngineRunner<A> {
             }
 
             for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                let res = plugin.startup(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
+                let res = plugin.startup(
+                    self.engine.as_mut().unwrap(),
+                    self.app.as_mut().unwrap().dyn_trait_mut(),
+                );
 
                 if let Err(e) = res {
                     match e {
@@ -370,11 +374,16 @@ impl<A: App> ApplicationHandler for EngineRunner<A> {
 
         match event {
             WindowEvent::CloseRequested => {
-                self.app.as_mut().unwrap()
+                self.app
+                    .as_mut()
+                    .unwrap()
                     .on_stop(self.engine.as_mut().unwrap(), &mut self.plugin_manager);
 
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res = plugin.shutdown(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
+                    let res = plugin.shutdown(
+                        self.engine.as_mut().unwrap(),
+                        self.app.as_mut().unwrap().dyn_trait_mut(),
+                    );
 
                     if let Err(e) = res {
                         match e {
@@ -402,7 +411,10 @@ impl<A: App> ApplicationHandler for EngineRunner<A> {
             }
             WindowEvent::RedrawRequested => {
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res = plugin.pre_render(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
+                    let res = plugin.pre_render(
+                        self.engine.as_mut().unwrap(),
+                        self.app.as_mut().unwrap().dyn_trait_mut(),
+                    );
 
                     if let Err(e) = res {
                         match e {
@@ -512,8 +524,11 @@ impl<A: App> ApplicationHandler for EngineRunner<A> {
                 );
 
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res =
-                        plugin.post_render(self.engine.as_mut().unwrap(), &mut frame, self.app.as_mut().unwrap().dyn_trait_mut());
+                    let res = plugin.post_render(
+                        self.engine.as_mut().unwrap(),
+                        &mut frame,
+                        self.app.as_mut().unwrap().dyn_trait_mut(),
+                    );
 
                     if let Err(e) = res {
                         match e {
@@ -617,7 +632,10 @@ impl<A: App> ApplicationHandler for EngineRunner<A> {
                 );
 
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res = plugin.on_resize(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
+                    let res = plugin.on_resize(
+                        self.engine.as_mut().unwrap(),
+                        self.app.as_mut().unwrap().dyn_trait_mut(),
+                    );
 
                     if let Err(e) = res {
                         match e {
