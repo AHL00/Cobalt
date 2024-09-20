@@ -5,31 +5,8 @@
 
 // use super::exports::{AssetLoadError, AssetTrait};
 
-// #[allow(dead_code)]
-// struct Text {
-//     pub text: String,
-// }
+// // TODO: Fix asset tests
 
-// impl AssetTrait for Text {
-//     fn read_from_file_to_buffer(
-//         mut data: BufReader<std::fs::File>,
-//         _path: &Path,
-//     ) -> Result<bytes::Bytes, AssetLoadError> {
-//         let mut text = String::new();
-//         data.read_to_string(&mut text)
-//             .map_err(|e| AssetLoadError::ReadError(e))?;
-//         Ok(bytes::Bytes::from(text))
-//     }
-
-//     fn read_from_buffer(data: &bytes::Bytes) -> Result<Self, AssetLoadError> {
-//         let text =
-//             String::from_utf8(data.to_vec()).map_err(|e| AssetLoadError::LoadError(e.into()))?;
-//         Ok(Self { text })
-//     }
-// }
-
-// // All of these tests are ignored because they do not work in a multi-threaded
-// // test environment due to the static mut ASSET_SERVER.
 // #[cfg(test)]
 // mod tests {
 //     use std::borrow::Borrow;
