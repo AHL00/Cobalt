@@ -147,7 +147,7 @@ impl AssetServer {
 
     /// Load an asset from disk.
     /// The asset must be present in the manifest file.
-    pub(crate) fn load<T: AssetTrait>(
+    pub fn load<T: AssetTrait>(
         &self,
         self_weak_ref: Weak<RwLock<AssetServer>>,
         asset_id: AssetID,

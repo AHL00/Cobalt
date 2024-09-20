@@ -6,7 +6,10 @@ use std::{
 };
 
 use cobalt_core::{
-    assets::server::AssetServer,
+    assets::{
+        asset::{Asset, AssetID, AssetTrait},
+        server::{AssetLoadError, AssetServer},
+    },
     graphics::{
         window::WindowInternal,
         winit::{
@@ -24,18 +27,21 @@ use cobalt_core::{
 use downcast::AnySync;
 use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::plugins::{
-    manager::{PluginInternal, PluginManagerInternal},
-    Plugin, PluginBuilder, PluginError,
+use crate::{
+    app::App,
+    plugins::{
+        manager::{PluginInternal, PluginManagerInternal},
+        Plugin, PluginBuilder, PluginError,
+    },
 };
 
 pub struct Engine {
     pub scene: cobalt_core::scenes::scene::Scene,
-    graphics: Arc<RwLock<cobalt_core::graphics::context::Graphics>>,
-    window: cobalt_core::graphics::window::Window,
-    renderer: Arc<Mutex<Box<dyn cobalt_core::renderer::Renderer>>>,
-    input: cobalt_core::input::Input,
-    assets: Arc<RwLock<cobalt_core::assets::server::AssetServer>>,
+    pub graphics: Arc<RwLock<cobalt_core::graphics::context::Graphics>>,
+    pub window: cobalt_core::graphics::window::Window,
+    pub renderer: Arc<Mutex<Box<dyn cobalt_core::renderer::Renderer>>>,
+    pub input: cobalt_core::input::Input,
+    pub assets: Arc<RwLock<cobalt_core::assets::server::AssetServer>>,
 
     exit_requested: bool,
 }
@@ -84,6 +90,14 @@ impl Engine {
     pub fn request_exit(&mut self) {
         self.exit_requested = true;
     }
+
+    pub fn load_asset<T: AssetTrait>(
+        &mut self,
+        asset_id: AssetID,
+    ) -> Result<Asset<T>, AssetLoadError> {
+        let assets_weak = Arc::downgrade(&self.assets);
+        self.assets_mut().load::<T>(assets_weak, asset_id)
+    }
 }
 
 #[derive(Debug)]
@@ -122,35 +136,37 @@ impl EngineRunTiming {
     }
 }
 
-pub struct EngineRunner<'a> {
+pub struct EngineRunner<A: App> {
     // Runtime stuff
     plugin_manager: crate::plugins::PluginManager,
-    app: &'a mut dyn crate::app::App,
+    app: Option<A>,
     timing: EngineRunTiming,
 
     // Configuration
     create_renderer: CreateRendererClosure,
     initial_plugins: Vec<PluginBuilder>,
+    initial_config: Option<InitialEngineConfig>,
 
     // To be created later
     engine: Option<Engine>,
 }
 
 #[bon::bon]
-impl<'a> EngineRunner<'a> {
+impl<A: App> EngineRunner<A> {
     #[builder]
     pub fn new(
-        with_app: &'a mut dyn crate::app::App,
         with_renderer: Option<CreateRendererClosure>,
         with_plugins: Option<Vec<PluginBuilder>>,
+        with_config: Option<InitialEngineConfig>,
     ) -> Self {
         Self {
             plugin_manager: crate::plugins::PluginManager::new(),
-            app: with_app,
             timing: EngineRunTiming::new(),
             create_renderer: with_renderer.unwrap_or(DeferredRenderer::create),
             initial_plugins: with_plugins.unwrap_or(vec![]),
+            initial_config: Some(with_config.unwrap_or_default()),
             engine: None,
+            app: None,
         }
     }
 
@@ -160,7 +176,7 @@ impl<'a> EngineRunner<'a> {
         // TODO: Move Stats to Engine
         Stats::initialize();
 
-        let config = self.app.config();
+        let config = self.initial_config.take().unwrap();
 
         // Run initialize callbacks for plugins and app
         log::info!("Engine configuration: {:#?}", config);
@@ -219,7 +235,7 @@ impl<'a> EngineRunner<'a> {
     }
 }
 
-impl<'a> ApplicationHandler for EngineRunner<'a> {
+impl<A: App> ApplicationHandler for EngineRunner<A> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let None = self.engine {
             if let Err(e) = self.initialize_engine(event_loop) {
@@ -227,13 +243,15 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
                 event_loop.exit();
             };
 
+            self.app = Some(A::initialize(self.engine.as_mut().unwrap()));
+
             while let Some(plugin_builder) = self.initial_plugins.pop() {
                 self.plugin_manager
                     .add_plugin_dyn(plugin_builder.plugin, plugin_builder.run_priority);
             }
 
             for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                let res = plugin.startup(self.engine.as_mut().unwrap(), self.app);
+                let res = plugin.startup(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
 
                 if let Err(e) = res {
                     match e {
@@ -260,6 +278,8 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
             }
 
             self.app
+                .as_mut()
+                .unwrap()
                 .on_start(self.engine.as_mut().unwrap(), &mut self.plugin_manager);
         } else {
             // Resumed from suspension
@@ -293,7 +313,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
                 self.engine.as_mut().unwrap(),
                 event.clone(),
                 window_id.clone(),
-                self.app,
+                self.app.as_mut().unwrap(),
             );
 
             if let Err(e) = res {
@@ -332,7 +352,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
             self.engine.as_mut().unwrap().input.update(&event);
 
         if let Some(event) = input_new_event {
-            self.app.on_input(
+            self.app.as_mut().unwrap().on_input(
                 self.engine.as_mut().unwrap(),
                 &mut self.plugin_manager,
                 event,
@@ -350,11 +370,11 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
 
         match event {
             WindowEvent::CloseRequested => {
-                self.app
+                self.app.as_mut().unwrap()
                     .on_stop(self.engine.as_mut().unwrap(), &mut self.plugin_manager);
 
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res = plugin.shutdown(self.engine.as_mut().unwrap(), self.app);
+                    let res = plugin.shutdown(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
 
                     if let Err(e) = res {
                         match e {
@@ -382,7 +402,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
             }
             WindowEvent::RedrawRequested => {
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res = plugin.pre_render(self.engine.as_mut().unwrap(), self.app);
+                    let res = plugin.pre_render(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
 
                     if let Err(e) = res {
                         match e {
@@ -408,7 +428,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
 
                 {
                     let delta_time = self.timing.last_update.elapsed().as_secs_f32();
-                    self.app.on_update(
+                    self.app.as_mut().unwrap().on_update(
                         self.engine.as_mut().unwrap(),
                         &mut self.plugin_manager,
                         delta_time,
@@ -493,7 +513,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
 
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
                     let res =
-                        plugin.post_render(self.engine.as_mut().unwrap(), &mut frame, self.app);
+                        plugin.post_render(self.engine.as_mut().unwrap(), &mut frame, self.app.as_mut().unwrap().dyn_trait_mut());
 
                     if let Err(e) = res {
                         match e {
@@ -589,7 +609,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
                         log::error!("Failed to resize renderer: {:?}", e);
                     });
 
-                self.app.on_resize(
+                self.app.as_mut().unwrap().on_resize(
                     self.engine.as_mut().unwrap(),
                     &mut self.plugin_manager,
                     size.width,
@@ -597,7 +617,7 @@ impl<'a> ApplicationHandler for EngineRunner<'a> {
                 );
 
                 for (plugin, _, _) in self.plugin_manager.get_plugins_in_order() {
-                    let res = plugin.on_resize(self.engine.as_mut().unwrap(), self.app);
+                    let res = plugin.on_resize(self.engine.as_mut().unwrap(), self.app.as_mut().unwrap().dyn_trait_mut());
 
                     if let Err(e) = res {
                         match e {

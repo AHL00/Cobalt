@@ -777,7 +777,7 @@ impl std::cmp::Ord for Material {
 impl Material {
     /// Default instance of `Material`.
     /// White matte material.
-    fn default(graphics: &Arc<RwLock<Graphics>>) -> Self {
+    pub fn default(graphics: &Arc<RwLock<Graphics>>) -> Self {
         let mut m = Material {
             id: MATERIAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             unlit: false,

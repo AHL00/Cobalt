@@ -14,7 +14,7 @@ pub struct Plane {
 }
 
 impl Plane {
-    pub fn new(graphics: &Graphics) -> Self {
+    pub fn new() -> Self {
         Self {
             local_space_aabb: SPRITE_LOCAL_AABB.clone(),
         }
