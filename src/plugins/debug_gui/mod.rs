@@ -159,7 +159,7 @@ impl Plugin for DebugGUIPlugin {
 
         let raw_input = state.take_egui_input(&engine.window().winit());
 
-        ctx.begin_frame(raw_input);
+        ctx.begin_pass(raw_input);
 
         (self.draw_ui)(&ctx, engine, app);
 
@@ -167,7 +167,7 @@ impl Plugin for DebugGUIPlugin {
             self.debug_menu.show(&ctx, engine, app);
         }
 
-        let full_output = ctx.end_frame();
+        let full_output = ctx.end_pass();
 
         state.handle_platform_output(&engine.window().winit(), full_output.platform_output);
 
@@ -199,8 +199,9 @@ impl Plugin for DebugGUIPlugin {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut render_pass = frame
-            .get_encoder()
+        let encoder = frame.get_encoder();
+
+        let mut render_pass = encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -214,11 +215,10 @@ impl Plugin for DebugGUIPlugin {
                 label: Some("Egui Render Pass"),
                 timestamp_writes: None,
                 occlusion_query_set: None,
-            });
+            })
+            .forget_lifetime();
 
         renderer.render(&mut render_pass, &tris, &screen_descriptor);
-
-        drop(render_pass);
 
         for texture_id in full_output.textures_delta.free {
             renderer.free_texture(&texture_id);
