@@ -794,14 +794,12 @@ impl Material {
     }
 }
 
-impl ResourceTrait for Material {}
-
 impl AssetTrait for Material {
     fn type_name() -> String {
         "Material".to_owned()
     }
 
-    fn fs_type() -> AssetFileSystemType {
+    fn unimported_fs_type() -> AssetFileSystemType {
         AssetFileSystemType::File
     }
 

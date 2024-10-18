@@ -45,6 +45,20 @@ impl TextureType {
         }
     }
 
+    pub fn variants() -> Vec<Self> {
+        vec![
+            TextureType::RGBA32Float,
+            TextureType::RGBA16Float,
+            TextureType::RGBA8Unorm,
+            TextureType::RGBA8UnormSrgb,
+            TextureType::R32Float,
+            TextureType::R16Float,
+            TextureType::R8Unorm,
+            TextureType::R8Uint,
+            TextureType::R8Snorm,
+        ]
+    }
+
     pub fn to_string(&self) -> String {
         match self {
             TextureType::RGBA32Float => "RGBA32Float".to_string(),
@@ -61,10 +75,7 @@ impl TextureType {
     }
 
     // Tries to get image data from a dynamic image.
-    pub fn get_image_data(
-        &self,
-        image: image::DynamicImage,
-    ) -> Result<bytes::Bytes, String> {
+    pub fn get_image_data(&self, image: image::DynamicImage) -> Result<bytes::Bytes, String> {
         let vec_res: Result<Vec<u8>, String> = match self {
             TextureType::RGBA8Unorm => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA8UnormSrgb => Ok(image.into_rgba8().into_vec()),
@@ -166,6 +177,12 @@ impl Into<wgpu::TextureFormat> for TextureType {
             TextureType::R8Uint => wgpu::TextureFormat::R8Uint,
             TextureType::R8Snorm => wgpu::TextureFormat::R8Snorm,
         }
+    }
+}
+
+impl std::fmt::Display for TextureType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 

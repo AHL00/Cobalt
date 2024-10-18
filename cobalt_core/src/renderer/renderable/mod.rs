@@ -9,7 +9,7 @@ pub mod plane;
 /// It also implements the RenderableTrait trait which just passes the calls along to the actual structs.
 pub enum Renderable {
     Plane(plane::Plane),
-    Mesh(mesh::Mesh),
+    Mesh(mesh::MeshRenderable),
 }
 
 impl cobalt_ecs::exports::Component for Renderable {}

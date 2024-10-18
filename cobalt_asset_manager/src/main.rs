@@ -1,9 +1,13 @@
-use cobalt_core::exports::assets::AssetServer;
+use cobalt_core::{assets::asset::AssetID, exports::assets::AssetServer};
 use iced::{
-    widget::{self, rich_text, row, stack},
+    widget::{self, rich_text, row, stack, Text},
     Settings,
 };
+use pages::import_assets::{ImportAssets, ImportAssetsMessage};
 use simple_logger::SimpleLogger;
+
+pub mod components;
+pub mod pages;
 
 fn main() {
     SimpleLogger::new()
@@ -41,19 +45,47 @@ pub enum AssetConfig {
     TextureAsset { path: String },
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Tabs {
+    ViewAssets,
+    ImportAsset,
+}
+
+impl Tabs {
+    fn to_string(&self) -> String {
+        match self {
+            Tabs::ViewAssets => "View Assets".to_string(),
+            Tabs::ImportAsset => "Import Asset".to_string(),
+        }
+    }
+
+    fn variants() -> Vec<Tabs> {
+        vec![Tabs::ViewAssets, Tabs::ImportAsset]
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
+    DoNothing,
     SelectAssetDir,
+    DeleteAsset(AssetID),
+    TabSelected(Tabs),
+    ImportAssetsMessage(ImportAssetsMessage),
+    RefreshAssets,
 }
 
 pub struct App {
     asset_server: AssetServer,
+    current_tab: Tabs,
+    import_assets_page: ImportAssets,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
             asset_server: AssetServer::new(),
+            current_tab: Tabs::ViewAssets,
+            import_assets_page: ImportAssets::new(),
         }
     }
 }
@@ -65,6 +97,7 @@ impl App {
 
     fn update(&mut self, event: Message) {
         match event {
+            Message::DoNothing => {}
             Message::SelectAssetDir => {
                 let asset_dir = rfd::FileDialog::new()
                     .set_title("Select Asset Directory")
@@ -80,108 +113,59 @@ impl App {
                     };
                 }
             }
+            Message::DeleteAsset(asset_id) => {
+                todo!("Delete asset with ID: {:?}", asset_id)
+            }
+            Message::TabSelected(tab) => {
+                self.current_tab = tab;
+            }
+            Message::ImportAssetsMessage(message) => {
+                self.import_assets_page.update(message, &self.asset_server);
+            }
+            Message::RefreshAssets => {
+                self.asset_server.refresh_manifest().map_err(|e| {
+                    eprintln!("Error refreshing assets: {}", e);
+                }).expect("Error refreshing assets");
+            }
         }
     }
 
     fn view(&self) -> iced::Element<Message> {
-        let assets_table = self.asset_server.get_manifest().map(|asset_server| {
-            let assets = &asset_server.assets;
+        let top_tab_select = Tabs::variants()
+            .iter()
+            .filter(|tab| **tab != self.current_tab)
+            .fold(row![], |tabs, tab| {
+                tabs.push(
+                    widget::Button::new(Text::new(tab.to_string()))
+                        .on_press(Message::TabSelected(tab.clone())),
+                )
+            });
 
-            let mut table_column = widget::column![].spacing(15);
-
-            for asset_info in assets {
-                let asset_id = asset_info.asset_id;
-                let asset_name = &asset_info.name;
-                let asset_type = &asset_info.type_name;
-                let asset_timestamp = humantime::Timestamp::from(asset_info.timestamp).to_string();
-                let asset_rel_path = asset_info.relative_path.to_string_lossy();
-
-                let mut info_col = widget::column![].spacing(8);
-
-                let asset_name_text = rich_text![
-                    widget::span("Asset Name:").underline(true),
-                    widget::span(" "),
-                    widget::span(asset_name)
-                ];
-                info_col = info_col.push(asset_name_text);
-
-                let asset_id_text = rich_text![
-                    widget::span("Asset ID:").underline(true),
-                    widget::span(" "),
-                    widget::span(asset_id.uuid().to_string())
-                ];
-                info_col = info_col.push(asset_id_text);
-
-                let asset_type_text = rich_text![
-                    widget::span("Asset Type:").underline(true),
-                    widget::span(" "),
-                    widget::span(asset_type)
-                ];
-                info_col = info_col.push(asset_type_text);
-
-                let asset_path_text = rich_text![
-                    widget::span("Asset Created:").underline(true),
-                    widget::span(" "),
-                    widget::span(asset_timestamp)
-                ];
-                info_col = info_col.push(asset_path_text);
-
-                let asset_rel_path_text = rich_text![
-                    widget::span("Asset Relative Path:").underline(true),
-                    widget::span(" "),
-                    widget::span(asset_rel_path)
-                ];
-                info_col = info_col.push(asset_rel_path_text);
-
-                let mut col = widget::column![];
-
-                let title_span = widget::span(format!("{}", asset_name))
-                    .size(24)
-                    .underline(true);
-
-                col = col.push(widget::rich_text![title_span]);
-
-                col = col.push(info_col);
-
-                table_column = table_column.push(col);
-                table_column = table_column.push(widget::horizontal_rule(1));
-            }
-
-            let assets_table = widget::scrollable(table_column)
-                .width(iced::Length::Fill)
-                .height(iced::Length::Fill);
-
-            assets_table
-        });
-
-        #[rustfmt::skip]
-        let mut main_column = widget::column![
-            widget::row![
-                widget::button(widget::Text::new("Select Asset Directory"))
-                    .on_press(Message::SelectAssetDir),
-                widget::Text::new(format!(
-                    "Asset Directory: {:?}",
-                    self.asset_server.assets_dir().as_path()
-                )),
-                widget::horizontal_rule(1),
-            ]
-            .spacing(10)
-            .height(iced::Length::Shrink)
-            .align_y(iced::Alignment::Center),
+        let asset_dir_select = row![
+            widget::button(Text::new("Select Asset Directory")).on_press(Message::SelectAssetDir),
+            widget::Text::new(format!(
+                "Asset Directory: {:?}",
+                self.asset_server.assets_dir().as_path()
+            )),
         ]
-        .height(iced::Length::Fill)
-        .width(iced::Length::Fill)
+        .spacing(10)
+        .height(iced::Length::Shrink)
+        .align_y(iced::Alignment::Center);
+
+        let content = match self.current_tab {
+            Tabs::ViewAssets => pages::view_assets::ViewAssets::view(&self.asset_server),
+            Tabs::ImportAsset => self.import_assets_page.view(&self.asset_server),
+        };
+
+        iced::widget::column![
+            asset_dir_select,
+            widget::horizontal_rule(1),
+            top_tab_select,
+            widget::horizontal_rule(1),
+            content
+        ]
+        .spacing(10)
         .padding(10)
-        .spacing(13);
-
-        if let Ok(assets_table) = assets_table {
-            main_column = main_column.push(assets_table);
-        } else {
-            main_column = main_column.push(widget::Text::new(
-                "Failed to load assets, manifest not found.",
-            ));
-        }
-
-        main_column.into()
+        .into()
     }
 }

@@ -152,7 +152,7 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
         format!("Texture<{}>", T.to_string())
     }
 
-    fn fs_type() -> AssetFileSystemType {
+    fn unimported_fs_type() -> AssetFileSystemType {
         AssetFileSystemType::File
     }
 

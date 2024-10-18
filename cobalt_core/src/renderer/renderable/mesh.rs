@@ -1,16 +1,16 @@
-use crate::{renderer::mesh::MeshAsset, types::aabb::AABB};
+use crate::{renderer::mesh::Mesh, types::aabb::AABB};
 use cobalt_assets::{self, asset::Asset};
 use cobalt_graphics::context::Graphics;
 
 use super::RenderableTrait;
 
-pub struct Mesh {
-    pub mesh: Asset<MeshAsset>,
+pub struct MeshRenderable {
+    pub mesh: Asset<Mesh>,
     pub(crate) local_space_aabb: AABB,
 }
 
-impl Mesh {
-    pub fn new(mesh: Asset<MeshAsset>) -> Self {
+impl MeshRenderable {
+    pub fn new(mesh: Asset<Mesh>) -> Self {
         let local_space_aabb = mesh.borrow().local_aabb.clone();
 
         Self {
@@ -20,7 +20,7 @@ impl Mesh {
     }
 }
 
-impl RenderableTrait for Mesh {
+impl RenderableTrait for MeshRenderable {
     fn render(&self, graphics: &Graphics, render_pass: &mut wgpu::RenderPass) {
         let mesh_asset = unsafe { self.mesh.borrow_unsafe() };
 

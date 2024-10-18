@@ -16,7 +16,7 @@ pub use renderer::Renderer;
 
 pub mod exports {
     pub mod renderables {
-        pub use super::super::renderable::mesh::Mesh;
+        pub use super::super::renderable::mesh::MeshRenderable;
         pub use super::super::renderable::plane::Plane;
     }
 

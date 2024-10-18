@@ -2,6 +2,7 @@
 // Main manifest file is `manifest.toml`
 
 use bytes::Bytes;
+use cobalt_graphics::texture::TextureType;
 use path_clean::PathClean;
 
 use super::{
@@ -14,7 +15,7 @@ use std::{
     path::PathBuf,
 };
 
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct PackInfo {
     /// If this is `None`, the asset will not be compressed
     /// If this is `Some`, the asset will be compressed
@@ -139,7 +140,7 @@ pub fn add_or_pack_asset<T: AssetTrait>(
 
     // Another check just in case. Speed doesn't matter here
     if abs_output.exists() {
-        match T::fs_type() {
+        match T::unimported_fs_type() {
             AssetFileSystemType::File => {
                 return Err(AssetPackError::AssetExistsOnDisk);
             }
@@ -155,7 +156,7 @@ pub fn add_or_pack_asset<T: AssetTrait>(
     }
 
     // Make sure source file exists
-    match T::fs_type() {
+    match T::unimported_fs_type() {
         AssetFileSystemType::File => {
             if !abs_input.is_file() {
                 return Err(AssetPackError::SourceCouldNotOpen(io::Error::new(
@@ -200,7 +201,7 @@ pub fn add_or_pack_asset<T: AssetTrait>(
                 .map_err(|e| AssetPackError::SourceFileProcessError(e))?
         };
 
-        match T::fs_type() {
+        match T::unimported_fs_type() {
             AssetFileSystemType::File => {
                 std::fs::write(&abs_output, buffer_data).map_err(AssetPackError::WriteFile)?;
             }
@@ -212,7 +213,7 @@ pub fn add_or_pack_asset<T: AssetTrait>(
         // Make sure it can load first
         T::verify_source_file(abs_input).map_err(|e| AssetPackError::SourceFileProcessError(e))?;
 
-        match T::fs_type() {
+        match T::unimported_fs_type() {
             AssetFileSystemType::File => {
                 std::fs::copy(abs_input, &abs_output).map_err(|e| AssetPackError::CopyFile(e))?;
             }

@@ -48,7 +48,7 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
     fn type_name() -> String;
 
     /// Whether the asset is to be stored as a directory or a file.
-    fn fs_type() -> AssetFileSystemType;
+    fn unimported_fs_type() -> AssetFileSystemType;
 
     /// Read the asset from a file to a buffer. This is typically from packed asset files.
     fn read_packed_buffer(data: &mut dyn Read, graphics: &Graphics) -> Result<Self, AssetLoadError>;
@@ -71,9 +71,11 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
 /// The handle can be serialized and deserialized.
 /// When the handle is serialized, it will serialize the path.
 /// When the handle is deserialized, it will load the asset into the global asset server.
+/// This can be converted into a Resource<T> by calling `.into()`.
 pub struct Asset<T: AssetTrait> {
     pub(crate) asset_id: AssetID,
-    data: Arc<RwLock<T>>,
+    // TODO: Use a Resource<T> internally? This would require restructuring the project to prevent circular dependencies.
+    pub data: Arc<RwLock<T>>,
     asset_server_ref: std::sync::Weak<RwLock<AssetServer>>,
 }
 
@@ -125,6 +127,10 @@ impl<T: AssetTrait> Asset<T> {
             asset_id,
             data: arc,
         }
+    }
+
+    pub fn unwrap_data(self) -> Arc<RwLock<T>> {
+        self.data.clone()
     }
 }
 

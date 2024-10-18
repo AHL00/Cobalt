@@ -123,6 +123,20 @@ impl AssetServer {
         Ok(())
     }
 
+    pub fn refresh_manifest(&mut self) -> Result<(), Box<dyn Error>> {
+        let manifest_load_res = Manifest::load(&self.assets_dir);
+
+        if let Ok(manifest) = manifest_load_res {
+            self.manifest = Some(manifest);
+            return Ok(());
+        } else if let Err(err) = manifest_load_res {
+            log::warn!("Failed to load manifest file: {}", err);
+            return Err("Failed to load manifest file".into());
+        }
+
+        Ok(())
+    }
+
     pub fn list_loaded_assets(&self) -> Result<Vec<&AssetInfo>, ManifestNotLoaded> {
         let manifest = self.get_manifest()?;
 

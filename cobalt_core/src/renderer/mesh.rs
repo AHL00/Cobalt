@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{fmt::Debug, path::Path};
 
 use bytes::Bytes;
 
@@ -10,13 +10,22 @@ use cobalt_assets::{
 use cobalt_graphics::{context::Graphics, vertex::UvNormalVertex};
 
 #[allow(dead_code)]
-pub struct MeshAsset {
+pub struct Mesh{
     /// Buffer of NormalUvVertex
     pub(crate) vertex_buffer: wgpu::Buffer,
     pub(crate) index_buffer: wgpu::Buffer,
     pub(crate) num_indices: u32,
     pub(crate) local_aabb: AABB,
     pub(crate) has_uv: bool,
+}
+
+impl Debug for Mesh {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Mesh")
+            .field("num_indices", &self.num_indices)
+            .field("has_uv", &self.has_uv)
+            .finish()
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -28,12 +37,12 @@ pub(crate) struct MeshBuffer {
     pub has_uv: bool,
 }
 
-impl AssetTrait for MeshAsset {
+impl AssetTrait for Mesh {
     fn type_name() -> String {
         "Mesh".to_owned()
     }
 
-    fn fs_type() -> AssetFileSystemType {
+    fn unimported_fs_type() -> AssetFileSystemType {
         AssetFileSystemType::File
     }
 

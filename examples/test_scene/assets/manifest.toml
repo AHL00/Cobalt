@@ -6,4 +6,17 @@ type_name = "Texture<RGBA8UnormSrgb>"
 
 [assets.timestamp]
 secs_since_epoch = 1722024678
-nanos_since_epoch = 996383598
+nanos_since_epoch = 996383500
+
+[[assets]]
+asset_id = "90726be9-9c08-4ea2-81af-57553596b568"
+relative_path = "asset_1.asset"
+name = "asset_1"
+type_name = "Texture<RGBA8Unorm>"
+
+[assets.packed]
+compression = 7
+
+[assets.timestamp]
+secs_since_epoch = 1729269364
+nanos_since_epoch = 586360500
