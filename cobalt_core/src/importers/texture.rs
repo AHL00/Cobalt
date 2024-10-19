@@ -1,21 +1,25 @@
-use std::io::Read;
+use std::io::{Cursor, Read};
 
 use cobalt_assets::{
-    asset::{AssetFileSystemType, AssetTrait},
+    asset::{AssetFileSystemType, AssetImporter, AssetTrait},
+    manifest::ExtraAssetInfo,
     server::AssetLoadError,
 };
 use cobalt_graphics::{
     context::Graphics,
-    texture::{Texture, TextureType}, HasBindGroupLayout,
+    texture::{Texture, TextureType},
+    HasBindGroupLayout,
 };
-use image::GenericImageView;
+use image::{GenericImageView, ImageFormat};
 use serde::ser::SerializeSeq;
 
+use crate::asset_types::texture::TextureAsset;
+
 /// Texture asset buffer, used when serialising into a packed asset.
-struct TextureAssetBuffer {
-    ty: TextureType,
-    image: image::DynamicImage,
-    size: wgpu::Extent3d,
+pub(crate) struct TextureAssetBuffer {
+    pub ty: TextureType,
+    pub image: image::DynamicImage,
+    pub size: wgpu::Extent3d,
 }
 
 impl serde::Serialize for TextureAssetBuffer {
@@ -89,7 +93,7 @@ impl<'de> serde::Deserialize<'de> for TextureAssetBuffer {
 }
 
 impl TextureAssetBuffer {
-    fn read_from_source(
+    pub fn read_from_source(
         abs_path: &std::path::Path,
         texture_type: TextureType,
     ) -> Result<Self, AssetLoadError> {
@@ -142,203 +146,138 @@ impl TextureAssetBuffer {
             size,
         })
     }
+
+    pub fn create_texture<const T: TextureType>(
+        &self,
+        graphics: &Graphics,
+    ) -> Result<Texture<T>, AssetLoadError> {
+        let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: self.size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: T.into(),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[T.into()],
+        });
+
+        graphics.queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &T.get_image_data(self.image.clone())
+                .map_err(|e| AssetLoadError::LoadError(e.into()))?,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(T.bytes_per_pixel() as u32 * self.size.width),
+                rows_per_image: Some(self.size.height),
+            },
+            self.size,
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: None,
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let bind_group = graphics
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &Texture::<T>::bind_group_layout(graphics, ()),
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                ],
+            });
+
+        Ok(Texture {
+            bind_group,
+            texture,
+            view,
+            sampler,
+            size: self.size,
+        })
+    }
 }
 
-#[derive(Debug)]
-pub struct TextureAsset<const T: TextureType>(pub Texture<T>);
+pub struct TextureImporter<const T: TextureType> {}
 
-impl<const T: TextureType> AssetTrait for TextureAsset<T> {
-    fn type_name() -> String {
-        format!("Texture<{}>", T.to_string())
-    }
+impl<const T: TextureType> TextureImporter<T> {}
 
+impl<const T: TextureType> AssetImporter<TextureAsset<T>> for TextureImporter<T> {
     fn unimported_fs_type() -> AssetFileSystemType {
         AssetFileSystemType::File
     }
 
-    fn read_packed_buffer(
-        data: &mut dyn Read,
-        graphics: &Graphics,
-    ) -> Result<Self, crate::exports::assets::AssetLoadError> {
-        let data_slice: Vec<u8> = {
-            let mut data_buffer = Vec::new();
-            data.read_to_end(&mut data_buffer).map_err(|e| {
-                AssetLoadError::LoadError(format!("Failed to read data: {}", e).to_string().into())
-            })?;
-            data_buffer
-        };
-
-        let TextureAssetBuffer {
-            image,
-            size,
-            // Can ignore type as type check is already done in the asset server
-            ..
-        } = bincode::deserialize(&data_slice).map_err(|e| {
-            log::error!("{}", e);
-            AssetLoadError::LoadError(
-                "Failed to deserialise texture asset data from buffer"
-                    .to_string()
-                    .into(),
-            )
-        })?;
-
-        let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: T.into(),
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[T.into()],
-        });
-
-        graphics.queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &T.get_image_data(image)
-                .map_err(|e| AssetLoadError::LoadError(e.into()))?,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(T.bytes_per_pixel() as u32 * size.width),
-                rows_per_image: Some(size.height),
-            },
-            size,
-        );
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
-            label: None,
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-
-        let bind_group = graphics
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: &Texture::<T>::bind_group_layout(graphics, ()),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler),
-                    },
-                ],
-            });
-
-        Ok(TextureAsset(Texture {
-            bind_group,
-            texture,
-            view,
-            sampler,
-            size,
-        }))
-    }
-
-    fn read_source_file_to_buffer(
-        abs_path: &std::path::Path,
-    ) -> Result<bytes::Bytes, crate::exports::assets::AssetLoadError> {
-        let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_path, T)?;
-
-        let ser_data = bincode::serialize(&texture_asset_buffer).map_err(|e| {
-            log::error!("{}", e);
-            AssetLoadError::LoadError(
-                "Failed to serialise image data into buffer"
-                    .to_string()
-                    .into(),
-            )
-        })?;
-
-        Ok(bytes::Bytes::from(ser_data))
-    }
-
-    fn read_source_file(
-        abs_path: &std::path::Path,
-        graphics: &Graphics,
-    ) -> Result<Self, AssetLoadError> {
-        let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_path, T)?;
-
-        let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size: texture_asset_buffer.size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: T.into(),
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[T.into()],
-        });
-
-        graphics.queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &T.get_image_data(texture_asset_buffer.image)
-                .map_err(|e| AssetLoadError::LoadError(e.into()))?,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(T.bytes_per_pixel() as u32 * texture_asset_buffer.size.width),
-                rows_per_image: Some(texture_asset_buffer.size.height),
-            },
-            texture_asset_buffer.size,
-        );
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
-            label: None,
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-
-        let bind_group = graphics
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: None,
-                layout: &Texture::<T>::bind_group_layout(graphics, ()),
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler),
-                    },
-                ],
-            });
-
-        Ok(Self(Texture {
-            bind_group,
-            texture,
-            view,
-            sampler,
-            size: texture_asset_buffer.size,
-        }))
-    }
-
-    fn verify_source_file(abs_path: &std::path::Path) -> Result<(), AssetLoadError> {
+    fn verify_source(abs_path: &std::path::Path) -> Result<(), AssetLoadError> {
         TextureAssetBuffer::read_from_source(abs_path, T)?;
         Ok(())
+    }
+
+    fn import(
+        abs_input_path: &std::path::Path,
+        asset_info: &cobalt_assets::manifest::AssetInfo,
+        assets_dir: &std::path::Path,
+    ) -> Result<ExtraAssetInfo, AssetLoadError> {
+        let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_input_path, T)?;
+
+        let ser_data = if let Some(_) = asset_info.pack.compression {
+            // Use PNG for compression
+            // Create image from raw data
+            let image = texture_asset_buffer.image;
+
+            // Create a buffer to hold the PNG data
+            let mut png_buffer = Vec::new();
+            image
+                .write_to(&mut Cursor::new(&mut png_buffer), image::ImageFormat::Png)
+                .map_err(|e| {
+                    log::error!("{}", e);
+                    AssetLoadError::LoadError("Failed to write image as PNG".to_string().into())
+                })?;
+
+            png_buffer
+        } else {
+            bincode::serialize(&texture_asset_buffer).map_err(|e| {
+                log::error!("{}", e);
+                AssetLoadError::LoadError(
+                    "Failed to serialize image data into buffer"
+                        .to_string()
+                        .into(),
+                )
+            })?
+        };
+
+        let output_path = assets_dir.join(&asset_info.relative_path);
+
+        std::fs::write(&output_path, ser_data).map_err(|e| AssetLoadError::WriteError(e))?;
+
+        let mut extra_info = ExtraAssetInfo::new();
+
+        if let Some(_) = asset_info.pack.compression {
+            extra_info.0.insert(
+                "mime".to_string(),
+                ImageFormat::Png.to_mime_type().to_string(),
+            );
+        }
+
+        Ok(extra_info)
     }
 }

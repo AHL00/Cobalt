@@ -29,6 +29,8 @@ impl AssetID {
 
 use cobalt_graphics::context::Graphics;
 
+use crate::manifest::{AssetInfo, ExtraAssetInfo};
+
 use super::server::{AssetLoadError, AssetServer};
 
 /// Whether an asset is to be imported as a directory or a file.
@@ -46,24 +48,20 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
     /// The name of the asset type.
     /// NOTE: MAKE SURE THIS IS UNIQUE
     fn type_name() -> String;
-
+    
     /// Whether the asset is to be stored as a directory or a file.
+    fn imported_fs_type() -> AssetFileSystemType;
+    
+    fn read(asset_info: &AssetInfo, assets_dir: &Path, graphics: &Graphics) -> Result<Self, AssetLoadError>;
+}
+
+/// T: The target asset type to import to.
+pub trait AssetImporter<T: AssetTrait> {
     fn unimported_fs_type() -> AssetFileSystemType;
 
-    /// Read the asset from a file to a buffer. This is typically from packed asset files.
-    fn read_packed_buffer(data: &mut dyn Read, graphics: &Graphics) -> Result<Self, AssetLoadError>;
+    fn verify_source(abs_path: &Path) -> Result<(), AssetLoadError>;
 
-    /// Read the asset from a file.
-    fn read_source_file(abs_path: &Path, graphics: &Graphics) -> Result<Self, AssetLoadError>;
-
-    /// Verify the source file. This is for importing assets.
-    fn verify_source_file(abs_path: &Path) -> Result<(), AssetLoadError>;
-
-    // /// Read the asset straight from a file. This is for using unpacked asset source files directly.
-    // fn read_source_file(abs_path: &Path) -> Result<Self, AssetLoadError>;
-
-    /// Read the asset from a normal file such as png, gltf, etc and return a packed buffer.
-    fn read_source_file_to_buffer(abs_path: &Path) -> Result<Bytes, AssetLoadError>;
+    fn import(abs_input_path: &Path, asset_info: &AssetInfo, assets_dir: &Path) -> Result<ExtraAssetInfo, AssetLoadError>;
 }
 
 /// Handle to an asset.

@@ -54,6 +54,16 @@ pub enum AssetLoadError {
         "Asset load was attempted but the Graphics context was either dropped or never created"
     )]
     GraphicsContextDoesNotExist,
+    #[error("File not found")]
+    FileNotFound,
+    #[error("Failed to write to disk")]
+    WriteError(std::io::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AssetImportError {
+    #[error("File system IO Error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -186,57 +196,16 @@ impl AssetServer {
 
         let asset_path = self.assets_dir.join(&asset_info.relative_path);
 
-        // Check if the asset is packed or not
-        match &asset_info.packed {
-            Some(pack_info) => {
-                let file = std::fs::File::open(&asset_path)?;
+        let asset = T::read(asset_info, &self.assets_dir, graphics)?;
+        
+        let asset_arc = Arc::new(RwLock::new(asset));
 
-                let asset = match pack_info.compression {
-                    Some(_) => {
-                        let mut compressed_data = Vec::new();
-                        std::io::BufReader::new(file).read_to_end(&mut compressed_data)?;
+        // For adding to the loaded assets map
+        let asset_any = unsafe {
+            Arc::from_raw(Arc::into_raw(asset_arc) as *const (dyn Any + Send + Sync + 'static))
+        };
 
-                        let mut decompressed_data = Vec::with_capacity(compressed_data.len());
-                        flate2::read::GzDecoder::new(compressed_data.as_slice())
-                            .read_to_end(&mut decompressed_data)?;
-
-                        let mut buf_reader = std::io::BufReader::new(decompressed_data.as_slice());
-
-                        T::read_packed_buffer(&mut buf_reader, graphics)?
-                    }
-                    None => {
-                        let mut buf_reader = std::io::BufReader::new(file);
-
-                        T::read_packed_buffer(&mut buf_reader, graphics)?
-                    }
-                };
-
-                let asset_arc = Arc::new(RwLock::new(asset));
-
-                // For adding to the loaded assets map
-                let asset_any = unsafe {
-                    Arc::from_raw(
-                        Arc::into_raw(asset_arc) as *const (dyn Any + Send + Sync + 'static)
-                    )
-                };
-
-                Ok(Asset::new(self_weak_ref, Some(asset_id), asset_any))
-            }
-            None => {
-                let asset = T::read_source_file(&asset_path, graphics)?;
-
-                let asset_arc = Arc::new(RwLock::new(asset));
-
-                // For adding to the loaded assets map
-                let asset_any = unsafe {
-                    Arc::from_raw(
-                        Arc::into_raw(asset_arc) as *const (dyn Any + Send + Sync + 'static)
-                    )
-                };
-
-                Ok(Asset::new(self_weak_ref, Some(asset_id), asset_any))
-            }
-        }
+        Ok(Asset::new(self_weak_ref, Some(asset_id), asset_any))
     }
 
     /// Get the asset ID from the asset's name.

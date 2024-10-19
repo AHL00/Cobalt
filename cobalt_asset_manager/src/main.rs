@@ -1,6 +1,9 @@
-use cobalt_core::{assets::asset::AssetID, exports::assets::AssetServer};
+use cobalt_core::{
+    assets::{asset::AssetID, manifest::Manifest},
+    exports::assets::AssetServer,
+};
 use iced::{
-    widget::{self, rich_text, row, stack, Text},
+    widget::{self, rich_text, row, stack, Button, Text},
     Settings,
 };
 use pages::import_assets::{ImportAssets, ImportAssetsMessage};
@@ -71,6 +74,7 @@ pub enum Message {
     DeleteAsset(AssetID),
     TabSelected(Tabs),
     ImportAssetsMessage(ImportAssetsMessage),
+    InitialiseNewAssetsDir,
     RefreshAssets,
 }
 
@@ -123,9 +127,44 @@ impl App {
                 self.import_assets_page.update(message, &self.asset_server);
             }
             Message::RefreshAssets => {
-                self.asset_server.refresh_manifest().map_err(|e| {
-                    eprintln!("Error refreshing assets: {}", e);
-                }).expect("Error refreshing assets");
+                self.asset_server
+                    .refresh_manifest()
+                    .map_err(|e| {
+                        eprintln!("Error refreshing assets: {}", e);
+                    })
+                    .expect("Error refreshing assets");
+            }
+            Message::InitialiseNewAssetsDir => {
+                let asset_dir = rfd::FileDialog::new()
+                    .set_title("Select Asset Directory")
+                    .set_can_create_directories(true)
+                    .pick_folder();
+
+                // Serialise empty Manifest to new directory
+                let manifest = Manifest::new();
+
+                let manifest_str = toml::to_string_pretty(&manifest)
+                    .map_err(|e| {
+                        eprintln!("Error serialising empty manifest: {}", e);
+                    })
+                    .expect("Error serialising empty manifest");
+
+                // Write to manifest.toml
+                if let Some(asset_dir) = &asset_dir {
+                    let manifest_path = asset_dir.join("manifest.toml");
+                    std::fs::write(manifest_path, manifest_str)
+                        .map_err(|e| {
+                            eprintln!("Error writing manifest to new directory: {}", e);
+                        })
+                        .expect("Error writing manifest to new directory");
+                
+                    if let Err(e) = self
+                        .asset_server
+                        .set_assets_dir(asset_dir.to_str().unwrap())
+                    {
+                        eprintln!("Error setting asset directory: {}", e);
+                    };
+                }
             }
         }
     }
@@ -143,6 +182,8 @@ impl App {
 
         let asset_dir_select = row![
             widget::button(Text::new("Select Asset Directory")).on_press(Message::SelectAssetDir),
+            widget::Button::new(Text::new("Initialise New Assets Directory"))
+                .on_press(Message::InitialiseNewAssetsDir),
             widget::Text::new(format!(
                 "Asset Directory: {:?}",
                 self.asset_server.assets_dir().as_path()

@@ -4,7 +4,7 @@ use super::{proj_view::ProjView, renderable::Renderable, renderer::FramePrepErro
 use crate::{
     components::transform::Transform,
     exports::{
-        ecs::{Entity, query::Optional, World},
+        ecs::{query::Optional, Entity, World},
         types::{
             either::Either,
             resource::{Resource, ResourceTrait},
@@ -15,18 +15,18 @@ use crate::{
 use cobalt_assets::exports::{Asset, AssetTrait};
 
 /// Holds the data required to render a renderable.
-pub struct RenderData<'a, M: ResourceTrait + AssetTrait> {
+pub struct RenderData<'a, M: ResourceTrait> {
     pub renderable: &'a Renderable,
     pub transform: &'a mut Transform,
     pub entity: Entity,
     pub in_frustum: bool,
-    pub material: Either<Resource<M>, Asset<M>>,
+    pub material: Resource<M>,
 }
 
 /// Holds the data required to render a frame.
 /// It also helps generate that data from a few inputs using the `generate` method.
 /// Materials are sorted or at least grouped together. Should reduce material binding count.
-pub struct FrameData<'a, M: ResourceTrait + AssetTrait + Ord> {
+pub struct FrameData<'a, M: ResourceTrait + Ord> {
     pub depth_view: Option<wgpu::TextureView>,
     pub proj_view: ProjView,
     pub camera_position: ultraviolet::Vec3,
@@ -73,9 +73,9 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
                             }
                         }
 
-                        Either::Left(resource.clone())
+                        resource.clone()
                     } else if let Some(asset) = asset_material {
-                        Either::Right(asset.clone())
+                        asset.clone().into()
                     } else {
                         return Err(FramePrepError::NoMaterial(ent))
                     }
@@ -101,15 +101,17 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
         // // Sort by material
         // // TODO: Instead of sorting, maybe just group
         render_data_vec.sort_unstable_by(|a, b| {
-            if let Either::Left(a) = &a.material {
-                if let Either::Left(b) = &b.material {
-                    a.borrow().cmp(&b.borrow())
-                } else {
-                    std::cmp::Ordering::Less
-                }
-            } else {
-                std::cmp::Ordering::Greater
-            }
+            // if let Either::Left(a) = &a.material {
+            //     if let Either::Left(b) = &b.material {
+            //         a.borrow().cmp(&b.borrow())
+            //     } else {
+            //         std::cmp::Ordering::Less
+            //     }
+            // } else {
+            //     std::cmp::Ordering::Greater
+            // }
+
+            a.material.borrow().cmp(&b.material.borrow())
         });
 
         #[cfg(feature = "debug_stats")]

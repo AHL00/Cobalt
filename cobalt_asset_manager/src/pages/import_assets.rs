@@ -2,13 +2,13 @@ use std::path::PathBuf;
 
 use cobalt_core::{
     assets::{
-        asset::{AssetFileSystemType, AssetTrait},
-        manifest::{add_or_pack_asset, AssetPackError, PackInfo},
+        asset::{AssetFileSystemType, AssetImporter, AssetTrait},
+        manifest::{pack_asset, AssetPackError, PackInfo},
         server::AssetServer,
     },
-    assets_types::gltf::GltfAsset,
     exports::asset_types::TextureAsset,
     graphics::texture::TextureType,
+    importers::{gltf::GltfAsset, texture::TextureImporter},
 };
 use iced::widget::{self, button, combo_box, row, Column, Text};
 
@@ -59,9 +59,18 @@ impl AssetType {
     pub fn unimported_fs_type(&self) -> AssetFileSystemType {
         match self {
             AssetType::Texture { .. } => {
-                TextureAsset::<{ TextureType::RGBA8Unorm }>::unimported_fs_type()
+                TextureImporter::<{ TextureType::RGBA8Unorm }>::unimported_fs_type()
             }
             AssetType::Gltf => GltfAsset::unimported_fs_type(),
+        }
+    }
+
+    pub fn imported_fs_type(&self) -> AssetFileSystemType {
+        match self {
+            AssetType::Texture { .. } => {
+                TextureAsset::<{ TextureType::RGBA8Unorm }>::imported_fs_type()
+            }
+            AssetType::Gltf => GltfAsset::imported_fs_type(),
         }
     }
 
@@ -113,7 +122,7 @@ pub struct ImportAssets {
     abs_input: PathBuf,
     relative_output: String,
     name: String,
-    packed: Option<PackInfo>,
+    pack: PackInfo,
     asset_type: AssetType,
     asset_types_combo_box: combo_box::State<AssetType>,
 }
@@ -125,7 +134,7 @@ pub enum ImportAssetsMessage {
     SetRelativeOutput(String),
     SelectInputPath { directory: bool },
     SetName(String),
-    SetPackInfo(Option<PackInfo>),
+    SetPackInfo(PackInfo),
     SetAssetType(AssetType),
     ExtraConfigMessage(ExtraConfigMessage),
 }
@@ -136,7 +145,7 @@ impl ImportAssets {
             abs_input: PathBuf::new(),
             relative_output: "./".to_string(),
             name: "".to_string(),
-            packed: None,
+            pack: PackInfo { compression: None },
             asset_type: AssetType::Texture {
                 texture_type: None,
                 texture_type_combo_box: combo_box::State::new(TextureType::variants()),
@@ -147,26 +156,12 @@ impl ImportAssets {
 
     pub fn update(&mut self, message: ImportAssetsMessage, asset_server: &AssetServer) {
         fn update_relative_path(s: &mut ImportAssets) {
-            match &s.packed {
-                Some(_) => s.relative_output = format!("{}.asset", s.name),
-                None => {
-                    // take the extension of the input if file
-                    if s.abs_input.is_file() {
-                        s.relative_output = format!(
-                            "{}.{}",
-                            s.name,
-                            s.abs_input
-                                .extension()
-                                .expect("Invalid file extension")
-                                .to_str()
-                                .expect("Invalid file extension")
-                        );
-                    } else if s.abs_input.is_dir() {
-                        s.relative_output = format!("{}/", s.name);
-                    } else {
-                        s.relative_output = "!ASSET INPUT NOT FOUND ON DISK!".to_string();
-                    }
-                }
+            if !s.abs_input.exists() {
+                s.relative_output = "!ASSET INPUT NOT FOUND ON DISK!".to_string();
+            } else if s.asset_type.imported_fs_type() == AssetFileSystemType::File {
+                s.relative_output = format!("{}.asset", s.name);
+            } else {
+                s.relative_output = format!("{}/", s.name);
             }
         }
 
@@ -199,7 +194,6 @@ impl ImportAssets {
                 update_relative_path(self);
             }
             ImportAssetsMessage::ImportAsset => {
-                
                 match self.asset_type {
                     AssetType::Texture {
                         texture_type: Some(texture_type),
@@ -210,7 +204,7 @@ impl ImportAssets {
                             &self.abs_input,
                             &PathBuf::from(&self.relative_output),
                             self.name.clone(),
-                            self.packed.clone(),
+                            self.pack.clone(),
                             texture_type,
                         )
                         .map_err(|e| {
@@ -233,7 +227,7 @@ impl ImportAssets {
                 }
             }
             ImportAssetsMessage::SetPackInfo(pack_info) => {
-                self.packed = pack_info;
+                self.pack = pack_info;
                 update_relative_path(self);
             }
             ImportAssetsMessage::SetAssetType(asset_type) => {
@@ -295,71 +289,50 @@ impl ImportAssets {
             AssetFileSystemType::File => input_file_picker,
             AssetFileSystemType::Directory => input_dir_picker,
         };
-        
+
         let input_path_row = row![input_path, input_picker].spacing(10);
-        
-        let rel_out_path_input
-            = widget::TextInput::new("Relative Output Path", &self.relative_output)
-            .on_input(|path| {
-                Message::ImportAssetsMessage(ImportAssetsMessage::SetRelativeOutput(path))
-            });
+
+        let rel_out_path_input =
+            widget::TextInput::new("Relative Output Path", &self.relative_output).on_input(
+                |path| Message::ImportAssetsMessage(ImportAssetsMessage::SetRelativeOutput(path)),
+            );
 
         let import_button = button::Button::new(Text::new("Import Asset")).on_press(
             Message::ImportAssetsMessage(ImportAssetsMessage::ImportAsset),
         );
 
-        let pack_bool_input = widget::Checkbox::new("Pack Asset", self.packed.is_some()).on_toggle(
-            |packed| -> Message {
-                if packed {
-                    Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(Some(PackInfo {
-                        compression: None,
-                    })))
-                } else {
-                    Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(None))
-                }
-            },
-        );
+        let compression_toggle =
+            widget::Checkbox::new("Compression", self.pack.compression.is_some()).on_toggle(
+                |compression| {
+                    let mut new_pack_info = self.pack.clone();
 
-        let pack_settings = if let Some(packed) = &self.packed {
-            let compression_toggle = widget::Checkbox::new(
-                "Compression",
-                packed.compression.is_some(),
-            )
-            .on_toggle(|compression| {
-                let mut new_pack_info = self.packed.clone().unwrap();
+                    if compression {
+                        new_pack_info.compression = Some(4);
+                    } else {
+                        new_pack_info.compression = None;
+                    }
 
-                if compression {
-                    new_pack_info.compression = Some(4);
-                } else {
-                    new_pack_info.compression = None;
-                }
+                    Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(new_pack_info))
+                },
+            );
 
-                Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(Some(new_pack_info)))
-            });
+        let pack_settings = if let Some(compression) = self.pack.compression {
+            let compression_level_label =
+                widget::Text::new(format!("Compression Level: {}", compression));
+            let compression_input =
+                widget::Slider::new(0..=9, self.pack.compression.unwrap(), |level| {
+                    let mut new_pack_info = self.pack.clone();
+                    new_pack_info.compression = Some(level);
+                    Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(new_pack_info))
+                });
 
-            let mut col = widget::column![pack_bool_input, compression_toggle];
-
-            if let Some(compression) = packed.compression {
-                let compression_level_label =
-                    widget::Text::new(format!("Compression Level: {}", compression));
-                let compression_input = widget::Slider::new(
-                    0..=9,
-                    self.packed.clone().unwrap().compression.unwrap(),
-                    |level| {
-                        let mut new_pack_info = self.packed.clone().unwrap();
-                        new_pack_info.compression = Some(level);
-                        Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(Some(
-                            new_pack_info,
-                        )))
-                    },
-                );
-
-                col = col.push(compression_level_label).push(compression_input);
-            }
-
-            col
+            widget::column![
+                compression_toggle,
+                compression_level_label,
+                compression_input
+            ]
         } else {
-            widget::column![pack_bool_input].into()
+            widget::column![compression_toggle]
         };
 
         let content = widget::column![
@@ -384,13 +357,13 @@ macro_rules! generate_texture_asset_code {
             abs_input_file: &std::path::Path,
             relative_output_dir: &std::path::Path,
             name: String,
-            packed: Option<PackInfo>,
+            packed: PackInfo,
             texture_type: TextureType,
         ) -> Result<(), AssetPackError> {
             match texture_type {
                 $(
                     TextureType::$variant => {
-                        add_or_pack_asset::<TextureAsset<{ TextureType::$variant }>>(
+                        pack_asset::<TextureAsset<{ TextureType::$variant }>, TextureImporter<{ TextureType::$variant }>>(
                             assets_dir,
                             abs_input_file,
                             relative_output_dir,

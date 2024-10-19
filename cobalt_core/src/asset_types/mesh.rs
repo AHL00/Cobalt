@@ -1,48 +1,62 @@
-use std::{fmt::Debug, path::Path};
+use cobalt_assets::{asset::AssetTrait, server::AssetLoadError};
+use cobalt_graphics::vertex::UvNormalVertex;
+use wgpu::util::DeviceExt;
 
-use bytes::Bytes;
+use crate::{renderer::mesh::Mesh, types::aabb::AABB};
 
-use crate::types::aabb::AABB;
-use cobalt_assets::{
-    asset::AssetFileSystemType,
-    exports::{AssetLoadError, AssetTrait},
-};
-use cobalt_graphics::{context::Graphics, vertex::UvNormalVertex};
-
-#[allow(dead_code)]
-pub struct Mesh{
-    /// Buffer of NormalUvVertex
-    pub(crate) vertex_buffer: wgpu::Buffer,
-    pub(crate) index_buffer: wgpu::Buffer,
-    pub(crate) num_indices: u32,
-    pub(crate) local_aabb: AABB,
-    pub(crate) has_uv: bool,
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct MeshAssetBuffer {
+    index_buffer: Vec<u32>,
+    vertex_buffer: Vec<UvNormalVertex>,
+    num_indices: u32,
+    local_aabb: AABB,
+    has_uv: bool,
 }
 
-impl Debug for Mesh {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Mesh")
-            .field("num_indices", &self.num_indices)
-            .field("has_uv", &self.has_uv)
-            .finish()
+impl AssetTrait for Mesh {
+    fn type_name() -> String {
+        "Mesh".to_string()
     }
-}
 
-impl Mesh {
-    pub fn new(
-        vertex_buffer: wgpu::Buffer,
-        index_buffer: wgpu::Buffer,
-        num_indices: u32,
-        local_aabb: AABB,
-        has_uv: bool,
-    ) -> Self {
-        Self {
-            vertex_buffer,
+    fn imported_fs_type() -> cobalt_assets::asset::AssetFileSystemType {
+        cobalt_assets::asset::AssetFileSystemType::File
+    }
+
+    fn read(
+        asset_info: &cobalt_assets::manifest::AssetInfo,
+        assets_dir: &std::path::Path,
+        graphics: &cobalt_graphics::context::Graphics,
+    ) -> Result<Self, AssetLoadError> {
+        let abs_path = assets_dir.join(&asset_info.relative_path);
+
+        let buffer = std::fs::read(&abs_path)?;
+
+        let mesh_buffer: MeshAssetBuffer =
+            bincode::deserialize(&buffer).map_err(|e| AssetLoadError::LoadError(Box::new(e)))?;
+
+        let index_buffer = graphics.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&mesh_buffer.index_buffer),
+                usage: wgpu::BufferUsages::INDEX,
+            },
+        );
+
+        let vertex_buffer = graphics.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&mesh_buffer.vertex_buffer),
+                usage: wgpu::BufferUsages::VERTEX,
+            },
+        );
+
+        Ok(Mesh {
             index_buffer,
-            num_indices,
-            local_aabb,
-            has_uv,
-        }
+            vertex_buffer,
+            num_indices: mesh_buffer.num_indices,
+            local_aabb: mesh_buffer.local_aabb,
+            has_uv: mesh_buffer.has_uv,
+        })
     }
 }
 

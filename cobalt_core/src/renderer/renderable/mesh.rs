@@ -1,16 +1,16 @@
-use crate::{renderer::mesh::Mesh, types::aabb::AABB};
+use crate::{renderer::mesh::Mesh, types::{aabb::AABB, resource::Resource}};
 use cobalt_assets::{self, asset::Asset};
 use cobalt_graphics::context::Graphics;
 
 use super::RenderableTrait;
 
 pub struct MeshRenderable {
-    pub mesh: Asset<Mesh>,
+    pub mesh: Resource<Mesh>,
     pub(crate) local_space_aabb: AABB,
 }
 
 impl MeshRenderable {
-    pub fn new(mesh: Asset<Mesh>) -> Self {
+    pub fn new(mesh: Resource<Mesh>) -> Self {
         let local_space_aabb = mesh.borrow().local_aabb.clone();
 
         Self {

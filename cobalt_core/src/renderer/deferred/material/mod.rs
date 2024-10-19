@@ -4,10 +4,13 @@ use bytes::Bytes;
 use parking_lot::RwLock;
 use wgpu::util::DeviceExt;
 
-use crate::{assets_types::texture::TextureAsset, exports::types::{either::Either, resource::ResourceTrait}};
+use crate::{
+    asset_types::texture::TextureAsset,
+    exports::types::{either::Either, resource::ResourceTrait},
+};
 use cobalt_assets::{
     asset::AssetFileSystemType,
-    exports::{Asset, AssetTrait},
+    exports::{Asset, AssetTrait}, manifest::ExtraAssetInfo,
 };
 use cobalt_graphics::{
     context::Graphics,
@@ -253,7 +256,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba8_unorm_srgb(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -267,7 +270,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba8_unorm(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -288,7 +291,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba16_float(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -302,7 +305,7 @@ impl Material {
                                         .texture_cache
                                         .empty_rgba16_float(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -330,7 +333,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -344,7 +347,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -372,7 +375,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_texture_view(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_texture_view() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_texture_view() },
                                 ),
                             ),
                         },
@@ -386,7 +389,7 @@ impl Material {
                                         .texture_cache
                                         .empty_r8_unorm(&graphics)
                                         .wgpu_sampler(),
-                                    |x| unsafe { x.borrow_unsafe().0.wgpu_sampler() },
+                                    |x| unsafe { x.borrow_unsafe().as_inner().wgpu_sampler() },
                                 ),
                             ),
                         },
@@ -467,7 +470,10 @@ impl Material {
     }
 
     /// Normal map, adds bumrps and details to the surface.
-    pub fn set_normal(&mut self, normal: Option<Asset<TextureAsset<{ Self::NORMAL_TEXTURE_TYPE }>>>) {
+    pub fn set_normal(
+        &mut self,
+        normal: Option<Asset<TextureAsset<{ Self::NORMAL_TEXTURE_TYPE }>>>,
+    ) {
         self.normal = normal;
 
         self.generate_bind_group();
@@ -799,33 +805,16 @@ impl AssetTrait for Material {
         "Material".to_owned()
     }
 
-    fn unimported_fs_type() -> AssetFileSystemType {
+    fn imported_fs_type() -> AssetFileSystemType {
         AssetFileSystemType::File
     }
 
-    fn read_packed_buffer(
-        data: &mut dyn std::io::Read,
+    fn read(
+        asset_info: &cobalt_assets::manifest::AssetInfo,
+        assets_dir: &std::path::Path,
         graphics: &Graphics,
     ) -> Result<Self, cobalt_assets::server::AssetLoadError> {
         todo!()
     }
 
-    fn read_source_file_to_buffer(
-        abs_path: &std::path::Path,
-    ) -> Result<Bytes, cobalt_assets::server::AssetLoadError> {
-        todo!()
-    }
-
-    fn read_source_file(
-        abs_path: &std::path::Path,
-        graphics: &Graphics,
-    ) -> Result<Self, cobalt_assets::server::AssetLoadError> {
-        todo!()
-    }
-
-    fn verify_source_file(
-        abs_path: &std::path::Path,
-    ) -> Result<(), cobalt_assets::server::AssetLoadError> {
-        todo!()
-    }
 }

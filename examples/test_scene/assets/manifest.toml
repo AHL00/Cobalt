@@ -1,22 +1,31 @@
 [[assets]]
-asset_id = "ff49c3bc-06e4-438c-9560-dbbe81d210d4"
-relative_path = "logo_compressed.png"
+asset_id = "638658d1-dca0-4edb-a412-181baa9423f4"
+relative_path = "logo_compressed.asset"
 name = "logo_compressed"
 type_name = "Texture<RGBA8UnormSrgb>"
 
+[assets.pack]
+compression = 4
+
 [assets.timestamp]
-secs_since_epoch = 1722024678
-nanos_since_epoch = 996383500
+secs_since_epoch = 1729324810
+nanos_since_epoch = 367431335
+
+[assets.extra]
+mime = "image/png"
 
 [[assets]]
-asset_id = "90726be9-9c08-4ea2-81af-57553596b568"
-relative_path = "asset_1.asset"
-name = "asset_1"
-type_name = "Texture<RGBA8Unorm>"
+asset_id = "8edcba76-4eb9-4785-84b2-effea5de57ec"
+relative_path = "test.asset"
+name = "test"
+type_name = "Texture<RGBA8UnormSrgb>"
 
-[assets.packed]
-compression = 7
+[assets.pack]
+compression = 4
 
 [assets.timestamp]
-secs_since_epoch = 1729269364
-nanos_since_epoch = 586360500
+secs_since_epoch = 1729360691
+nanos_since_epoch = 180372768
+
+[assets.extra]
+mime = "image/png"

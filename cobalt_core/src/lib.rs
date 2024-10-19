@@ -12,7 +12,8 @@ pub mod renderer;
 pub mod scenes;
 pub mod stats;
 pub mod types;
-pub mod assets_types;
+pub mod importers;
+pub mod asset_types;
 pub use cobalt_graphics as graphics;
 pub use cobalt_ecs as ecs;
 pub use cobalt_assets as assets;
@@ -42,5 +43,6 @@ pub mod exports {
     pub use stats::exports as stats;
     pub use types::exports as types;
     pub use scenes::exports as scenes;
-    pub use assets_types::exports as asset_types;
+    pub use importers::exports as importers;
+    pub use asset_types::exports as asset_types;
 }

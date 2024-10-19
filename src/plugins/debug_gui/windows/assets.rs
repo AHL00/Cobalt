@@ -1,4 +1,3 @@
-use cobalt_core::assets::server::AssetServer;
 use cobalt_runtime::engine::Engine;
 use egui_extras::Column;
 
@@ -39,10 +38,6 @@ impl AssetsPanel {
                         });
 
                         row.col(|ui| {
-                            ui.label("Packed");
-                        });
-
-                        row.col(|ui| {
                             ui.label("Compression");
                         });
 
@@ -72,20 +67,10 @@ impl AssetsPanel {
                                 });
 
                                 row.col(|ui| {
-                                    ui.label(if asset.packed.is_some() { "Yes" } else { "No" });
-                                });
-
-                                row.col(|ui| {
-                                    ui.label(if asset.packed.is_some() {
-                                        if let Some(level) =
-                                            asset.packed.as_ref().unwrap().compression
-                                        {
-                                            format!("{:?}", level)
-                                        } else {
-                                            "No".to_string()
-                                        }
+                                    ui.label(if let Some(level) = asset.pack.compression {
+                                        format!("{:?}", level)
                                     } else {
-                                        "N/A".to_owned()
+                                        "No".to_string()
                                     });
                                 });
 

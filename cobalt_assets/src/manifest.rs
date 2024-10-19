@@ -3,7 +3,10 @@
 
 use bytes::Bytes;
 use cobalt_graphics::texture::TextureType;
+use hashbrown::HashMap;
 use path_clean::PathClean;
+
+use crate::asset::AssetImporter;
 
 use super::{
     asset::{AssetFileSystemType, AssetID},
@@ -23,7 +26,7 @@ pub struct PackInfo {
     pub compression: Option<u32>,
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct AssetInfo {
     pub asset_id: AssetID,
 
@@ -31,18 +34,37 @@ pub struct AssetInfo {
     pub relative_path: PathBuf,
 
     /// This will determine the loading method
-    pub packed: Option<PackInfo>,
+    pub pack: PackInfo,
 
     pub name: String,
 
     pub timestamp: std::time::SystemTime,
 
     pub type_name: String,
+
+    pub extra: ExtraAssetInfo,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct ExtraAssetInfo(pub HashMap<String, String>);
+
+impl ExtraAssetInfo {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct SubManifest {
+    pub parent_asset: AssetID,
+    /// Relative path to the sub-manifest's directory
+    pub manifest_dir: PathBuf,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Manifest {
     pub assets: Vec<AssetInfo>,
+    // pub sub_manifests: Vec<SubManifest>,
 }
 
 impl Manifest {
@@ -54,7 +76,10 @@ impl Manifest {
     }
 
     pub fn new() -> Self {
-        Self { assets: Vec::new() }
+        Self {
+            assets: Vec::new(),
+            // sub_manifests: Vec::new(),
+        }
     }
 }
 
@@ -102,22 +127,23 @@ pub enum AssetPackError {
     AssetDirectoryNotEmpty,
 }
 
-pub fn add_or_pack_asset<T: AssetTrait>(
+pub fn pack_asset<A: AssetTrait, T: AssetImporter<A>>(
     assets_dir: &std::path::Path,
     abs_input: &std::path::Path,
     relative_output: &std::path::Path,
     name: String,
-    packed: Option<PackInfo>,
+    packed: PackInfo,
 ) -> Result<(), AssetPackError> {
     let mut manifest = Manifest::load(assets_dir)?;
 
-    let asset_info = AssetInfo {
+    let mut asset_info = AssetInfo {
         asset_id: AssetID::generate(),
         relative_path: relative_output.into(),
-        packed: packed.clone(),
+        pack: packed.clone(),
         name,
         timestamp: std::time::SystemTime::now(),
-        type_name: T::type_name(),
+        type_name: A::type_name(),
+        extra: ExtraAssetInfo::new(),
     };
 
     if !relative_output.is_relative() {
@@ -140,7 +166,7 @@ pub fn add_or_pack_asset<T: AssetTrait>(
 
     // Another check just in case. Speed doesn't matter here
     if abs_output.exists() {
-        match T::unimported_fs_type() {
+        match A::imported_fs_type() {
             AssetFileSystemType::File => {
                 return Err(AssetPackError::AssetExistsOnDisk);
             }
@@ -175,65 +201,26 @@ pub fn add_or_pack_asset<T: AssetTrait>(
         }
     }
 
+    let extra = T::import(abs_input, &asset_info, assets_dir)
+        .map_err(|e| AssetPackError::SourceFileProcessError(e))?;
+
+    asset_info.extra = extra;    
+
     manifest.assets.push(asset_info);
 
     let new_manifest = toml::to_string(&manifest)?;
-
-    // Create dir if it doesn't exist
-    if let Some(parent) = abs_output.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| AssetPackError::WriteFile(e))?;
-    }
-
-    if let Some(packed) = &packed {
-        let buffer_data = if let Some(level) = packed.compression {
-            let source_data = T::read_source_file_to_buffer(abs_input)
-                .map_err(|e| AssetPackError::SourceFileProcessError(e))?;
-
-            let mut encoder =
-                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::new(level));
-            std::io::copy(&mut source_data.as_ref(), &mut encoder)
-                .map_err(AssetPackError::Compression)?;
-            let compressed = encoder.finish().map_err(AssetPackError::Compression)?;
-
-            Bytes::from(compressed)
-        } else {
-            T::read_source_file_to_buffer(abs_input)
-                .map_err(|e| AssetPackError::SourceFileProcessError(e))?
-        };
-
-        match T::unimported_fs_type() {
-            AssetFileSystemType::File => {
-                std::fs::write(&abs_output, buffer_data).map_err(AssetPackError::WriteFile)?;
-            }
-            AssetFileSystemType::Directory => {
-                todo!()
-            }
-        }
-    } else {
-        // Make sure it can load first
-        T::verify_source_file(abs_input).map_err(|e| AssetPackError::SourceFileProcessError(e))?;
-
-        match T::unimported_fs_type() {
-            AssetFileSystemType::File => {
-                std::fs::copy(abs_input, &abs_output).map_err(|e| AssetPackError::CopyFile(e))?;
-            }
-            AssetFileSystemType::Directory => {
-                // Check if the directory is empty
-                if abs_output.read_dir().unwrap().next().is_none() {
-                    // Directory is empty, we can use it
-                } else {
-                    return Err(AssetPackError::AssetExistsOnDisk);
-                }
-            }
-        }
-    };
 
     std::fs::write(assets_dir.join("manifest.toml"), new_manifest)
         .map_err(AssetPackError::ManifestWrite)
         .map_err(|e| {
             // If writing the packed file fails, remove the file
-            std::fs::remove_file(abs_output)
-                .expect("Failed to remove asset file after failed manifest write");
+
+            // TODO Add the delete call here
+            // Currently not possible
+            log::warn!(
+                "Failed to remove packed file after failed manifest write: {}",
+                e
+            );
             e
         })?;
 
