@@ -324,30 +324,34 @@ impl ImportAssets {
             Message::ImportAssetsMessage(ImportAssetsMessage::ImportAsset),
         );
 
-        let compression_toggle =
-            widget::Checkbox::new("Compression", self.pack.compression.is_some()).on_toggle(
-                |compression| {
-                    let mut new_pack_info = self.pack.clone();
+        let compression_toggle = widget::Checkbox::new(
+            format!("Compression ({})", PackInfo::COMPRESSION_ALGO),
+            self.pack.compression.is_some(),
+        )
+        .on_toggle(|compression| {
+            let mut new_pack_info = self.pack.clone();
 
-                    if compression {
-                        new_pack_info.compression = Some(4);
-                    } else {
-                        new_pack_info.compression = None;
-                    }
+            if compression {
+                new_pack_info.compression = Some(0);
+            } else {
+                new_pack_info.compression = None;
+            }
 
-                    Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(new_pack_info))
-                },
-            );
+            Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(new_pack_info))
+        });
 
         let pack_settings = if let Some(compression) = self.pack.compression {
             let compression_level_label =
                 widget::Text::new(format!("Compression Level: {}", compression));
-            let compression_input =
-                widget::Slider::new(0..=9, self.pack.compression.unwrap(), |level| {
+            let compression_input = widget::Slider::new(
+                PackInfo::MIN_COMPRESSION_LEVEL..=PackInfo::MAX_COMPRESSION_LEVEL,
+                self.pack.compression.unwrap(),
+                |level| {
                     let mut new_pack_info = self.pack.clone();
                     new_pack_info.compression = Some(level);
                     Message::ImportAssetsMessage(ImportAssetsMessage::SetPackInfo(new_pack_info))
-                });
+                },
+            );
 
             widget::column![
                 compression_toggle,

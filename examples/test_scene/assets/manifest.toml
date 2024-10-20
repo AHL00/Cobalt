@@ -43,3 +43,18 @@ secs_since_epoch = 1729405470
 nanos_since_epoch = 529254513
 
 [assets.extra]
+
+[[assets]]
+asset_id = "6de96971-4f43-4995-a51c-2f4d1b268f7e"
+relative_path = "dragon.asset"
+name = "dragon"
+type_name = "Mesh"
+
+[assets.pack]
+compression = 3
+
+[assets.timestamp]
+secs_since_epoch = 1729407915
+nanos_since_epoch = 685122023
+
+[assets.extra]

@@ -109,18 +109,13 @@ impl AssetImporter<Mesh> for ObjImporter {
 
         let model = &mut models[0];
 
-        // Check if normals and texcoords are present
-        if model.mesh.normals.len() == 0 {
-            log::warn!(
-                "Mesh \"{}\" does not contain normals. Normals will be generated.",
-                asset_info.name
-            );
-            
-            let normals = generate_normals(&model.mesh.positions, &model.mesh.indices);
-            
-            model.mesh.normals = normals;
-        }
-        
+        // Always recompute normals, as the normals in the .obj file
+        // may not be correct.
+        let normals = generate_normals(&model.mesh.positions, &model.mesh.indices);
+
+        model.mesh.normals = normals;
+
+        // Check if texcoords are present
         if model.mesh.texcoords.len() == 0 {
             log::warn!("Mesh \"{}\" does not contain texture coordinates. There will be issues if rendering with textures.", asset_info.name);
         }
@@ -200,7 +195,15 @@ impl AssetImporter<Mesh> for ObjImporter {
             has_uv: model.mesh.texcoords.len() > 0,
         };
 
-        let ser_bytes = bincode::serialize(&mesh_buffer)?;
+        let ser_bytes = if let Some(compression) = asset_info.pack.compression {
+            let mut encoder = zstd::Encoder::new(Vec::new(), compression as i32)?;
+
+            encoder.write_all(&bincode::serialize(&mesh_buffer)?)?;
+
+            encoder.finish()?
+        } else {
+            bincode::serialize(&mesh_buffer)?
+        };
 
         // Write the mesh buffer to the target file
         let target_path = assets_dir.join(&asset_info.relative_path);
@@ -239,16 +242,8 @@ fn generate_normals(positions: &[f32], indices: &[u32]) -> Vec<f32> {
             positions[i2 * 3 + 2],
         ];
 
-        let e1 = [
-            v1[0] - v0[0],
-            v1[1] - v0[1],
-            v1[2] - v0[2],
-        ];
-        let e2 = [
-            v2[0] - v0[0],
-            v2[1] - v0[1],
-            v2[2] - v0[2],
-        ];
+        let e1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+        let e2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
 
         let normal = [
             e1[1] * e2[2] - e1[2] * e2[1],
@@ -264,7 +259,10 @@ fn generate_normals(positions: &[f32], indices: &[u32]) -> Vec<f32> {
     }
 
     for i in (0..normals.len()).step_by(3) {
-        let len = (normals[i] * normals[i] + normals[i + 1] * normals[i + 1] + normals[i + 2] * normals[i + 2]).sqrt();
+        let len = (normals[i] * normals[i]
+            + normals[i + 1] * normals[i + 1]
+            + normals[i + 2] * normals[i + 2])
+            .sqrt();
 
         normals[i] /= len;
         normals[i + 1] /= len;

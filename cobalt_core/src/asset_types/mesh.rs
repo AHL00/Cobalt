@@ -1,4 +1,9 @@
-use cobalt_assets::{asset::{AssetReadError, AssetTrait}, server::AssetLoadError};
+use std::io::{BufReader, Read};
+
+use cobalt_assets::{
+    asset::{AssetReadError, AssetTrait},
+    server::AssetLoadError,
+};
 use cobalt_graphics::vertex::UvNormalVertex;
 use wgpu::util::DeviceExt;
 
@@ -29,26 +34,39 @@ impl AssetTrait for Mesh {
     ) -> Result<Self, AssetReadError> {
         let abs_path = assets_dir.join(&asset_info.relative_path);
 
-        let buffer = std::fs::read(&abs_path)?;
+        let data = if let Some(_) = asset_info.pack.compression {
+            let reader = BufReader::new(std::fs::File::open(&abs_path)?);
+
+            let mut decoder = zstd::Decoder::new(reader).map_err(|e| AssetReadError::Io(e))?;
+
+            let mut decoded = Vec::new();
+            decoder
+                .read_to_end(&mut decoded)
+                .map_err(|e| AssetReadError::Io(e))?;
+
+            decoded
+        } else {
+            std::fs::read(&abs_path)?
+        };
 
         let mesh_buffer: MeshAssetBuffer =
-            bincode::deserialize(&buffer).map_err(|e| AssetReadError::DeserializeError(e))?;
+            bincode::deserialize(&data).map_err(|e| AssetReadError::DeserializeError(e))?;
 
-        let index_buffer = graphics.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let index_buffer = graphics
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Index Buffer"),
                 contents: bytemuck::cast_slice(&mesh_buffer.index_buffer),
                 usage: wgpu::BufferUsages::INDEX,
-            },
-        );
+            });
 
-        let vertex_buffer = graphics.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let vertex_buffer = graphics
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
                 contents: bytemuck::cast_slice(&mesh_buffer.vertex_buffer),
                 usage: wgpu::BufferUsages::VERTEX,
-            },
-        );
+            });
 
         Ok(Mesh {
             index_buffer,

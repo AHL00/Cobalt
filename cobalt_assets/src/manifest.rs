@@ -1,8 +1,3 @@
-// Asset packing system
-// Main manifest file is `manifest.toml`
-
-use bytes::Bytes;
-use cobalt_graphics::texture::TextureType;
 use hashbrown::HashMap;
 use path_clean::PathClean;
 
@@ -11,10 +6,9 @@ use crate::asset::{AssetImportError, AssetImporter};
 use super::{
     asset::{AssetFileSystemType, AssetID},
     exports::AssetTrait,
-    server::AssetLoadError,
 };
 use std::{
-    io::{self, Read},
+    io::{self},
     path::PathBuf,
 };
 
@@ -24,6 +18,13 @@ pub struct PackInfo {
     /// If this is `Some`, the asset will be compressed
     /// The value is the compression level from 0 to 9
     pub compression: Option<u32>,
+}
+
+impl PackInfo {
+    pub const MAX_COMPRESSION_LEVEL: u32 = 22;
+    pub const MIN_COMPRESSION_LEVEL: u32 = 0;
+    pub const DEFAULT_COMPRESSION_LEVEL: u32 = 3;
+    pub const COMPRESSION_ALGO: &'static str = "zstd";
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
@@ -204,7 +205,7 @@ pub fn pack_asset<A: AssetTrait, T: AssetImporter<A>>(
     let extra = T::import(abs_input, &asset_info, assets_dir)
         .map_err(|e| AssetPackError::ImportError(e))?;
 
-    asset_info.extra = extra;    
+    asset_info.extra = extra;
 
     manifest.assets.push(asset_info);
 
