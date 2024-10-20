@@ -58,3 +58,47 @@ secs_since_epoch = 1729407915
 nanos_since_epoch = 685122023
 
 [assets.extra]
+
+[[assets]]
+asset_id = "fd198cb2-a364-4c3b-ac7e-2ad6f3ac08aa"
+relative_path = "horse.asset"
+name = "horse"
+type_name = "Mesh"
+
+[assets.pack]
+compression = 9
+
+[assets.timestamp]
+secs_since_epoch = 1729424695
+nanos_since_epoch = 380783110
+
+[assets.extra]
+
+[[assets]]
+asset_id = "efa3d4ec-73c4-4255-8d02-2c413deec608"
+relative_path = "teapot.asset"
+name = "teapot"
+type_name = "Mesh"
+
+[assets.pack]
+compression = 6
+
+[assets.timestamp]
+secs_since_epoch = 1729425395
+nanos_since_epoch = 497819499
+
+[assets.extra]
+
+[[assets]]
+asset_id = "50ad798a-afe9-432a-b550-a81e81ada203"
+relative_path = "beetle.asset"
+name = "beetle"
+type_name = "Mesh"
+
+[assets.pack]
+
+[assets.timestamp]
+secs_since_epoch = 1729425905
+nanos_since_epoch = 844178164
+
+[assets.extra]

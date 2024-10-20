@@ -21,9 +21,18 @@ use cobalt::{
 };
 use simple_logger::SimpleLogger;
 
+// asset name, scale
+#[rustfmt::skip]
+const MODELS: [(&'static str, f32); 4] = [
+    ("teapot", 0.04), 
+    ("dragon", 0.002), 
+    ("bunny", 1.1),
+    ("beetle", 0.3)
+];
+
 struct Game {
     main_camera: Entity,
-    model: Option<Entity>,
+    models: Vec<Entity>,
 }
 
 impl App for Game {
@@ -49,7 +58,7 @@ impl App for Game {
         engine
             .scene
             .world
-            .add_component(cam_ent, Transform::with_position([0.0, 0.0, 0.0].into()));
+            .add_component(cam_ent, Transform::with_position([0.0, 0.0, -1.0].into()));
 
         if engine.graphics().available_present_modes().contains(&PresentMode::Mailbox) {
             engine.graphics_mut().current_present_mode = PresentMode::Mailbox;
@@ -59,7 +68,7 @@ impl App for Game {
 
         Self {
             main_camera: cam_ent,
-            model: None,
+            models: vec![],
         }
     }
 
@@ -68,47 +77,41 @@ impl App for Game {
         engine: &mut cobalt::runtime::engine::Engine,
         _plugins: &mut cobalt::runtime::plugins::PluginManager,
     ) {
-        let model_ent = engine.scene.world.create_entity();
+        for (i, model) in MODELS.iter().enumerate() {
+            let ent = engine.scene.world.create_entity();
 
-        let mesh_asset_id = engine.assets().find_asset_by_name("dragon").unwrap();
+            let mesh_asset_id = engine.assets().find_asset_by_name(model.0).unwrap();
 
-        let mesh = engine.load_asset::<Mesh>(mesh_asset_id).unwrap();
+            let mesh = engine.load_asset::<Mesh>(mesh_asset_id).unwrap();
 
-        engine
-            .scene
-            .world
-            .add_component(model_ent, Renderable::Mesh(MeshRenderable::new(mesh)));
+            engine
+                .scene
+                .world
+                .add_component(ent, Renderable::Mesh(MeshRenderable::new(mesh)));
 
-        // engine
-        //     .scene
-        //     .world
-        //     .add_component(plane_ent, Renderable::Plane(Plane::new()));
+            let mut transform = Transform::with_position(
+                [
+                    (i as f32 - f32::floor(MODELS.len() as f32 / 2.0)) * 0.5,
+                    0.0,
+                    0.0,
+                ]
+                .into(),
+            );
 
-        let mut transform = Transform::with_position([0.0, 0.0, 2.0].into());
-        transform.rotate(transform.position(), [0.0, 0.0, 0.0].into());
-        *transform.scale_mut() = Vec3::from([0.01, 0.01, 0.01]);
-        engine.scene.world.add_component(model_ent, transform);
+            *transform.scale_mut() = Vec3::from([model.1, model.1, model.1]);
 
-        let mat = Resource::new(Material::default(engine.graphics_arc()));
+            engine.scene.world.add_component(ent, transform);
 
-        // let texture_asset_id = engine
-        //     .assets()
-        //     .find_asset_by_name("logo_compressed")
-        //     .unwrap();
+            let mat = Resource::new(Material::default(engine.graphics_arc()));
 
-        // println!("texture_asset_id: {:?}", texture_asset_id);
+            mat.borrow_mut()
+                .set_albedo(Some([1.0, 1.0, 1.0, 1.0]), None)
+                .unwrap();
 
-        // let texture = engine
-        //     .load_asset::<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>(texture_asset_id)
-        //     .unwrap();
+            engine.scene.world.add_component(ent, mat);
 
-        // mat.borrow_mut().set_albedo(None, Some(texture)).unwrap();
-        mat.borrow_mut()
-            .set_albedo(Some([1.0, 1.0, 1.0, 1.0]), None)
-            .unwrap();
-        engine.scene.world.add_component(model_ent, mat);
-
-        self.model = Some(model_ent);
+            self.models.push(ent);
+        }
     }
 
     fn on_update(
@@ -178,12 +181,15 @@ impl App for Game {
 
         {
             // Rotate model slowly about the y-axis
-            let model = _engine
-                .scene
-                .world
-                .query_entity_mut::<Transform>(self.model.unwrap())
-                .unwrap();
-            model.yaw(0.2 * dt);
+            for model in self.models.iter() {
+                let m_transform = _engine
+                    .scene
+                    .world
+                    .query_entity_mut::<Transform>(*model)
+                    .unwrap();
+
+                m_transform.yaw(0.2 * dt);
+            }
         }
     }
 }
