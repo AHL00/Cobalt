@@ -9,23 +9,7 @@ compression = 4
 
 [assets.timestamp]
 secs_since_epoch = 1729324810
-nanos_since_epoch = 367431335
-
-[assets.extra]
-mime = "image/png"
-
-[[assets]]
-asset_id = "8edcba76-4eb9-4785-84b2-effea5de57ec"
-relative_path = "test.asset"
-name = "test"
-type_name = "Texture<RGBA8UnormSrgb>"
-
-[assets.pack]
-compression = 4
-
-[assets.timestamp]
-secs_since_epoch = 1729360691
-nanos_since_epoch = 180372768
+nanos_since_epoch = 367431300
 
 [assets.extra]
 mime = "image/png"
@@ -40,7 +24,7 @@ type_name = "Mesh"
 
 [assets.timestamp]
 secs_since_epoch = 1729405470
-nanos_since_epoch = 529254513
+nanos_since_epoch = 529254500
 
 [assets.extra]
 
@@ -55,22 +39,7 @@ compression = 3
 
 [assets.timestamp]
 secs_since_epoch = 1729407915
-nanos_since_epoch = 685122023
-
-[assets.extra]
-
-[[assets]]
-asset_id = "fd198cb2-a364-4c3b-ac7e-2ad6f3ac08aa"
-relative_path = "horse.asset"
-name = "horse"
-type_name = "Mesh"
-
-[assets.pack]
-compression = 9
-
-[assets.timestamp]
-secs_since_epoch = 1729424695
-nanos_since_epoch = 380783110
+nanos_since_epoch = 685122000
 
 [assets.extra]
 
@@ -85,7 +54,7 @@ compression = 6
 
 [assets.timestamp]
 secs_since_epoch = 1729425395
-nanos_since_epoch = 497819499
+nanos_since_epoch = 497819400
 
 [assets.extra]
 
@@ -99,6 +68,6 @@ type_name = "Mesh"
 
 [assets.timestamp]
 secs_since_epoch = 1729425905
-nanos_since_epoch = 844178164
+nanos_since_epoch = 844178100
 
 [assets.extra]

@@ -62,7 +62,7 @@ pub struct SubManifest {
     pub manifest_dir: PathBuf,
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Manifest {
     pub assets: Vec<AssetInfo>,
     // pub sub_manifests: Vec<SubManifest>,
@@ -228,96 +228,46 @@ pub fn pack_asset<A: AssetTrait, T: AssetImporter<A>>(
     Ok(())
 }
 
-// pub fn add_pack_asset<T: AssetTrait>(
-//     abs_input_file: &std::path::Path,
+#[derive(thiserror::Error, Debug)]
+pub enum AssetDeleteError {
+    #[error("Failed to read manifest file")]
+    ManifestRead(#[from] ManifestReadError),
+    #[error("Failed to serialise updated manifest")]
+    ManifestSerialize(#[from] toml::ser::Error),
+    #[error("Failed to write manifest file")]
+    ManifestWrite(std::io::Error),
+    #[error("Failed to delete asset")]
+    DeleteAsset,
+}
 
-//     assets_dir: &std::path::Path,
+pub fn delete_asset(asset_dir: &std::path::Path, asset_id: AssetID) -> Result<(), AssetDeleteError> {
+    // Remove the asset from the manifest
+    let mut manifest = Manifest::load(asset_dir)?;
 
-//     abs_out_path: &std::path::Path,
-//     name: String,
-//     packed: Option<PackInfo>,
-// ) -> Result<(), AssetPackError> {
-//     let mut manifest = Manifest::load(assets_dir)?;
+    let asset_index = manifest
+        .assets
+        .iter()
+        .position(|asset| asset.asset_id == asset_id)
+        .ok_or(AssetDeleteError::DeleteAsset)?;
 
-//     let relative_out_path = abs_out_path.strip_prefix(assets_dir).unwrap();
+    let asset_info = manifest.assets.remove(asset_index);
 
-//     let asset_info = AssetInfo {
-//         asset_id: AssetID::generate(),
-//         relative_path: relative_out_path.into(),
-//         packed: packed.clone(),
-//         name,
-//         timestamp: std::time::SystemTime::now(),
-//         type_name: T::type_name().to_string(),
-//     };
+    let abs_path = asset_dir.join(&asset_info.relative_path);
 
-//     manifest.assets.push(asset_info);
+    let new_manifest = toml::to_string(&manifest)?;
+    
+    // Remove the asset file or directory
+    if abs_path.is_file() {
+        std::fs::remove_file(&abs_path).map_err(|_| AssetDeleteError::DeleteAsset)?;
+    } else if abs_path.is_dir() {
+        std::fs::remove_dir_all(&abs_path).map_err(|_| AssetDeleteError::DeleteAsset)?;
+    }
 
-//     let new_manifest = toml::to_string(&manifest)?;
+    std::fs::write(asset_dir.join("manifest.toml"), new_manifest)
+        .map_err(AssetDeleteError::ManifestWrite)?;
 
-//     if let Some(packed) = &packed {
-//         if let Some(level) = packed.compression {
-//             let mut encoder =
-//                 flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::new(level));
-//             std::io::copy(&mut asset_data.as_ref(), &mut encoder)
-//                 .map_err(AssetPackError::Compression)?;
-//             let compressed_data = encoder.finish().map_err(AssetPackError::Compression)?;
-
-//             asset_data = bytes::Bytes::from(compressed_data);
-//         } else {
-//             // No compression
-//         }
-//     } else {
-//         // Copy source file
-//     }
-
-//     // Create dir if it doesn't exist
-//     if let Some(parent) = abs_out_path.parent() {
-//         std::fs::create_dir_all(parent).map_err(AssetPackError::WritePacked)?;
-//     }
-
-//     // Create the packed file and write the asset data to it
-//     std::fs::write(abs_out_path, asset_data).map_err(AssetPackError::WritePacked)?;
-
-//     std::fs::write(assets_dir.join("manifest.toml"), new_manifest)
-//         .map_err(AssetPackError::ManifestWrite)
-//         .map_err(|e| {
-//             // If writing the packed file fails, remove the file
-//             std::fs::remove_file(abs_out_path)
-//                 .expect("Failed to remove packed file after failed manifest write");
-//             e
-//         })?;
-
-//     Ok(())
-// }
-
-// pub fn read_asset(
-//     assets_dir: &std::path::Path,
-//     handle: &str,
-// ) -> Result<bytes::Bytes, AssetPackReadError> {
-//     let manifest = Manifest::load(&assets_dir)?;
-
-//     let asset_info = manifest
-//         .assets
-//         .iter()
-//         .find(|asset| asset.name == handle)
-//         .ok_or(AssetPackReadError::HandleNotFound)?;
-
-//     let packed_data =
-//         std::fs::read(&asset_info.relative_path).map_err(AssetPackReadError::ReadPacked)?;
-
-//     let asset_data = if let Some(_) = asset_info.compression {
-//         let mut decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(packed_data));
-//         let mut decompressed_data = Vec::new();
-//         decoder
-//             .read_to_end(&mut decompressed_data)
-//             .map_err(AssetPackReadError::Decompression)?;
-//         bytes::Bytes::from(decompressed_data)
-//     } else {
-//         bytes::Bytes::from(packed_data)
-//     };
-
-//     Ok(asset_data)
-// }
+    Ok(())
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum AssetPackReadError {

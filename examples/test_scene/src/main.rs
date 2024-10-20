@@ -49,7 +49,7 @@ impl App for Game {
                 Projection::Perspective {
                     fov: 70.0 * (PI / 180.0),
                     aspect: AspectRatio::Auto,
-                    near: 0.1,
+                    near: 0.001,
                     far: 100.0,
                 },
             ),
@@ -91,7 +91,7 @@ impl App for Game {
 
             let mut transform = Transform::with_position(
                 [
-                    (i as f32 - f32::floor(MODELS.len() as f32 / 2.0)) * 0.5,
+                    (i as f32 - MODELS.len() as f32 / 2.0 + 0.5) * 0.5,
                     0.0,
                     0.0,
                 ]

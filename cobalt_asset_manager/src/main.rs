@@ -1,10 +1,13 @@
 use cobalt_core::{
-    assets::{asset::AssetID, manifest::Manifest},
+    assets::{
+        asset::AssetID,
+        manifest::{delete_asset, Manifest},
+    },
     exports::assets::AssetServer,
 };
 use iced::{
     widget::{self, row, Text},
-    Settings,
+    Settings, Subscription,
 };
 use pages::import_assets::{ImportAssets, ImportAssetsMessage};
 use simple_logger::SimpleLogger;
@@ -118,7 +121,23 @@ impl App {
                 }
             }
             Message::DeleteAsset(asset_id) => {
-                todo!("Delete asset with ID: {:?}", asset_id)
+                if self.asset_server.get_manifest().is_err() {
+                    log::error!("No manifest found, cannot delete asset");
+                    return;
+                }
+
+                delete_asset(self.asset_server.assets_dir(), asset_id)
+                    .map_err(|e| {
+                        eprintln!("Error deleting asset: {}", e);
+                    })
+                    .expect("Error deleting asset");
+
+                self.asset_server
+                    .refresh_manifest()
+                    .map_err(|e| {
+                        eprintln!("Error refreshing assets: {}", e);
+                    })
+                    .expect("Error refreshing assets");
             }
             Message::TabSelected(tab) => {
                 self.current_tab = tab;
@@ -157,7 +176,7 @@ impl App {
                             eprintln!("Error writing manifest to new directory: {}", e);
                         })
                         .expect("Error writing manifest to new directory");
-                
+
                     if let Err(e) = self
                         .asset_server
                         .set_assets_dir(asset_dir.to_str().unwrap())
