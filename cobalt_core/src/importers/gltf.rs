@@ -1,7 +1,6 @@
-use cobalt_assets::{
-    asset::{AssetFileSystemType, AssetImporter, AssetTrait},
-    server::AssetLoadError,
-};
+#![allow(unused)]
+
+use cobalt_assets::asset::{AssetFileSystemType, AssetImporter, AssetTrait};
 use cobalt_ecs::world;
 use cobalt_graphics::texture::GenericTexture;
 

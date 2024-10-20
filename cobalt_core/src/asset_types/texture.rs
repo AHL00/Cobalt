@@ -1,7 +1,4 @@
-use cobalt_assets::{
-    asset::{AssetFileSystemType, AssetReadError, AssetTrait},
-    server::AssetLoadError,
-};
+use cobalt_assets::asset::{AssetFileSystemType, AssetReadError, AssetTrait};
 use cobalt_graphics::{
     context::Graphics,
     texture::{Texture, TextureType},

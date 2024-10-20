@@ -6,6 +6,7 @@ use crate::{
     {component::ComponentId, query::QueryRestriction, storage::ComponentStorage},
 };
 
+#[allow(dead_code)]
 pub struct ParQueryIter<'a, Q: ParQuery<'a>> {
     world: &'a World,
     query_mask: SimdBitArray<256>,

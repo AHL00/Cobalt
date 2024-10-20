@@ -380,7 +380,7 @@ fn texture_bind_group_layout<'a, const T: TextureType>(
 }
 
 impl<const T: TextureType> HasBindGroupLayout<()> for Texture<T> {
-    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
+    fn bind_group_layout<'a>(graphics: &'a Graphics, _extra: ()) -> &'a wgpu::BindGroupLayout {
         texture_bind_group_layout::<T>(graphics)
     }
 }

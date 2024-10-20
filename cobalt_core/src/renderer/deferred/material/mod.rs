@@ -808,6 +808,7 @@ impl AssetTrait for Material {
         AssetFileSystemType::File
     }
     
+    #[allow(unused_variables)]
     fn read(asset_info: &cobalt_assets::manifest::AssetInfo, assets_dir: &std::path::Path, graphics: &Graphics) -> Result<Self, cobalt_assets::asset::AssetReadError> {
         todo!()
     }

@@ -5,10 +5,7 @@ use crate::{
     components::transform::Transform,
     exports::{
         ecs::{query::Optional, Entity, World},
-        types::{
-            Either,
-            resource::{Resource, ResourceTrait},
-        },
+        types::resource::{Resource, ResourceTrait},
     },
     stats::Stats,
 };
