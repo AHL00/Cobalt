@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use cobalt::{
     components::{Camera, Renderable, Transform},
     ecs::Entity,
-    graphics::window::WindowConfig,
+    graphics::{wgpu::PresentMode, window::WindowConfig},
     input::KeyCode,
     maths::Vec3,
     plugins::debug_gui::DebugGUIPlugin,
@@ -50,6 +50,12 @@ impl App for Game {
             .scene
             .world
             .add_component(cam_ent, Transform::with_position([0.0, 0.0, 0.0].into()));
+
+        if engine.graphics().available_present_modes().contains(&PresentMode::Mailbox) {
+            engine.graphics_mut().current_present_mode = PresentMode::Mailbox;
+        } else if engine.graphics().available_present_modes().contains(&PresentMode::Fifo) {
+            engine.graphics_mut().current_present_mode = PresentMode::Fifo;
+        }
 
         Self {
             main_camera: cam_ent,
