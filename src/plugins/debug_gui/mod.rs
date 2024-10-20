@@ -1,4 +1,4 @@
-use cobalt_core::graphics::{context::Graphics, wgpu, window::WindowInternal};
+use cobalt_core::graphics::{wgpu, window::WindowInternal};
 use cobalt_runtime::{app::App, plugins::Plugin};
 use egui_winit::{
     winit::{event::WindowEvent, window::WindowId},
@@ -159,7 +159,7 @@ impl Plugin for DebugGUIPlugin {
 
         let raw_input = state.take_egui_input(&engine.window().winit());
 
-        ctx.begin_frame(raw_input);
+        ctx.begin_pass(raw_input);
 
         (self.draw_ui)(&ctx, engine, app);
 
@@ -167,7 +167,7 @@ impl Plugin for DebugGUIPlugin {
             self.debug_menu.show(&ctx, engine, app);
         }
 
-        let full_output = ctx.end_frame();
+        let full_output = ctx.end_pass();
 
         state.handle_platform_output(&engine.window().winit(), full_output.platform_output);
 

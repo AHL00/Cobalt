@@ -14,7 +14,7 @@ use cobalt_core::{
 use iced::widget::{self, button, combo_box, row, Column, Text};
 use iced_aw::style::colors;
 
-use crate::{components, Message};
+use crate::Message;
 
 #[derive(Debug, Clone)]
 pub enum AssetType {
@@ -279,12 +279,12 @@ impl ImportAssets {
         }
     }
 
-    pub fn view(&self, asset_server: &AssetServer) -> iced::Element<Message> {
-        let manifest = if let Ok(manifest) = asset_server.get_manifest() {
-            manifest
-        } else {
-            return widget::Text::new("Failed to load assets, manifest not found.").into();
-        };
+    pub fn view(&self, _asset_server: &AssetServer) -> iced::Element<Message> {
+        // let manifest = if let Ok(manifest) = asset_server.get_manifest() {
+        //     manifest
+        // } else {
+        //     return widget::Text::new("Failed to load assets, manifest not found.").into();
+        // };
 
         let asset_type_combo_box = widget::row![
             widget::Text::new("Asset Type: ").size(16),

@@ -1,4 +1,3 @@
-use std::sync::LazyLock;
 use wgpu::util::DeviceExt;
 
 use super::{context::Graphics, CreateBindGroup, HasBindGroupLayout};
@@ -100,7 +99,7 @@ impl CreateBindGroup for u32 {
 }
 
 impl HasBindGroupLayout<()> for u32 {
-    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
+    fn bind_group_layout<'a>(graphics: &'a Graphics, _extra: ()) -> &'a wgpu::BindGroupLayout {
         &graphics
             .cache
             .bind_group_layout_cache
@@ -153,7 +152,7 @@ impl CreateBindGroup for ultraviolet::Vec3 {
 }
 
 impl HasBindGroupLayout<()> for ultraviolet::Vec3 {
-    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
+    fn bind_group_layout<'a>(graphics: &'a Graphics, _extra: ()) -> &'a wgpu::BindGroupLayout {
         graphics
             .cache
             .bind_group_layout_cache

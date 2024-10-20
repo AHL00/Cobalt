@@ -5,12 +5,8 @@ use crate::{
     components::transform::Transform,
     exports::{
         ecs::{query::Optional, Entity, World},
-        types::{
-            Either,
-            resource::{Resource, ResourceTrait},
-        },
+        types::resource::{Resource, ResourceTrait},
     },
-    stats::Stats,
 };
 use cobalt_assets::exports::{Asset, AssetTrait};
 
@@ -117,8 +113,8 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
         #[cfg(feature = "debug_stats")]
         {
             let culled_count = pre_cull_count - render_data_vec.len();
-            Stats::global().set("Culled entities", culled_count.into(), false);
-            Stats::global().set("Rendered entities", render_data_vec.len().into(), false);
+            crate::stats::Stats::global().set("Culled entities", culled_count.into(), false);
+            crate::stats::Stats::global().set("Rendered entities", render_data_vec.len().into(), false);
         }
 
         Ok(Self {

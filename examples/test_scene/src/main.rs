@@ -1,16 +1,15 @@
 use std::f32::consts::PI;
 
 use cobalt::{
-    asset_types::TextureAsset,
     components::{Camera, Renderable, Transform},
     ecs::Entity,
-    graphics::{window::WindowConfig, TextureType},
+    graphics::window::WindowConfig,
     input::KeyCode,
     maths::Vec3,
     plugins::debug_gui::DebugGUIPlugin,
     renderer::{
         camera::{AspectRatio, Projection},
-        renderables::{MeshRenderable, Plane},
+        renderables::MeshRenderable,
         Material, Mesh,
     },
     runtime::{

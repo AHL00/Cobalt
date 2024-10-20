@@ -1,6 +1,5 @@
 use std::{
     error::Error,
-    path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
@@ -25,14 +24,13 @@ use cobalt_core::{
     },
     stats::{Stat, Stats, StatsInternal},
 };
-use downcast::AnySync;
 use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
     app::App,
     plugins::{
         manager::{PluginInternal, PluginManagerInternal},
-        Plugin, PluginBuilder, PluginError,
+        PluginBuilder, PluginError,
     },
 };
 
@@ -291,7 +289,7 @@ impl<A: App> ApplicationHandler for EngineRunner<A> {
         }
     }
 
-    fn suspended(&mut self, event_loop: &ActiveEventLoop) {}
+    fn suspended(&mut self, _event_loop: &ActiveEventLoop) {}
 
     fn window_event(
         &mut self,
@@ -670,7 +668,7 @@ impl<A: App> ApplicationHandler for EngineRunner<A> {
         }
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         self.engine
             .as_ref()
             .unwrap()

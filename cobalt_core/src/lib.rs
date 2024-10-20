@@ -2,8 +2,6 @@
 #![feature(generic_const_exprs)]
 #![feature(adt_const_params)]
 #![feature(fn_traits)]
-#![feature(lazy_cell)]
-
 
 pub mod utils;
 pub mod components;

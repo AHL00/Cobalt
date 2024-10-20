@@ -16,7 +16,7 @@ pub trait PluginInternal {
     /// (Plugin, run_priority, initialized / ready)
     fn get_plugins_in_order<'a>(
         &'a mut self,
-    ) -> Box<dyn Iterator<Item = (&mut Box<dyn Plugin>, &mut u32, &mut bool)> + 'a>;
+    ) -> Box<dyn Iterator<Item = (&'a mut Box<dyn Plugin>, &'a mut u32, &'a mut bool)> + 'a>;
 }
 
 pub trait PluginManagerInternal {
@@ -83,7 +83,7 @@ impl PluginInternal for PluginManager {
     /// Gets all the plugins in the manager sorted by run order.
     fn get_plugins_in_order<'a>(
         &'a mut self,
-    ) -> Box<dyn Iterator<Item = (&mut Box<dyn Plugin>, &mut u32, &mut bool)> + 'a> {
+    ) -> Box<dyn Iterator<Item = (&'a mut Box<dyn Plugin>, &'a mut u32, &'a mut bool)> + 'a> {
         let plugins = self.plugins.iter_mut().filter_map(|(_, (plugin, a, b))| {
             if let Some(plugin) = plugin {
                 return Some((plugin, a, b));

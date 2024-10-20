@@ -7,11 +7,8 @@ pub mod screen_quad;
 use exports::GeometryPassDebugMode;
 use ultraviolet::Mat4;
 
-use crate::{
-    exports::{components::Transform, ecs::World},
-    stats::Stats,
-};
-use cobalt_graphics::{context::Graphics, HasBindGroupLayout};
+use crate::exports::{components::Transform, ecs::World};
+use cobalt_graphics::context::Graphics;
 
 use self::{
     depth_buffer::DepthBuffer,
@@ -157,7 +154,7 @@ impl Renderer for DeferredRenderer {
 
         #[cfg(feature = "debug_stats")]
         {
-            Stats::global().set(
+            crate::stats::Stats::global().set(
                 "Geometry Pass Debug Mode",
                 format!("{:?}", self.geometry_debug_pass.mode).into(),
                 false,
@@ -194,8 +191,11 @@ impl Renderer for DeferredRenderer {
         graphics: &Graphics,
         size: (u32, u32),
     ) -> Result<(), RendererError> {
-        self.geometry_pass.resize_callback(graphics, size)?;
         self.depth_buffer = DepthBuffer::new(graphics, size, Self::DEPTH_FORMAT)?;
+
+        self.geometry_pass.resize_callback(graphics, size)?;
+        self.color_pass.resize_callback(graphics, size)?;
+        self.geometry_debug_pass.resize_callback(graphics, size)?;
 
         self.current_output_size = size;
 

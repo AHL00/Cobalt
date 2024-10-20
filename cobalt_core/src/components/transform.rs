@@ -265,7 +265,7 @@ impl Transform {
 }
 
 impl HasBindGroupLayout<()> for Transform {
-    fn bind_group_layout<'a>(graphics: &'a Graphics, extra: ()) -> &'a wgpu::BindGroupLayout {
+    fn bind_group_layout<'a>(graphics: &'a Graphics, _extra: ()) -> &'a wgpu::BindGroupLayout {
         graphics
             .cache
             .bind_group_layout_cache

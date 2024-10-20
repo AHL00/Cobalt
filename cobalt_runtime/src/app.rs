@@ -1,5 +1,5 @@
 use crate::{
-    engine::{exports::InitialEngineConfig, Engine},
+    engine::Engine,
     plugins::PluginManager,
 };
 use cobalt_core::input::InputEvent;

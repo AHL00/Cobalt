@@ -1,9 +1,6 @@
 use std::io::{BufReader, Read};
 
-use cobalt_assets::{
-    asset::{AssetReadError, AssetTrait},
-    server::AssetLoadError,
-};
+use cobalt_assets::asset::{AssetReadError, AssetTrait};
 use cobalt_graphics::vertex::UvNormalVertex;
 use wgpu::util::DeviceExt;
 

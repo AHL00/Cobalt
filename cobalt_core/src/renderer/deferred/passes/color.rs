@@ -142,7 +142,7 @@ impl<'a> RenderPass<ColorPassInput<'a>> for ColorPass {
 
     fn resize_callback(
         &mut self,
-        graphics: &Graphics,
+        _graphics: &Graphics,
         _size: (u32, u32),
     ) -> Result<(), RendererError> {
         Ok(())

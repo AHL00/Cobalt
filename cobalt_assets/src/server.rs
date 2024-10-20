@@ -3,7 +3,6 @@ use parking_lot::RwLock;
 use std::{
     any::Any,
     error::Error,
-    io::Read,
     path::PathBuf,
     sync::{Arc, Weak},
 };
@@ -182,8 +181,6 @@ impl AssetServer {
                 asset_type: asset_info.type_name.clone(),
             });
         }
-
-        let asset_path = self.assets_dir.join(&asset_info.relative_path);
 
         let asset = T::read(asset_info, &self.assets_dir, graphics)?;
         

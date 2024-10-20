@@ -3,7 +3,7 @@ use cobalt_core::{
     exports::assets::AssetServer,
 };
 use iced::{
-    widget::{self, rich_text, row, stack, Button, Text},
+    widget::{self, row, Text},
     Settings,
 };
 use pages::import_assets::{ImportAssets, ImportAssetsMessage};

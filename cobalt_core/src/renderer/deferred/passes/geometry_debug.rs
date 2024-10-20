@@ -152,12 +152,9 @@ impl RenderPass<(&GeometryBuffers, &DepthBuffer)> for GeometryDebugPass {
 
     fn resize_callback(
         &mut self,
-        graphics: &cobalt_graphics::context::Graphics,
-        size: (u32, u32),
+        _graphics: &cobalt_graphics::context::Graphics,
+        _size: (u32, u32),
     ) -> Result<(), RendererError> {
-        // TODO: Resize screen quad
-        // self.screen_quad.resize_callback(graphics, size)?;
-
         Ok(())
     }
 }

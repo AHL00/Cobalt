@@ -1,11 +1,10 @@
-use bytes::Bytes;
+
 use cobalt_ecs::exports::Component;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use serde::Serialize;
 use std::{
     any::Any,
     fmt::{Debug, Formatter},
-    io::Read,
     path::Path,
     sync::Arc,
 };
@@ -31,7 +30,7 @@ use cobalt_graphics::context::Graphics;
 
 use crate::manifest::{AssetInfo, ExtraAssetInfo};
 
-use super::server::{AssetLoadError, AssetServer};
+use super::server::AssetServer;
 
 /// Whether an asset is to be imported as a directory or a file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
