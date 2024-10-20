@@ -5,12 +5,12 @@ use cobalt_graphics::context::Graphics;
 use super::RenderableTrait;
 
 pub struct MeshRenderable {
-    pub mesh: Resource<Mesh>,
+    pub mesh: Asset<Mesh>,
     pub(crate) local_space_aabb: AABB,
 }
 
 impl MeshRenderable {
-    pub fn new(mesh: Resource<Mesh>) -> Self {
+    pub fn new(mesh: Asset<Mesh>) -> Self {
         let local_space_aabb = mesh.borrow().local_aabb.clone();
 
         Self {

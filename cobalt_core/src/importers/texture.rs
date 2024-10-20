@@ -1,7 +1,7 @@
 use std::io::{Cursor, Read};
 
 use cobalt_assets::{
-    asset::{AssetFileSystemType, AssetImporter, AssetTrait},
+    asset::{AssetFileSystemType, AssetImportError, AssetImporter, AssetReadError, AssetTrait, AssetVerifyError},
     manifest::ExtraAssetInfo,
     server::AssetLoadError,
 };
@@ -96,13 +96,13 @@ impl TextureAssetBuffer {
     pub fn read_from_source(
         abs_path: &std::path::Path,
         texture_type: TextureType,
-    ) -> Result<Self, AssetLoadError> {
-        let file_extension = abs_path.extension().ok_or(AssetLoadError::LoadError(
+    ) -> Result<Self, AssetImportError> {
+        let file_extension = abs_path.extension().ok_or(AssetImportError::LoadError(
             "File extension not found".to_string().into(),
         ))?;
 
         let image_format = {
-            let ext = file_extension.to_str().ok_or(AssetLoadError::LoadError(
+            let ext = file_extension.to_str().ok_or(AssetImportError::LoadError(
                 "Failed to convert file extension to string"
                     .to_string()
                     .into(),
@@ -118,19 +118,19 @@ impl TextureAssetBuffer {
                 "webp" => image::ImageFormat::WebP,
                 "hdr" => image::ImageFormat::Hdr,
                 _ => {
-                    return Err(AssetLoadError::LoadError(
-                        "Unsupported image format".to_string().into(),
+                    return Err(AssetImportError::ParseError(
+                        "Unsupported image data format".to_string().into(),
                     ))
                 }
             }
         };
 
-        let reader = std::io::BufReader::new(std::fs::File::open(abs_path).map_err(|e| {
-            AssetLoadError::LoadError(format!("Failed to open file: {}", e).to_string().into())
-        })?);
+        let reader = std::io::BufReader::new(
+            std::fs::File::open(abs_path).map_err(|e| AssetImportError::Io(e))?,
+        );
 
         let image = image::load(reader, image_format)
-            .map_err(|e| AssetLoadError::LoadError(Box::new(e)))?;
+            .map_err(|e| AssetImportError::ParseError(Box::new(e)))?;
 
         let (width, height) = image.dimensions();
 
@@ -150,7 +150,7 @@ impl TextureAssetBuffer {
     pub fn create_texture<const T: TextureType>(
         &self,
         graphics: &Graphics,
-    ) -> Result<Texture<T>, AssetLoadError> {
+    ) -> Result<Texture<T>, AssetReadError> {
         let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
             size: self.size,
@@ -170,7 +170,7 @@ impl TextureAssetBuffer {
                 aspect: wgpu::TextureAspect::All,
             },
             &T.get_image_data(self.image.clone())
-                .map_err(|e| AssetLoadError::LoadError(e.into()))?,
+                .map_err(|e| AssetReadError::CreateError(e))?,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(T.bytes_per_pixel() as u32 * self.size.width),
@@ -227,8 +227,10 @@ impl<const T: TextureType> AssetImporter<TextureAsset<T>> for TextureImporter<T>
         AssetFileSystemType::File
     }
 
-    fn verify_source(abs_path: &std::path::Path) -> Result<(), AssetLoadError> {
-        TextureAssetBuffer::read_from_source(abs_path, T)?;
+    fn verify_source(abs_path: &std::path::Path) -> Result<(), AssetVerifyError> {
+        TextureAssetBuffer::read_from_source(abs_path, T).map_err(
+            |e| AssetVerifyError::InvalidFile(Box::new(e)),
+        );
         Ok(())
     }
 
@@ -236,7 +238,7 @@ impl<const T: TextureType> AssetImporter<TextureAsset<T>> for TextureImporter<T>
         abs_input_path: &std::path::Path,
         asset_info: &cobalt_assets::manifest::AssetInfo,
         assets_dir: &std::path::Path,
-    ) -> Result<ExtraAssetInfo, AssetLoadError> {
+    ) -> Result<ExtraAssetInfo, AssetImportError> {
         let texture_asset_buffer = TextureAssetBuffer::read_from_source(abs_input_path, T)?;
 
         let ser_data = if let Some(_) = asset_info.pack.compression {
@@ -250,24 +252,17 @@ impl<const T: TextureType> AssetImporter<TextureAsset<T>> for TextureImporter<T>
                 .write_to(&mut Cursor::new(&mut png_buffer), image::ImageFormat::Png)
                 .map_err(|e| {
                     log::error!("{}", e);
-                    AssetLoadError::LoadError("Failed to write image as PNG".to_string().into())
+                    AssetImportError::ProcessError("Failed to format image as PNG".to_string().into())
                 })?;
 
             png_buffer
         } else {
-            bincode::serialize(&texture_asset_buffer).map_err(|e| {
-                log::error!("{}", e);
-                AssetLoadError::LoadError(
-                    "Failed to serialize image data into buffer"
-                        .to_string()
-                        .into(),
-                )
-            })?
+            bincode::serialize(&texture_asset_buffer)?
         };
 
         let output_path = assets_dir.join(&asset_info.relative_path);
 
-        std::fs::write(&output_path, ser_data).map_err(|e| AssetLoadError::WriteError(e))?;
+        std::fs::write(&output_path, ser_data).map_err(|e| AssetImportError::WriteError(e))?;
 
         let mut extra_info = ExtraAssetInfo::new();
 

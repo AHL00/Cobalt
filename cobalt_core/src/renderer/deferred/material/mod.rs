@@ -808,13 +808,8 @@ impl AssetTrait for Material {
     fn imported_fs_type() -> AssetFileSystemType {
         AssetFileSystemType::File
     }
-
-    fn read(
-        asset_info: &cobalt_assets::manifest::AssetInfo,
-        assets_dir: &std::path::Path,
-        graphics: &Graphics,
-    ) -> Result<Self, cobalt_assets::server::AssetLoadError> {
+    
+    fn read(asset_info: &cobalt_assets::manifest::AssetInfo, assets_dir: &std::path::Path, graphics: &Graphics) -> Result<Self, cobalt_assets::asset::AssetReadError> {
         todo!()
     }
-
 }

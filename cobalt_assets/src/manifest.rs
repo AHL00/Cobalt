@@ -6,7 +6,7 @@ use cobalt_graphics::texture::TextureType;
 use hashbrown::HashMap;
 use path_clean::PathClean;
 
-use crate::asset::AssetImporter;
+use crate::asset::{AssetImportError, AssetImporter};
 
 use super::{
     asset::{AssetFileSystemType, AssetID},
@@ -102,8 +102,8 @@ pub enum AssetPackError {
     #[error("Failed to compress asset")]
     Compression(std::io::Error),
 
-    #[error("Failed to process source file, it may be corrupted or of an unsupported format")]
-    SourceFileProcessError(AssetLoadError),
+    #[error("Failed to import asset")]
+    ImportError(AssetImportError),
 
     #[error("Failed to serialise asset data")]
     SerialiseAssetData(#[from] bincode::Error),
@@ -202,7 +202,7 @@ pub fn pack_asset<A: AssetTrait, T: AssetImporter<A>>(
     }
 
     let extra = T::import(abs_input, &asset_info, assets_dir)
-        .map_err(|e| AssetPackError::SourceFileProcessError(e))?;
+        .map_err(|e| AssetPackError::ImportError(e))?;
 
     asset_info.extra = extra;    
 

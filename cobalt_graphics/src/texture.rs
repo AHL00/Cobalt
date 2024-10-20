@@ -75,7 +75,7 @@ impl TextureType {
     }
 
     // Tries to get image data from a dynamic image.
-    pub fn get_image_data(&self, image: image::DynamicImage) -> Result<bytes::Bytes, String> {
+    pub fn get_image_data(&self, image: image::DynamicImage) -> Result<bytes::Bytes, Box<dyn std::error::Error>> {
         let vec_res: Result<Vec<u8>, String> = match self {
             TextureType::RGBA8Unorm => Ok(image.into_rgba8().into_vec()),
             TextureType::RGBA8UnormSrgb => Ok(image.into_rgba8().into_vec()),

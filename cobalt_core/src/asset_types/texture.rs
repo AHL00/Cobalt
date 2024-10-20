@@ -1,5 +1,11 @@
-use cobalt_assets::{asset::{AssetFileSystemType, AssetTrait}, server::AssetLoadError};
-use cobalt_graphics::{context::Graphics, texture::{Texture, TextureType}};
+use cobalt_assets::{
+    asset::{AssetFileSystemType, AssetReadError, AssetTrait},
+    server::AssetLoadError,
+};
+use cobalt_graphics::{
+    context::Graphics,
+    texture::{Texture, TextureType},
+};
 use image::GenericImageView;
 
 use crate::importers::texture::TextureAssetBuffer;
@@ -37,7 +43,7 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
         asset_info: &cobalt_assets::manifest::AssetInfo,
         assets_dir: &std::path::Path,
         graphics: &Graphics,
-    ) -> Result<Self, AssetLoadError> {
+    ) -> Result<Self, AssetReadError> {
         let abs_path = assets_dir.join(&asset_info.relative_path);
 
         let tab: TextureAssetBuffer = if let Some(_) = asset_info.pack.compression {
@@ -45,28 +51,16 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
                 .extra
                 .0
                 .get("mime")
-                .ok_or(AssetLoadError::LoadError(
-                    "Mime type not found in extra info".to_string().into(),
-                ))?;
+                .ok_or(AssetReadError::MissingExtraAssetInfo("mime".to_string()))?;
 
             // Read from PNG buffer
             let dyn_image = image::load_from_memory_with_format(
-                &std::fs::read(&abs_path).map_err(|e| {
-                    AssetLoadError::LoadError(
-                        format!("Failed to read file: {}", e).to_string().into(),
-                    )
-                })?,
-                image::ImageFormat::from_mime_type(mime_type).ok_or(AssetLoadError::LoadError(
+                &std::fs::read(&abs_path).map_err(|e| AssetReadError::Io(e))?,
+                image::ImageFormat::from_mime_type(mime_type).ok_or(AssetReadError::ParseError(
                     "Unsupported image format".to_string().into(),
                 ))?,
             )
-            .map_err(|e| {
-                AssetLoadError::LoadError(
-                    format!("Failed to load image from PNG buffer: {}", e)
-                        .to_string()
-                        .into(),
-                )
-            })?;
+            .map_err(|e| AssetReadError::ParseError(Box::new(e)))?;
 
             let (width, height) = dyn_image.dimensions();
 
@@ -81,16 +75,12 @@ impl<const T: TextureType> AssetTrait for TextureAsset<T> {
             }
         } else {
             // Deserialise from file assuming data is TextureAssetBuffer
-            bincode::deserialize_from(std::fs::File::open(&abs_path).map_err(|e| {
-                AssetLoadError::LoadError(format!("Failed to open file: {}", e).to_string().into())
-            })?)
+            bincode::deserialize_from(
+                std::fs::File::open(&abs_path).map_err(|e| AssetReadError::Io(e))?,
+            )
             .map_err(|e| {
                 log::error!("{}", e);
-                AssetLoadError::LoadError(
-                    "Failed to deserialise texture asset data from buffer"
-                        .to_string()
-                        .into(),
-                )
+                AssetReadError::DeserializeError(e)
             })?
         };
 

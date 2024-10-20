@@ -10,6 +10,8 @@ use std::{
 
 use cobalt_graphics::context::Graphics;
 
+use crate::asset::AssetReadError;
+
 use super::{
     asset::AssetID,
     exports::{Asset, AssetTrait},
@@ -38,8 +40,6 @@ pub enum AssetLoadError {
     ManifestNotLoaded(#[from] ManifestNotLoaded),
     #[error("Asset not found in manifest")]
     AssetNotFound,
-    #[error("File IO error")]
-    Io(#[from] std::io::Error),
     #[error("Asset is already loaded")]
     AssetAlreadyLoaded,
     #[error("Type mismatch, tried to load as {load_type} but asset is a {asset_type}")]
@@ -47,23 +47,12 @@ pub enum AssetLoadError {
         load_type: String,
         asset_type: String,
     },
-    // TODO: Replace with proper errors only
-    #[error("Failed to load asset")]
-    LoadError(Box<dyn Error>),
     #[error(
         "Asset load was attempted but the Graphics context was either dropped or never created"
     )]
     GraphicsContextDoesNotExist,
-    #[error("File not found")]
-    FileNotFound,
-    #[error("Failed to write to disk")]
-    WriteError(std::io::Error),
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum AssetImportError {
-    #[error("File system IO Error: {0}")]
-    Io(#[from] std::io::Error),
+    #[error("Failed to read asset")]
+    ReadError(#[from] AssetReadError),
 }
 
 #[derive(thiserror::Error, Debug)]

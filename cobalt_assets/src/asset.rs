@@ -40,6 +40,22 @@ pub enum AssetFileSystemType {
     File,
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum AssetReadError {
+    #[error("File IO error")]
+    Io(#[from] std::io::Error),
+    #[error("File not found")]
+    FileNotFound,
+    #[error("Failed to deserialize asset")]
+    DeserializeError(#[from] bincode::Error),
+    #[error("Failed to parse/process asset data")]
+    ParseError(Box<dyn std::error::Error>),
+    #[error("Missing extra asset info: {0}")]
+    MissingExtraAssetInfo(String),
+    #[error("Failed to create asset: {0}")]
+    CreateError(Box<dyn std::error::Error>),
+}
+
 /// Assets are anything that can be loaded from disk.
 /// Types implementing this trait must be Send + Sync + 'static.
 /// NOTE: When loading, asset server will already type check the asset.
@@ -52,16 +68,49 @@ pub trait AssetTrait: Sized + Send + Sync + 'static {
     /// Whether the asset is to be stored as a directory or a file.
     fn imported_fs_type() -> AssetFileSystemType;
     
-    fn read(asset_info: &AssetInfo, assets_dir: &Path, graphics: &Graphics) -> Result<Self, AssetLoadError>;
+    fn read(asset_info: &AssetInfo, assets_dir: &Path, graphics: &Graphics) -> Result<Self, AssetReadError>;
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum AssetVerifyError {
+    #[error("File IO error")]
+    Io(#[from] std::io::Error),
+    #[error("Invalid file extension/format")]
+    InvalidFileType,
+    #[error("File not found")]
+    FileNotFound,
+    #[error("File not valid: {0}")]
+    InvalidFile(Box<dyn std::error::Error>),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AssetImportError {
+    #[error("File system IO Error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Failed to write to disk")]
+    WriteError(std::io::Error),
+    #[error("Failed to load asset")]
+    LoadError(Box<dyn std::error::Error>),
+    #[error("Failed to process asset data")]
+    ProcessError(Box<dyn std::error::Error>),
+    #[error("Input file not found")]
+    InputFileNotFound,
+    #[error("Failed to read input file")]
+    ReadError(Box<dyn std::error::Error>),
+    #[error("Failed to parse input file")]
+    ParseError(Box<dyn std::error::Error>),
+    #[error("Failed to serialize asset")]
+    SerializeError(#[from] bincode::Error),
+}
+
 
 /// T: The target asset type to import to.
 pub trait AssetImporter<T: AssetTrait> {
     fn unimported_fs_type() -> AssetFileSystemType;
 
-    fn verify_source(abs_path: &Path) -> Result<(), AssetLoadError>;
+    fn verify_source(abs_path: &Path) -> Result<(), AssetVerifyError>;
 
-    fn import(abs_input_path: &Path, asset_info: &AssetInfo, assets_dir: &Path) -> Result<ExtraAssetInfo, AssetLoadError>;
+    fn import(abs_input_path: &Path, asset_info: &AssetInfo, assets_dir: &Path) -> Result<ExtraAssetInfo, AssetImportError>;
 }
 
 /// Handle to an asset.

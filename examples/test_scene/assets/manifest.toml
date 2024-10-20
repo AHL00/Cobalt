@@ -29,3 +29,17 @@ nanos_since_epoch = 180372768
 
 [assets.extra]
 mime = "image/png"
+
+[[assets]]
+asset_id = "14d3c3e5-d1e4-4ea4-8cdb-c9e17dc6979a"
+relative_path = "bunny.asset"
+name = "bunny"
+type_name = "Mesh"
+
+[assets.pack]
+
+[assets.timestamp]
+secs_since_epoch = 1729405470
+nanos_since_epoch = 529254513
+
+[assets.extra]

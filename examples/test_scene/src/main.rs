@@ -1,15 +1,24 @@
 use std::f32::consts::PI;
 
 use cobalt::{
-    asset_types::TextureAsset, components::{Camera, Renderable, Transform}, ecs::Entity, graphics::{window::WindowConfig, TextureType}, input::KeyCode, plugins::debug_gui::DebugGUIPlugin, renderer::{
+    asset_types::TextureAsset,
+    components::{Camera, Renderable, Transform},
+    core::renderer::mesh::Mesh,
+    ecs::Entity,
+    graphics::{window::WindowConfig, TextureType},
+    input::KeyCode,
+    plugins::debug_gui::DebugGUIPlugin,
+    renderer::{
         camera::{AspectRatio, Projection},
-        renderables::Plane,
+        renderables::{MeshRenderable, Plane},
         Material,
-    }, runtime::{
+    },
+    runtime::{
         engine::{EngineRunner, InitialEngineConfig},
         plugins::PluginBuilder,
         App,
-    }, types::resource::Resource
+    },
+    types::resource::Resource,
 };
 use simple_logger::SimpleLogger;
 
@@ -29,7 +38,7 @@ impl App for Game {
             Camera::new(
                 true,
                 Projection::Perspective {
-                    fov: 100.0 * (PI / 180.0),
+                    fov: 70.0 * (PI / 180.0),
                     aspect: AspectRatio::Auto,
                     near: 0.1,
                     far: 100.0,
@@ -40,7 +49,7 @@ impl App for Game {
         engine
             .scene
             .world
-            .add_component(cam_ent, Transform::with_position([0.0, 0.0, -5.0].into()));
+            .add_component(cam_ent, Transform::with_position([0.0, 0.0, -2.0].into()));
 
         Self {
             main_camera: cam_ent,
@@ -54,13 +63,22 @@ impl App for Game {
     ) {
         let plane_ent = engine.scene.world.create_entity();
 
-        engine
-            .scene
-            .world
-            .add_component(plane_ent, Renderable::Plane(Plane::new()));
+        let mesh_asset_id = engine.assets().find_asset_by_name("bunny").unwrap();
+
+        let mesh = engine.load_asset::<Mesh>(mesh_asset_id).unwrap();
+
+        engine.scene.world.add_component(
+            plane_ent,
+            Renderable::Mesh(MeshRenderable::new(mesh)),
+        );
+
+        // engine
+        //     .scene
+        //     .world
+        //     .add_component(plane_ent, Renderable::Plane(Plane::new()));
 
         let mut transform = Transform::with_position([0.0, 0.0, 0.0].into());
-        transform.rotate(transform.position(), [0.0, PI, 0.0].into());
+        transform.rotate(transform.position(), [0.0, 0.0, 0.0].into());
         engine.scene.world.add_component(plane_ent, transform);
 
         let mat = Resource::new(Material::default(engine.graphics_arc()));
@@ -76,8 +94,8 @@ impl App for Game {
             .load_asset::<TextureAsset<{ TextureType::RGBA8UnormSrgb }>>(texture_asset_id)
             .unwrap();
 
-        mat.borrow_mut().set_albedo(None, Some(texture)).unwrap();
-
+        // mat.borrow_mut().set_albedo(None, Some(texture)).unwrap();
+        mat.borrow_mut().set_albedo(Some([1.0, 1.0, 1.0, 1.0]), None).unwrap();
         engine.scene.world.add_component(plane_ent, mat);
     }
 
@@ -133,7 +151,7 @@ impl App for Game {
             movement.normalize();
         }
 
-        transform.translate(movement * 5.0 * dt);
+        transform.translate(movement * 0.5 * dt);
 
         let rotate_x = keyboard.is_key_down(KeyCode::ArrowUp) as i32
             - keyboard.is_key_down(KeyCode::ArrowDown) as i32;

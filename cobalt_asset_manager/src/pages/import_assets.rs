@@ -8,7 +8,8 @@ use cobalt_core::{
     },
     exports::asset_types::TextureAsset,
     graphics::texture::TextureType,
-    importers::{gltf::GltfAsset, texture::TextureImporter},
+    importers::{gltf::GltfImporter, obj::ObjImporter, texture::TextureImporter},
+    renderer::mesh::Mesh,
 };
 use iced::widget::{self, button, combo_box, row, Column, Text};
 
@@ -21,6 +22,7 @@ pub enum AssetType {
         texture_type_combo_box: combo_box::State<TextureType>,
     },
     Gltf,
+    Obj,
 }
 
 impl PartialEq for AssetType {
@@ -28,6 +30,7 @@ impl PartialEq for AssetType {
         match (self, other) {
             (AssetType::Texture { .. }, AssetType::Texture { .. }) => true,
             (AssetType::Gltf, AssetType::Gltf) => true,
+            (AssetType::Obj, AssetType::Obj) => true,
             _ => false,
         }
     }
@@ -43,6 +46,7 @@ impl AssetType {
         match self {
             AssetType::Texture { .. } => "Texture".to_string(),
             AssetType::Gltf => "Gltf".to_string(),
+            AssetType::Obj => "Obj".to_string(),
         }
     }
 
@@ -53,6 +57,7 @@ impl AssetType {
                 texture_type_combo_box: combo_box::State::new(TextureType::variants()),
             },
             AssetType::Gltf,
+            AssetType::Obj,
         ]
     }
 
@@ -61,7 +66,8 @@ impl AssetType {
             AssetType::Texture { .. } => {
                 TextureImporter::<{ TextureType::RGBA8Unorm }>::unimported_fs_type()
             }
-            AssetType::Gltf => GltfAsset::unimported_fs_type(),
+            AssetType::Gltf => GltfImporter::unimported_fs_type(),
+            AssetType::Obj => ObjImporter::unimported_fs_type(),
         }
     }
 
@@ -70,7 +76,8 @@ impl AssetType {
             AssetType::Texture { .. } => {
                 TextureAsset::<{ TextureType::RGBA8Unorm }>::imported_fs_type()
             }
-            AssetType::Gltf => GltfAsset::imported_fs_type(),
+            AssetType::Gltf => GltfImporter::imported_fs_type(),
+            AssetType::Obj => Mesh::imported_fs_type(),
         }
     }
 
@@ -85,6 +92,7 @@ impl AssetType {
                 }
             },
             AssetType::Gltf => {}
+            AssetType::Obj => {}
         }
     }
 
@@ -108,6 +116,7 @@ impl AssetType {
                 Column::new().push(texture_type_combo_box)
             }
             AssetType::Gltf => Column::new(),
+            AssetType::Obj => Column::new(),
         }
     }
 }
@@ -222,6 +231,20 @@ impl ImportAssets {
                         //     self.packed.clone(),
                         // );
                         todo!()
+                    }
+                    AssetType::Obj => {
+                        pack_asset::<Mesh, ObjImporter>(
+                            asset_server.assets_dir(),
+                            &self.abs_input,
+                            &PathBuf::from(&self.relative_output),
+                            self.name.clone(),
+                            self.pack.clone(),
+                        )
+                        .map_err(|e| {
+                            eprintln!("Failed to import mesh: {:?}", e);
+                            panic!("Failed to import mesh: {:?}", e);
+                        })
+                        .unwrap();
                     }
                     _ => {}
                 }
