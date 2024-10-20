@@ -108,6 +108,10 @@ pub enum AssetImportError {
 pub trait AssetImporter<T: AssetTrait> {
     fn unimported_fs_type() -> AssetFileSystemType;
 
+    fn note() -> Option<String> {
+        None
+    }
+
     fn verify_source(abs_path: &Path) -> Result<(), AssetVerifyError>;
 
     fn import(abs_input_path: &Path, asset_info: &AssetInfo, assets_dir: &Path) -> Result<ExtraAssetInfo, AssetImportError>;

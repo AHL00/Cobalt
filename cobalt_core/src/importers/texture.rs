@@ -230,8 +230,12 @@ impl<const T: TextureType> AssetImporter<TextureAsset<T>> for TextureImporter<T>
     fn verify_source(abs_path: &std::path::Path) -> Result<(), AssetVerifyError> {
         TextureAssetBuffer::read_from_source(abs_path, T).map_err(
             |e| AssetVerifyError::InvalidFile(Box::new(e)),
-        );
+        )?;
         Ok(())
+    }
+
+    fn note() -> Option<String> {
+        Some("Supported formats: PNG, JPEG, BMP, GIF, ICO, TIFF, WebP, HDR. Does not use the default compression algorithm and level, but rather PNG compression.".to_string())
     }
 
     fn import(

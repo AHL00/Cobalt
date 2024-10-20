@@ -12,6 +12,7 @@ use cobalt_core::{
     renderer::mesh::Mesh,
 };
 use iced::widget::{self, button, combo_box, row, Column, Text};
+use iced_aw::style::colors;
 
 use crate::{components, Message};
 
@@ -68,6 +69,14 @@ impl AssetType {
             }
             AssetType::Gltf => GltfImporter::unimported_fs_type(),
             AssetType::Obj => ObjImporter::unimported_fs_type(),
+        }
+    }
+
+    pub fn note(&self) -> Option<String> {
+        match self {
+            AssetType::Texture { .. } => TextureImporter::<{ TextureType::RGBA8Unorm }>::note(),
+            AssetType::Gltf => GltfImporter::note(),
+            AssetType::Obj => ObjImporter::note(),
         }
     }
 
@@ -289,6 +298,14 @@ impl ImportAssets {
             )
         ];
 
+        let asset_type_note: iced::Element<Message> = if let Some(note) = self.asset_type.note() {
+            widget::rich_text![
+                widget::span(note.to_string()).size(16).underline(true).color(colors::GRAY)
+            ].into()
+        } else {
+            widget::rich_text![].into()
+        };
+
         let name_input = widget::TextInput::new("Asset Name/Handle", &self.name)
             .on_input(|name| Message::ImportAssetsMessage(ImportAssetsMessage::SetName(name)));
 
@@ -364,6 +381,7 @@ impl ImportAssets {
 
         let content = widget::column![
             asset_type_combo_box,
+            asset_type_note,
             name_input,
             input_path_row,
             rel_out_path_input,
