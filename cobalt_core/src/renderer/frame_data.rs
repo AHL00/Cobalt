@@ -6,7 +6,7 @@ use crate::{
     exports::{
         ecs::{query::Optional, Entity, World},
         types::{
-            either::Either,
+            Either,
             resource::{Resource, ResourceTrait},
         },
     },

@@ -25,6 +25,8 @@ pub mod exports {
         pub use super::super::camera::AspectRatio;
     }
 
+    pub use super::mesh::Mesh;
+
     // NOTE: Renderers MUST export the following types:
     // - Material (Named "Material")
     // - Renderer (Named "Renderer")

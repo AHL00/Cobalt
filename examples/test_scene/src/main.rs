@@ -3,7 +3,6 @@ use std::f32::consts::PI;
 use cobalt::{
     asset_types::TextureAsset,
     components::{Camera, Renderable, Transform},
-    core::renderer::mesh::Mesh,
     ecs::Entity,
     graphics::{window::WindowConfig, TextureType},
     input::KeyCode,
@@ -12,7 +11,7 @@ use cobalt::{
     renderer::{
         camera::{AspectRatio, Projection},
         renderables::{MeshRenderable, Plane},
-        Material,
+        Material, Mesh,
     },
     runtime::{
         engine::{EngineRunner, InitialEngineConfig},

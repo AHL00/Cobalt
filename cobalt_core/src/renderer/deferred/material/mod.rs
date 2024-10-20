@@ -1,16 +1,15 @@
 use std::sync::{atomic::AtomicUsize, Arc, Weak};
 
-use bytes::Bytes;
 use parking_lot::RwLock;
 use wgpu::util::DeviceExt;
 
 use crate::{
     asset_types::texture::TextureAsset,
-    exports::types::{either::Either, resource::ResourceTrait},
+    exports::types::Either
 };
 use cobalt_assets::{
     asset::AssetFileSystemType,
-    exports::{Asset, AssetTrait}, manifest::ExtraAssetInfo,
+    exports::{Asset, AssetTrait},
 };
 use cobalt_graphics::{
     context::Graphics,
