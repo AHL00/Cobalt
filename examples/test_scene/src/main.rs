@@ -60,9 +60,17 @@ impl App for Game {
             .world
             .add_component(cam_ent, Transform::with_position([0.0, 0.0, -1.0].into()));
 
-        if engine.graphics().available_present_modes().contains(&PresentMode::Mailbox) {
+        if engine
+            .graphics()
+            .available_present_modes()
+            .contains(&PresentMode::Mailbox)
+        {
             engine.graphics_mut().current_present_mode = PresentMode::Mailbox;
-        } else if engine.graphics().available_present_modes().contains(&PresentMode::Fifo) {
+        } else if engine
+            .graphics()
+            .available_present_modes()
+            .contains(&PresentMode::Fifo)
+        {
             engine.graphics_mut().current_present_mode = PresentMode::Fifo;
         }
 
@@ -90,12 +98,7 @@ impl App for Game {
                 .add_component(ent, Renderable::Mesh(MeshRenderable::new(mesh)));
 
             let mut transform = Transform::with_position(
-                [
-                    (i as f32 - MODELS.len() as f32 / 2.0 + 0.5) * 0.5,
-                    0.0,
-                    0.0,
-                ]
-                .into(),
+                [(i as f32 - MODELS.len() as f32 / 2.0 + 0.5) * 0.5, 0.0, 0.0].into(),
             );
 
             *transform.scale_mut() = Vec3::from([model.1, model.1, model.1]);
@@ -124,8 +127,13 @@ impl App for Game {
             let transform = _engine
                 .scene
                 .world
-                .query_entity_mut::<Transform>(self.main_camera)
-                .expect("Transform not found.");
+                .query_entity_mut::<Transform>(self.main_camera);
+
+            if let None = transform {
+                return;
+            }
+
+            let transform = transform.unwrap();
 
             let keyboard = _engine.input.get_keyboard();
 
@@ -182,13 +190,11 @@ impl App for Game {
         {
             // Rotate model slowly about the y-axis
             for model in self.models.iter() {
-                let m_transform = _engine
-                    .scene
-                    .world
-                    .query_entity_mut::<Transform>(*model)
-                    .unwrap();
+                let m_transform = _engine.scene.world.query_entity_mut::<Transform>(*model);
 
-                m_transform.yaw(0.2 * dt);
+                if let Some(m_transform) = m_transform {
+                    m_transform.yaw(0.2 * dt);
+                }
             }
         }
     }

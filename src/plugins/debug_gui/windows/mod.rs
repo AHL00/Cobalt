@@ -1,7 +1,7 @@
 use cobalt_core::stats::Stats;
 
 mod assets;
-mod entities;
+mod heirarchy;
 mod stats;
 
 /// Persistent data used to store debug menu state.
@@ -10,6 +10,8 @@ pub struct DebugMenu {
     stats: stats::StatsPanel,
     show_assets: bool,
     assets: assets::AssetsPanel,
+    show_heirarchy: bool,
+    heirarchy: heirarchy::HeirarchyPanel,
 }
 
 impl DebugMenu {
@@ -19,6 +21,8 @@ impl DebugMenu {
             stats: stats::StatsPanel::new(),
             show_assets: false,
             assets: assets::AssetsPanel::new(),
+            show_heirarchy: false,
+            heirarchy: heirarchy::HeirarchyPanel::new(),
         }
     }
 
@@ -37,6 +41,7 @@ impl DebugMenu {
                 ui.menu_button("Windows", |ui| {
                     ui.checkbox(&mut self.show_stats, "Stats");
                     ui.checkbox(&mut self.show_assets, "Assets");
+                    ui.checkbox(&mut self.show_heirarchy, "Heirarchy");
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -61,6 +66,10 @@ impl DebugMenu {
 
         if self.show_assets {
             self.assets.show(egui_ctx, engine);
+        }
+
+        if self.show_heirarchy {
+            self.heirarchy.show(egui_ctx, engine);
         }
     }
 }

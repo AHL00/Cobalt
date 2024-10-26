@@ -1,6 +1,6 @@
 use std::fmt::{self, Display, Formatter};
 
-use crate::utils::bit_array::SimdBitArray;
+use crate::{exports::Component, utils::bit_array::SimdBitArray};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Entity {
@@ -25,6 +25,26 @@ impl Entity {
     // The ID given out to users is actually a combination of the id and version.
     pub fn id(&self) -> u64 {
         (self.id as u64) << 32 | self.version as u64
+    }
+
+    pub fn get_component<T: 'static + Component>(self, world: &crate::world::World) -> Option<&T> {
+        world.get_component::<T>(self)
+    }
+
+    pub fn add_component<T: 'static + Component>(self, world: &mut crate::world::World, component: T) {
+        world.add_component(self, component);
+    }
+
+    pub fn remove_component<T: 'static + Component>(self, world: &mut crate::world::World) {
+        world.remove_component::<T>(self);
+    }
+
+    pub fn get_component_mut<T: 'static + Component>(self, world: &mut crate::world::World) -> Option<&mut T> {
+        world.get_component_mut::<T>(self)
+    }
+
+    pub fn has_component<T: 'static + Component>(self, world: &crate::world::World) -> Option<bool> {
+        world.has_component::<T>(self)
     }
 }
 

@@ -46,6 +46,16 @@ impl World {
         self.entities.len()
     }
 
+    pub fn entities(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.entities
+            .iter()
+            .map(|data| Entity {
+                id: data.id,
+                version: data.version,
+            })
+            .filter(move |entity| self.verify_entity_validity(*entity))
+    }
+
     /// Creates a new entity.
     pub fn create_entity(&mut self) -> Entity {
         // If current capacity is reached, expand all sparse sets in storages and entities list
@@ -91,7 +101,11 @@ impl World {
     }
 
     /// Removes the given entity from the world.
-    pub fn remove_entity(&mut self, entity: Entity) {
+    pub fn remove_entity(&mut self, entity: Entity) -> bool {
+        if self.verify_entity_validity(entity) == false {
+            return false;
+        }
+
         // Reset the stored EntityData.
         // Increase the version of the entity.
         let last_version = self.entities[entity.id as usize].version;
@@ -109,11 +123,17 @@ impl World {
             // This also works to call the destructors
             storage.remove_unchecked(entity);
         }
+
+        true
     }
 
     /// Adds a component to the given entity.
     /// If the entity already has a component of this type, the value is overwritten.
-    pub fn add_component<T: Component>(&mut self, entity: Entity, component: T) {
+    pub fn add_component<T: Component>(&mut self, entity: Entity, component: T) -> bool {
+        if self.verify_entity_validity(entity) == false {
+            return false;
+        }
+
         // Get the storage for this component type.
         let (storage, comp_id) = self.components.entry(TypeId::of::<T>()).or_insert_with(|| {
             let storage = ComponentStorage::new::<T>(self.entities.capacity());
@@ -130,6 +150,8 @@ impl World {
         self.entities[entity.id as usize]
             .components
             .set(comp_id.0 as usize, true);
+
+        true
     }
 
     /// TODO: Add components tuple
@@ -165,6 +187,10 @@ impl World {
 
     /// Retrieves a reference to the component of the given type for the given entity.
     pub fn get_component<T: Component>(&self, entity: Entity) -> Option<&T> {
+        if self.verify_entity_validity(entity) == false {
+            return None;
+        }
+
         // Get the storage for this component type.
         let (storage, comp_id) = self.components.get(&TypeId::of::<T>())?;
 
@@ -182,6 +208,10 @@ impl World {
     }
 
     pub fn get_component_mut<T: Component>(&mut self, entity: Entity) -> Option<&mut T> {
+        if self.verify_entity_validity(entity) == false {
+            return None;
+        }
+
         // Get the storage for this component type.
         let (storage, comp_id) = self.components.get_mut(&TypeId::of::<T>())?;
 
@@ -196,5 +226,62 @@ impl World {
         // Get the component from the storage.
         // The type is guaranteed to match because of the type ID.
         Some(storage.get_unchecked_mut(entity))
+    }
+
+    fn verify_entity_validity(&self, entity: Entity) -> bool {
+        // Check if the entity exists.
+        if entity.id as usize >= self.entities.len() {
+            return false;
+        }
+
+        // Version mismatch check
+        if self.entities[entity.id as usize].version != entity.version {
+            return false;
+        }
+
+        // Check if the entity is recyclable.
+        if self.recyclable.contains(&(entity.id as usize)) {
+            return false;
+        }
+
+        true
+    }
+
+    pub fn has_component<T: Component>(&self, entity: Entity) -> Option<bool> {
+        if self.verify_entity_validity(entity) == false {
+            return None;
+        }
+
+        // Get the storage for this component type.
+        let (_, comp_id) = match self.components.get(&TypeId::of::<T>()) {
+            Some((storage, comp_id)) => (storage, comp_id),
+            None => return Some(false),
+        };
+
+        // Check if the entity has this component.
+        Some(
+            self.entities[entity.id as usize]
+                .components
+                .get(comp_id.0 as usize),
+        )
+    }
+
+    pub fn list_components(&self, entity: Entity) -> Option<Vec<TypeId>> {
+        if self.verify_entity_validity(entity) == false {
+            return None;
+        }
+
+        let mut components = Vec::new();
+
+        for (type_id, (_, comp_id)) in self.components.iter() {
+            if self.entities[entity.id as usize]
+                .components
+                .get(comp_id.0 as usize)
+            {
+                components.push(type_id.clone());
+            }
+        }
+
+        Some(components)
     }
 }
