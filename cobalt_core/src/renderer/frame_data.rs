@@ -1,3 +1,4 @@
+use cobalt_ecs::exports::Component;
 use wgpu::TextureView;
 
 use super::{proj_view::ProjView, renderable::Renderable, renderer::FramePrepError};
@@ -29,7 +30,7 @@ pub struct FrameData<'a, M: ResourceTrait + Ord> {
     pub render_data_vec: Vec<RenderData<'a, M>>,
 }
 
-impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
+impl<'a, M: ResourceTrait + AssetTrait + Ord + Component> FrameData<'a, M> {
     /// Generates a list of `RenderData` from the world. It also performs other processing
     /// such as frustum culling and sorting by material.
     pub fn generate(
@@ -44,12 +45,12 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
             .query_mut::<(
                 Transform,
                 Renderable,
-                Optional<Resource<M>>,
                 Optional<Asset<M>>,
+                Optional<Resource<M>>,
             )>()
             .map_err(|_| FramePrepError::NoRenderables)?;
 
-        renderable_query.map(|(ent, (transform, renderable, resource_material, asset_material))| {
+        renderable_query.map(|(ent, (transform, renderable, material_asset, material_resource))| {
             // TODO: Normal matrix being calculated every frame, is this necessary?
             transform.calculate_normal_matrix(proj_view.view());
 
@@ -61,16 +62,16 @@ impl<'a, M: ResourceTrait + AssetTrait + Ord> FrameData<'a, M> {
                 // TODO: Is it faster to clone the `Resource` or take a reference to it?
                 material: {
                     // NOTE: Resource components take precedence over Asset components
-                    if let Some(resource) = resource_material {
+                    if let Some(resource) = material_resource {
                         #[cfg(debug_assertions)]
                         {
-                            if asset_material.is_some() {
+                            if material_asset.is_some() {
                                 log_once::warn_once!("Entity {:?} has both a resource and an asset material. The resource takes precedence and will be used.", ent);
                             }
                         }
 
                         resource.clone()
-                    } else if let Some(asset) = asset_material {
+                    } else if let Some(asset) = material_asset {
                         asset.clone().into()
                     } else {
                         return Err(FramePrepError::NoMaterial(ent))

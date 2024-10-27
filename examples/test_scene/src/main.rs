@@ -8,9 +8,7 @@ use cobalt::{
     maths::Vec3,
     plugins::debug_gui::DebugGUIPlugin,
     renderer::{
-        camera::{AspectRatio, Projection},
-        renderables::MeshRenderable,
-        Material, Mesh,
+        camera::{AspectRatio, Projection}, deferred::Material, renderables::MeshRenderable, Mesh
     },
     runtime::{
         engine::{EngineRunner, InitialEngineConfig},
@@ -95,7 +93,8 @@ impl App for Game {
             engine
                 .scene
                 .world
-                .add_component(ent, Renderable::Mesh(MeshRenderable::new(mesh)));
+                .add_component(ent, 
+                        Renderable::Mesh(MeshRenderable::new(mesh)));
 
             let mut transform = Transform::with_position(
                 [(i as f32 - MODELS.len() as f32 / 2.0 + 0.5) * 0.5, 0.0, 0.0].into(),

@@ -1,12 +1,9 @@
 use downcast::{downcast, Any};
 
-use crate::exports::{
-    ecs::{Entity, World},
-    renderer::Material,
-};
+use crate::exports::ecs::{Entity, World};
 use cobalt_graphics::{context::Graphics, frame::Frame};
 
-use super::FrameData;
+use super::{deferred::exports::Material, FrameData};
 
 pub type CreateRendererClosure =
     fn(&Graphics, (u32, u32)) -> Result<Box<dyn Renderer>, RendererError>;

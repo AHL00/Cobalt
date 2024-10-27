@@ -1,5 +1,10 @@
+use cobalt_assets::{asset::Asset, server::AssetServer};
+use cobalt_ecs::exports::Component;
 use cobalt_graphics::context::Graphics;
-use crate::{components::transform::Transform, types::aabb::AABB};
+use serde::{Deserialize, Serialize};
+use crate::{components::transform::Transform, types::{aabb::AABB, either::Either, resource::Resource}};
+
+use super::deferred::exports::Material;
 
 pub mod mesh;
 pub mod plane;
@@ -12,7 +17,22 @@ pub enum Renderable {
     Mesh(mesh::MeshRenderable),
 }
 
-impl cobalt_ecs::exports::Component for Renderable {}
+impl Component for Renderable {
+    type DeContext<'a> = (&'a Graphics, &'a mut AssetServer);
+    type SerContext<'a> = ();
+
+    fn deserialise<'de, D>(context: Self::DeContext<'de>, deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        todo!()
+    }
+
+    fn serialize<'se, S>(&self, context: Self::SerContext<'se>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        todo!()
+    }
+}
 
 /// A trait implemented by all renderable objects
 /// It allows for easy rendering of all renderable objects without needing to know the actual type.

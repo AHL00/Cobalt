@@ -1,8 +1,10 @@
 use std::fmt::{self, Display, Formatter};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{exports::Component, utils::bit_array::SimdBitArray};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Entity {
     pub(crate) id: u32,
     /// The version is used to check if an entity is still valid.

@@ -1,5 +1,6 @@
 use std::sync::{atomic::AtomicUsize, Arc, Weak};
 
+use cobalt_ecs::exports::Component;
 use parking_lot::RwLock;
 use wgpu::util::DeviceExt;
 
@@ -9,7 +10,7 @@ use crate::{
 };
 use cobalt_assets::{
     asset::AssetFileSystemType,
-    exports::{Asset, AssetTrait},
+    exports::{Asset, AssetTrait}, server::AssetServer,
 };
 use cobalt_graphics::{
     context::Graphics,
@@ -49,6 +50,23 @@ pub struct Material {
     bind_group: Option<wgpu::BindGroup>,
 
     graphics_weak_ref: Weak<RwLock<Graphics>>,
+}
+
+impl Component for Material {
+    type DeContext<'a> = (&'a Graphics, &'a mut AssetServer);
+    type SerContext<'a> = ();
+
+    fn deserialise<'de, D>(context: Self::DeContext<'de>, deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        todo!()
+    }
+
+    fn serialize<'se, S>(&self, context: Self::SerContext<'se>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        todo!()
+    }
 }
 
 impl std::fmt::Debug for Material {

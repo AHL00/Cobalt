@@ -1,12 +1,14 @@
 use cobalt_ecs::component::Component;
+use cobalt_graphics::context::Graphics;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum AspectRatio {
     Value(f32),
     Auto,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Projection {
     Perspective {
         /// Field of view in radians.
@@ -20,6 +22,7 @@ pub enum Projection {
     },
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Camera {
     pub enabled: bool,
     last_aspect_ratio: f32,
@@ -28,7 +31,24 @@ pub struct Camera {
     matrix_dirty: bool,
 }
 
-impl Component for Camera {}
+impl Component for Camera {
+    type SerContext<'a> = ();
+
+    fn serialize<'se, S>(&self, _context: Self::SerContext<'se>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        serde::Serialize::serialize(&self, serializer)
+    }
+
+    type DeContext<'a> = ();
+
+    fn deserialise<'de, D>(_context: Self::DeContext<'de>, deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        let camera: Camera = serde::Deserialize::deserialize(deserializer)?;
+        Ok(camera)
+    }
+}
 
 impl Camera {
     pub fn new(enabled: bool, projection: Projection) -> Self {

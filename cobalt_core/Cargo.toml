@@ -61,6 +61,7 @@ bincode = "1.3.3"
 zstd = "0.13.2"
 
 cobalt_ecs = { path = "../cobalt_ecs" }
+serde_yaml = "0.9.30"
 
 [dev-dependencies]
 simple_logger = "5.0.0"

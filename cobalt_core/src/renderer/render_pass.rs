@@ -1,4 +1,4 @@
-use super::renderer::RendererError;
+use super::{deferred::exports::Material, renderer::RendererError};
 
 /// The RenderPass should not alter FrameData.
 /// They are only mutable to allow for bind groups to be updated.
@@ -14,7 +14,8 @@ pub trait RenderPass<T> {
         &mut self,
         frame: &mut cobalt_graphics::frame::Frame,
         graphics: &cobalt_graphics::context::Graphics,
-        frame_data: &mut crate::renderer::FrameData<crate::renderer::exports::Material>,
+        // TODO: Make this material generic
+        frame_data: &mut crate::renderer::FrameData<Material>,
         extra_data: T,
     ) -> Result<(), RendererError>;
 

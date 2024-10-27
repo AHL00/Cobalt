@@ -14,12 +14,51 @@ static RESOURCE_ID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32:
 /// It is thread safe and can be shared across threads. It implements `Component` so it can be inserted into the World.
 /// It also implements `From<Asset<T>>`.
 /// Provides a blanket implementation for `ResourceTrait` for all types that implement `Sized + Send + Sync + 'static`.
+/// 
+/// Is serializable and deserializable if the type `T` is serializable and deserializable.
 pub struct Resource<T: ResourceTrait> {
     pub(crate) id: u32,
     data: Arc<RwLock<T>>,
 }
 
-impl<T> Component for Resource<T> where T: ResourceTrait {}
+impl<T: serde::Serialize + ResourceTrait> serde::Serialize for Resource<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        self.data.read().serialize(serializer)
+    }
+}
+
+
+// TODO: Currently, resources are serialised multiple times and then loaded
+// multiple times. This is inefficient and should be fixed.
+// We can use a ResourceServer to keep track of what resources have been loaded
+// and clone instead of making multiple copies.
+impl<'de, T: serde::Deserialize<'de> + ResourceTrait> serde::Deserialize<'de> for Resource<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        Ok(Self::new(T::deserialize(deserializer)?))
+    }
+}
+
+impl<T> Component for Resource<T>
+where T: ResourceTrait + Component {
+    type DeContext<'a> = T::DeContext<'a>;
+    type SerContext<'a> = T::SerContext<'a>;
+
+    fn deserialise<'de, D>(context: Self::DeContext<'de>, deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        Ok(Self::new(T::deserialise(context, deserializer)?))
+    }
+
+    fn serialize<'se, S>(&self, context: Self::SerContext<'se>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        self.data.read().serialize(context, serializer)
+    }
+}
 
 unsafe impl<T: ResourceTrait> Send for Resource<T> {}
 unsafe impl<T: ResourceTrait> Sync for Resource<T> {}

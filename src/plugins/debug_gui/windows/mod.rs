@@ -3,6 +3,7 @@ use cobalt_core::stats::Stats;
 mod assets;
 mod heirarchy;
 mod stats;
+mod scene_serde;
 
 /// Persistent data used to store debug menu state.
 pub struct DebugMenu {
@@ -12,6 +13,8 @@ pub struct DebugMenu {
     assets: assets::AssetsPanel,
     show_heirarchy: bool,
     heirarchy: heirarchy::HeirarchyPanel,
+    show_scene_serde: bool,
+    scene_serde: scene_serde::SerdePanel,
 }
 
 impl DebugMenu {
@@ -23,6 +26,8 @@ impl DebugMenu {
             assets: assets::AssetsPanel::new(),
             show_heirarchy: false,
             heirarchy: heirarchy::HeirarchyPanel::new(),
+            show_scene_serde: false,
+            scene_serde: scene_serde::SerdePanel::new(),
         }
     }
 
@@ -42,6 +47,7 @@ impl DebugMenu {
                     ui.checkbox(&mut self.show_stats, "Stats");
                     ui.checkbox(&mut self.show_assets, "Assets");
                     ui.checkbox(&mut self.show_heirarchy, "Heirarchy");
+                    ui.checkbox(&mut self.show_scene_serde, "Scene Serde");
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -70,6 +76,10 @@ impl DebugMenu {
 
         if self.show_heirarchy {
             self.heirarchy.show(egui_ctx, engine);
+        }
+
+        if self.show_scene_serde {
+            self.scene_serde.show(egui_ctx, engine);
         }
     }
 }

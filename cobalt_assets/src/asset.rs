@@ -1,7 +1,7 @@
 
 use cobalt_ecs::exports::Component;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use serde::Serialize;
+use serde::{de::DeserializeSeed, Serialize};
 use std::{
     any::Any,
     fmt::{Debug, Formatter},
@@ -135,7 +135,31 @@ impl<T: AssetTrait> PartialEq for Asset<T> {
     }
 }
 
-impl<T: AssetTrait> Component for Asset<T> {}
+impl<T: AssetTrait> Component for Asset<T> {
+    type DeContext<'a> = ();
+    type SerContext<'a> = ();
+
+    fn deserialise<'de, D>(context: Self::DeContext<'de>, deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        todo!()
+    }
+
+    fn serialize<'se, S>(&self, context: Self::DeContext<'se>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        todo!()
+    }
+}
+
+
+impl<'de, T: AssetTrait> serde::Deserialize<'de> for Asset<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        todo!()
+    }
+}
 
 impl<T: AssetTrait> Eq for Asset<T> {}
 
@@ -217,22 +241,6 @@ impl<T: AssetTrait> Asset<T> {
         let ptr = &mut *self.data.write() as *mut T;
 
         &mut *ptr
-    }
-}
-
-impl<T: AssetTrait> Serialize for Asset<T> {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.asset_id.serialize(serializer)
-    }
-}
-
-impl<'de, T: AssetTrait> serde::Deserialize<'de> for Asset<T> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let asset_id = uuid::Uuid::deserialize(deserializer)?;
-
-        log::error!("Attempted to deserialise asset with id: {:?}", asset_id);
-
-        todo!("Implement Asset<T> deserialization from asset_id")
     }
 }
 

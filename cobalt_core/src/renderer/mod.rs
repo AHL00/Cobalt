@@ -33,5 +33,5 @@ pub mod exports {
     // They are also allowed to export any other types they need, but some are required.
 
     #[cfg(feature = "deferred_renderer")]
-    pub use super::deferred::exports::*;
+    pub use super::deferred::exports as deferred;
 }

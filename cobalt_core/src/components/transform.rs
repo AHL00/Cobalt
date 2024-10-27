@@ -5,6 +5,7 @@
 
 use std::fmt::{Debug, Formatter};
 
+use serde::Serialize;
 use ultraviolet::{Mat3, Mat4, Rotor3, Vec3};
 use wgpu::{util::DeviceExt, BindGroupDescriptor};
 
@@ -95,7 +96,64 @@ impl Debug for Transform {
     }
 }
 
-impl Component for Transform {}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct TransformSerdeBuffer {
+    position: Vec3,
+    rotation: Rotor3,
+    scale: Vec3,
+}
+
+impl Serialize for Transform {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        let buffer = TransformSerdeBuffer {
+            position: self.position,
+            rotation: self.rotation,
+            scale: self.scale,
+        };
+
+        serde::Serialize::serialize(&buffer, serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Transform {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        let buffer: TransformSerdeBuffer = serde::Deserialize::deserialize(deserializer)?;
+
+        Ok(Self {
+            position: buffer.position,
+            rotation: buffer.rotation,
+            scale: buffer.scale,
+            model_matrix: Mat4::identity(),
+            normal_matrix: Mat3::identity(),
+            bind_group: None,
+            model_mat_buffer: None,
+            normal_mat_buffer: None,
+            model_dirty: true,
+            buffers_dirty: true,
+        })
+    }
+}
+
+impl Component for Transform {
+    type DeContext<'a> = ();
+    type SerContext<'a> = ();
+
+    fn deserialise<'de, D>(_context: Self::DeContext<'de>, deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        serde::Deserialize::deserialize(deserializer)
+    }
+
+    fn serialize<'se, S>(&self, _context: Self::SerContext<'se>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer {
+        serde::Serialize::serialize(self, serializer)
+    }
+}
 
 impl Transform {
     pub fn new() -> Self {
